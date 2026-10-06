@@ -23,6 +23,8 @@ import type { EditorInit, LiveInfo, MediaInfo, PageStatus, Revision } from '@/ty
 import { Canvas, type Viewport } from './Canvas';
 import { HistoryPanel } from './HistoryPanel';
 import { Inspector } from './Inspector';
+import { LayersPanel } from './LayersPanel';
+import { StructureBar } from './StructureBar';
 import { PageSettings } from './PageSettings';
 
 type Activity = 'idle' | 'saving' | 'publishing' | 'restoring' | 'settings';
@@ -73,7 +75,7 @@ export function Editor({ init }: { init: EditorInit }) {
     const rootChildren = init.draft.document.nodes[init.draft.document.root]?.children ?? [];
     const [selectedId, setSelectedId] = useState<string | null>(rootChildren[0] ?? null);
     const [viewport, setViewport] = useState<Viewport>('desktop');
-    const [tab, setTab] = useState<'inspect' | 'history'>('inspect');
+    const [tab, setTab] = useState<'inspect' | 'layers' | 'history'>('inspect');
     const [conflict, setConflictState] = useState(false);
     const conflictRef = useRef(false);
     const setConflict = useCallback(() => {
@@ -137,20 +139,29 @@ export function Editor({ init }: { init: EditorInit }) {
     const outsideChange = useCallback(() => void renderCanvas(), [renderCanvas]);
 
     const apply = useCallback(
-        (ops: PageOperation[], options: { coalesceKey?: string; fromCanvas?: boolean } = {}) => {
+        (ops: PageOperation[], options: { coalesceKey?: string; fromCanvas?: boolean } = {}): boolean => {
             // While restoring, the draft is about to be replaced: edits would be silently lost.
             const blocked = !canEdit || conflictRef.current || activityRef.current === 'restoring';
-            const outcome = blocked ? null : dispatch(docRef.current, ops, { coalesceKey: options.coalesceKey });
+            const outcome = blocked || ops.length === 0 ? null : dispatch(docRef.current, ops, { coalesceKey: options.coalesceKey });
             if (!outcome?.ok) {
                 if (outcome) setNotice({ tone: 'error', message: "That change isn't valid.", issues: outcome.issues });
                 if (options.fromCanvas) outsideChange(); // put the canvas back in sync
-                return;
+                return false;
             }
             commit(outcome.state);
             // Inline edits are already visible in the canvas; echoing them would move the caret.
             if (!options.fromCanvas) outsideChange();
+            return true;
         },
         [canEdit, commit, outsideChange],
+    );
+
+    /** Structural edits (add, move, remove): one undo step each; then select what the user acted on. */
+    const structure = useCallback(
+        (ops: PageOperation[], select?: string | null) => {
+            if (apply(ops) && select !== undefined) setSelectedId(select);
+        },
+        [apply],
     );
 
     const refreshStatus = useCallback(async () => {
@@ -561,7 +572,7 @@ export function Editor({ init }: { init: EditorInit }) {
                 </section>
                 <aside className="flex w-80 shrink-0 flex-col border-l border-zinc-200 bg-white" aria-label="Sidebar">
                     <div className="flex border-b border-zinc-200 text-sm" role="tablist">
-                        {(['inspect', 'history'] as const).map((t) => (
+                        {(['inspect', 'layers', 'history'] as const).map((t) => (
                             <button
                                 key={t}
                                 type="button"
@@ -570,17 +581,34 @@ export function Editor({ init }: { init: EditorInit }) {
                                 onClick={() => setTab(t)}
                                 className={`flex-1 px-3 py-2 ${tab === t ? 'border-b-2 border-indigo-600 font-medium' : 'text-zinc-500'}`}
                             >
-                                {t === 'inspect' ? 'Properties' : 'History'}
+                                {t === 'inspect' ? 'Properties' : t === 'layers' ? 'Layers' : 'History'}
                             </button>
                         ))}
                     </div>
                     <div className="min-h-0 flex-1 overflow-auto">
-                        {tab === 'inspect' ? (
+                        {tab === 'layers' ? (
+                            <LayersPanel
+                                document={doc.document}
+                                selectedId={selectedId}
+                                canEdit={canEdit && !locked}
+                                onSelect={setSelectedId}
+                                onStructure={structure}
+                            />
+                        ) : tab === 'inspect' ? (
                             <>
                                 {selectedNode && (
                                     <button type="button" onClick={() => setSelectedId(null)} className="px-4 pt-3 text-xs text-indigo-600 hover:underline">
                                         ← Page settings
                                     </button>
+                                )}
+                                {selectedNode && (
+                                    <StructureBar
+                                        document={doc.document}
+                                        node={selectedNode}
+                                        canEdit={canEdit && !locked}
+                                        onSelect={setSelectedId}
+                                        onStructure={structure}
+                                    />
                                 )}
                                 {!selectedNode && (
                                     <PageSettings

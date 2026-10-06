@@ -2,21 +2,21 @@
     "documents": [
         {
             "name": "valid",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
             "issues": [],
             "publishIssues": [],
             "mediaRefs": []
         },
         {
             "name": "valid: defaults omitted",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hi\"}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hi\"}}},\"seo\":{}}",
             "issues": [],
             "publishIssues": [],
             "mediaRefs": []
         },
         {
             "name": "valid: image",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hi\",\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\",\"alt\":\"A phone\"}}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hi\",\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\",\"alt\":\"A phone\"}}}},\"seo\":{}}",
             "issues": [],
             "publishIssues": [],
             "mediaRefs": [
@@ -25,28 +25,28 @@
         },
         {
             "name": "valid: numeric-looking node ids",
-            "document": "{\"schemaVersion\":1,\"root\":\"1000\",\"nodes\":{\"1000\":{\"id\":\"1000\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"2000\"]},\"2000\":{\"id\":\"2000\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\"}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"1000\",\"nodes\":{\"1000\":{\"id\":\"1000\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"2000\"]},\"2000\":{\"id\":\"2000\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\"}}},\"seo\":{}}",
             "issues": [],
             "publishIssues": [],
             "mediaRefs": []
         },
         {
             "name": "valid: schemaVersion written as 1.0",
-            "document": "{\"schemaVersion\":1.0,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1.0,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
             "issues": [],
             "publishIssues": [],
             "mediaRefs": []
         },
         {
             "name": "valid: 80 emoji is 160 UTF-16 units",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀\"}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀\"}}},\"seo\":{}}",
             "issues": [],
             "publishIssues": [],
             "mediaRefs": []
         },
         {
             "name": "invalid: 81 emoji is 162 UTF-16 units",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀\"}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀\"}}},\"seo\":{}}",
             "issues": [
                 {
                     "nodeId": "hero0001",
@@ -59,7 +59,7 @@
         },
         {
             "name": "invalid: heading 161 chars",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}},\"seo\":{}}",
             "issues": [
                 {
                     "nodeId": "hero0001",
@@ -96,7 +96,7 @@
         },
         {
             "name": "invalid: props is a list",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":[],\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":[],\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
             "issues": [
                 {
                     "path": "nodes.root0001.props",
@@ -108,7 +108,7 @@
         },
         {
             "name": "invalid: seo is a list",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":[]}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":[]}",
             "issues": [
                 {
                     "path": "seo",
@@ -132,7 +132,7 @@
         },
         {
             "name": "invalid: unknown document key",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{},\"foo\":1}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{},\"foo\":1}",
             "issues": [
                 {
                     "path": "foo",
@@ -144,7 +144,7 @@
         },
         {
             "name": "invalid: schema version 2",
-            "document": "{\"schemaVersion\":2,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":2,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
             "issues": [
                 {
                     "path": "schemaVersion",
@@ -156,7 +156,7 @@
         },
         {
             "name": "invalid: node version 1.5",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1.5,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1.5,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
             "issues": [
                 {
                     "path": "nodes.hero0001.version",
@@ -168,7 +168,7 @@
         },
         {
             "name": "invalid: unknown prop",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\",\"onclick\":\"alert(1)\"}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\",\"onclick\":\"alert(1)\"}}},\"seo\":{}}",
             "issues": [
                 {
                     "nodeId": "hero0001",
@@ -181,7 +181,7 @@
         },
         {
             "name": "invalid: enum",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\",\"headingLevel\":\"h3\"}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\",\"headingLevel\":\"h3\"}}},\"seo\":{}}",
             "issues": [
                 {
                     "nodeId": "hero0001",
@@ -194,7 +194,7 @@
         },
         {
             "name": "invalid: image uuid",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\",\"image\":{\"assetId\":\"not-a-uuid\",\"alt\":\"\"}}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\",\"image\":{\"assetId\":\"not-a-uuid\",\"alt\":\"\"}}}},\"seo\":{}}",
             "issues": [
                 {
                     "nodeId": "hero0001",
@@ -207,7 +207,7 @@
         },
         {
             "name": "invalid: image without alt",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\",\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\"}}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\",\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\"}}}},\"seo\":{}}",
             "issues": [
                 {
                     "nodeId": "hero0001",
@@ -220,7 +220,7 @@
         },
         {
             "name": "invalid: image empty object",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":{}}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":{}}}},\"seo\":{}}",
             "issues": [
                 {
                     "nodeId": "hero0001",
@@ -238,7 +238,7 @@
         },
         {
             "name": "invalid: image empty list",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":[]}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":[]}}},\"seo\":{}}",
             "issues": [
                 {
                     "nodeId": "hero0001",
@@ -251,7 +251,7 @@
         },
         {
             "name": "invalid: heading missing",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"text\":\"x\"}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"text\":\"x\"}}},\"seo\":{}}",
             "issues": [
                 {
                     "nodeId": "hero0001",
@@ -264,7 +264,7 @@
         },
         {
             "name": "invalid: heading number",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":5}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":5}}},\"seo\":{}}",
             "issues": [
                 {
                     "nodeId": "hero0001",
@@ -277,7 +277,7 @@
         },
         {
             "name": "invalid: hero with children",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null},\"children\":[]}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null},\"children\":[]}},\"seo\":{}}",
             "issues": [
                 {
                     "nodeId": "hero0001",
@@ -289,7 +289,7 @@
         },
         {
             "name": "invalid: page without children",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{}},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{}},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
             "issues": [
                 {
                     "nodeId": "root0001",
@@ -305,7 +305,7 @@
         },
         {
             "name": "invalid: unknown component",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"carousel\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"carousel\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
             "issues": [
                 {
                     "nodeId": "hero0001",
@@ -321,7 +321,7 @@
         },
         {
             "name": "invalid: unsupported component version",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":2,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":2,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
             "issues": [
                 {
                     "nodeId": "hero0001",
@@ -333,7 +333,7 @@
         },
         {
             "name": "invalid: root is not a page",
-            "document": "{\"schemaVersion\":1,\"root\":\"hero0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"hero0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
             "issues": [
                 {
                     "nodeId": "root0001",
@@ -348,7 +348,7 @@
         },
         {
             "name": "invalid: detached node",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
             "issues": [
                 {
                     "nodeId": "hero0001",
@@ -360,7 +360,7 @@
         },
         {
             "name": "invalid: shared child",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\",\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\",\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
             "issues": [
                 {
                     "nodeId": "hero0001",
@@ -372,7 +372,7 @@
         },
         {
             "name": "invalid: missing child",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\",\"gone0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\",\"gone0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
             "issues": [
                 {
                     "nodeId": "gone0001",
@@ -384,7 +384,7 @@
         },
         {
             "name": "invalid: key does not match id",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"other001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"other001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
             "issues": [
                 {
                     "nodeId": "hero0001",
@@ -396,7 +396,7 @@
         },
         {
             "name": "invalid: bad node id key",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[]},\"a b\":{\"id\":\"a b\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\"}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[]},\"a b\":{\"id\":\"a b\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\"}}},\"seo\":{}}",
             "issues": [
                 {
                     "path": "nodes.a b",
@@ -412,7 +412,7 @@
         },
         {
             "name": "invalid: seo types",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{\"title\":5,\"noindex\":\"yes\",\"keywords\":\"x\"}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{\"title\":5,\"noindex\":\"yes\",\"keywords\":\"x\"}}",
             "issues": [
                 {
                     "path": "seo.noindex",
@@ -432,7 +432,7 @@
         },
         {
             "name": "invalid: seo title too long",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{\"title\":\"ttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt\"}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{\"title\":\"ttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt\"}}",
             "issues": [
                 {
                     "path": "seo.title",
@@ -444,7 +444,7 @@
         },
         {
             "name": "invalid: page props not empty",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{\"x\":1},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{\"x\":1},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
             "issues": [
                 {
                     "nodeId": "root0001",
@@ -457,7 +457,7 @@
         },
         {
             "name": "invalid: editor metadata",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null},\"editor\":{\"name\":\"nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\",\"locked\":true}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null},\"editor\":{\"name\":\"nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\",\"locked\":true}}},\"seo\":{}}",
             "issues": [
                 {
                     "path": "nodes.hero0001.editor.name",
@@ -473,7 +473,7 @@
         },
         {
             "name": "invalid: 51 children",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\",\"extra001\",\"extra002\",\"extra003\",\"extra004\",\"extra005\",\"extra006\",\"extra007\",\"extra008\",\"extra009\",\"extra010\",\"extra011\",\"extra012\",\"extra013\",\"extra014\",\"extra015\",\"extra016\",\"extra017\",\"extra018\",\"extra019\",\"extra020\",\"extra021\",\"extra022\",\"extra023\",\"extra024\",\"extra025\",\"extra026\",\"extra027\",\"extra028\",\"extra029\",\"extra030\",\"extra031\",\"extra032\",\"extra033\",\"extra034\",\"extra035\",\"extra036\",\"extra037\",\"extra038\",\"extra039\",\"extra040\",\"extra041\",\"extra042\",\"extra043\",\"extra044\",\"extra045\",\"extra046\",\"extra047\",\"extra048\",\"extra049\",\"extra050\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}},\"extra001\":{\"id\":\"extra001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H1\"}},\"extra002\":{\"id\":\"extra002\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H2\"}},\"extra003\":{\"id\":\"extra003\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H3\"}},\"extra004\":{\"id\":\"extra004\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H4\"}},\"extra005\":{\"id\":\"extra005\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H5\"}},\"extra006\":{\"id\":\"extra006\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H6\"}},\"extra007\":{\"id\":\"extra007\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H7\"}},\"extra008\":{\"id\":\"extra008\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H8\"}},\"extra009\":{\"id\":\"extra009\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H9\"}},\"extra010\":{\"id\":\"extra010\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H10\"}},\"extra011\":{\"id\":\"extra011\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H11\"}},\"extra012\":{\"id\":\"extra012\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H12\"}},\"extra013\":{\"id\":\"extra013\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H13\"}},\"extra014\":{\"id\":\"extra014\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H14\"}},\"extra015\":{\"id\":\"extra015\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H15\"}},\"extra016\":{\"id\":\"extra016\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H16\"}},\"extra017\":{\"id\":\"extra017\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H17\"}},\"extra018\":{\"id\":\"extra018\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H18\"}},\"extra019\":{\"id\":\"extra019\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H19\"}},\"extra020\":{\"id\":\"extra020\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H20\"}},\"extra021\":{\"id\":\"extra021\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H21\"}},\"extra022\":{\"id\":\"extra022\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H22\"}},\"extra023\":{\"id\":\"extra023\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H23\"}},\"extra024\":{\"id\":\"extra024\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H24\"}},\"extra025\":{\"id\":\"extra025\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H25\"}},\"extra026\":{\"id\":\"extra026\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H26\"}},\"extra027\":{\"id\":\"extra027\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H27\"}},\"extra028\":{\"id\":\"extra028\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H28\"}},\"extra029\":{\"id\":\"extra029\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H29\"}},\"extra030\":{\"id\":\"extra030\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H30\"}},\"extra031\":{\"id\":\"extra031\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H31\"}},\"extra032\":{\"id\":\"extra032\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H32\"}},\"extra033\":{\"id\":\"extra033\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H33\"}},\"extra034\":{\"id\":\"extra034\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H34\"}},\"extra035\":{\"id\":\"extra035\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H35\"}},\"extra036\":{\"id\":\"extra036\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H36\"}},\"extra037\":{\"id\":\"extra037\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H37\"}},\"extra038\":{\"id\":\"extra038\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H38\"}},\"extra039\":{\"id\":\"extra039\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H39\"}},\"extra040\":{\"id\":\"extra040\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H40\"}},\"extra041\":{\"id\":\"extra041\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H41\"}},\"extra042\":{\"id\":\"extra042\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H42\"}},\"extra043\":{\"id\":\"extra043\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H43\"}},\"extra044\":{\"id\":\"extra044\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H44\"}},\"extra045\":{\"id\":\"extra045\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H45\"}},\"extra046\":{\"id\":\"extra046\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H46\"}},\"extra047\":{\"id\":\"extra047\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H47\"}},\"extra048\":{\"id\":\"extra048\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H48\"}},\"extra049\":{\"id\":\"extra049\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H49\"}},\"extra050\":{\"id\":\"extra050\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H50\"}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\",\"extra001\",\"extra002\",\"extra003\",\"extra004\",\"extra005\",\"extra006\",\"extra007\",\"extra008\",\"extra009\",\"extra010\",\"extra011\",\"extra012\",\"extra013\",\"extra014\",\"extra015\",\"extra016\",\"extra017\",\"extra018\",\"extra019\",\"extra020\",\"extra021\",\"extra022\",\"extra023\",\"extra024\",\"extra025\",\"extra026\",\"extra027\",\"extra028\",\"extra029\",\"extra030\",\"extra031\",\"extra032\",\"extra033\",\"extra034\",\"extra035\",\"extra036\",\"extra037\",\"extra038\",\"extra039\",\"extra040\",\"extra041\",\"extra042\",\"extra043\",\"extra044\",\"extra045\",\"extra046\",\"extra047\",\"extra048\",\"extra049\",\"extra050\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}},\"extra001\":{\"id\":\"extra001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H1\"}},\"extra002\":{\"id\":\"extra002\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H2\"}},\"extra003\":{\"id\":\"extra003\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H3\"}},\"extra004\":{\"id\":\"extra004\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H4\"}},\"extra005\":{\"id\":\"extra005\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H5\"}},\"extra006\":{\"id\":\"extra006\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H6\"}},\"extra007\":{\"id\":\"extra007\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H7\"}},\"extra008\":{\"id\":\"extra008\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H8\"}},\"extra009\":{\"id\":\"extra009\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H9\"}},\"extra010\":{\"id\":\"extra010\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H10\"}},\"extra011\":{\"id\":\"extra011\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H11\"}},\"extra012\":{\"id\":\"extra012\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H12\"}},\"extra013\":{\"id\":\"extra013\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H13\"}},\"extra014\":{\"id\":\"extra014\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H14\"}},\"extra015\":{\"id\":\"extra015\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H15\"}},\"extra016\":{\"id\":\"extra016\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H16\"}},\"extra017\":{\"id\":\"extra017\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H17\"}},\"extra018\":{\"id\":\"extra018\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H18\"}},\"extra019\":{\"id\":\"extra019\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H19\"}},\"extra020\":{\"id\":\"extra020\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H20\"}},\"extra021\":{\"id\":\"extra021\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H21\"}},\"extra022\":{\"id\":\"extra022\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H22\"}},\"extra023\":{\"id\":\"extra023\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H23\"}},\"extra024\":{\"id\":\"extra024\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H24\"}},\"extra025\":{\"id\":\"extra025\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H25\"}},\"extra026\":{\"id\":\"extra026\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H26\"}},\"extra027\":{\"id\":\"extra027\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H27\"}},\"extra028\":{\"id\":\"extra028\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H28\"}},\"extra029\":{\"id\":\"extra029\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H29\"}},\"extra030\":{\"id\":\"extra030\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H30\"}},\"extra031\":{\"id\":\"extra031\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H31\"}},\"extra032\":{\"id\":\"extra032\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H32\"}},\"extra033\":{\"id\":\"extra033\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H33\"}},\"extra034\":{\"id\":\"extra034\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H34\"}},\"extra035\":{\"id\":\"extra035\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H35\"}},\"extra036\":{\"id\":\"extra036\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H36\"}},\"extra037\":{\"id\":\"extra037\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H37\"}},\"extra038\":{\"id\":\"extra038\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H38\"}},\"extra039\":{\"id\":\"extra039\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H39\"}},\"extra040\":{\"id\":\"extra040\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H40\"}},\"extra041\":{\"id\":\"extra041\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H41\"}},\"extra042\":{\"id\":\"extra042\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H42\"}},\"extra043\":{\"id\":\"extra043\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H43\"}},\"extra044\":{\"id\":\"extra044\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H44\"}},\"extra045\":{\"id\":\"extra045\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H45\"}},\"extra046\":{\"id\":\"extra046\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H46\"}},\"extra047\":{\"id\":\"extra047\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H47\"}},\"extra048\":{\"id\":\"extra048\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H48\"}},\"extra049\":{\"id\":\"extra049\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H49\"}},\"extra050\":{\"id\":\"extra050\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H50\"}}},\"seo\":{}}",
             "issues": [
                 {
                     "nodeId": "root0001",
@@ -485,7 +485,7 @@
         },
         {
             "name": "publish: blank heading (NBSP)",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"   \"}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"   \"}}},\"seo\":{}}",
             "issues": [],
             "publishIssues": [
                 {
@@ -497,7 +497,7 @@
         },
         {
             "name": "publish: image without alt text",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\",\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\",\"alt\":\" \"}}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\",\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\",\"alt\":\" \"}}}},\"seo\":{}}",
             "issues": [],
             "publishIssues": [
                 {
@@ -511,34 +511,302 @@
         },
         {
             "name": "valid: two heroes",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\",\"hero0002\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}},\"hero0002\":{\"id\":\"hero0002\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Second\"}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\",\"hero0002\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}},\"hero0002\":{\"id\":\"hero0002\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Second\"}}},\"seo\":{}}",
             "issues": [],
             "publishIssues": [],
             "mediaRefs": []
+        },
+        {
+            "name": "invalid: page v1 under editing rules",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "root0001",
+                    "message": "Unsupported page version 1"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "valid: text, image, button and columns",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"text0001\",\"imag0001\",\"butn0001\",\"cols0001\"]},\"text0001\":{\"id\":\"text0001\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"Line one\\nLine two\",\"element\":\"h2\",\"align\":\"center\"}},\"imag0001\":{\"id\":\"imag0001\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\",\"alt\":\"A phone\"},\"caption\":\"Caption\",\"size\":\"medium\"}},\"butn0001\":{\"id\":\"butn0001\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Contact\",\"href\":\"/contact\",\"style\":\"secondary\",\"newTab\":true}},\"cols0001\":{\"id\":\"cols0001\",\"type\":\"columns\",\"version\":1,\"props\":{\"stackOn\":\"tablet\",\"gap\":\"large\"},\"children\":[\"colu0001\",\"colu0002\"]},\"colu0001\":{\"id\":\"colu0001\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"text0002\"]},\"colu0002\":{\"id\":\"colu0002\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"imag0002\",\"butn0002\"]},\"text0002\":{\"id\":\"text0002\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"In a column\"}},\"imag0002\":{\"id\":\"imag0002\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8058\",\"alt\":\"Second\"}}},\"butn0002\":{\"id\":\"butn0002\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"https://example.com/\"}}},\"seo\":{}}",
+            "issues": [],
+            "publishIssues": [],
+            "mediaRefs": [
+                "01890a5d-ac96-774b-bcce-b302099a8057",
+                "01890a5d-ac96-774b-bcce-b302099a8058"
+            ]
+        },
+        {
+            "name": "valid: button links",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"butn0000\",\"butn0001\",\"butn0002\",\"butn0003\",\"butn0004\",\"butn0005\",\"butn0006\",\"butn0007\",\"butn0008\"]},\"butn0000\":{\"id\":\"butn0000\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"/\"}},\"butn0001\":{\"id\":\"butn0001\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"/contact?x=1#y\"}},\"butn0002\":{\"id\":\"butn0002\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"#top\"}},\"butn0003\":{\"id\":\"butn0003\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"?q=1\"}},\"butn0004\":{\"id\":\"butn0004\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"https://example.com/a\"}},\"butn0005\":{\"id\":\"butn0005\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"http://a.b\"}},\"butn0006\":{\"id\":\"butn0006\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"mailto:a@b.c\"}},\"butn0007\":{\"id\":\"butn0007\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"tel:+1(234)5-6\"}},\"butn0008\":{\"id\":\"butn0008\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"\"}}},\"seo\":{}}",
+            "issues": [],
+            "publishIssues": [
+                {
+                    "nodeId": "butn0008",
+                    "message": "Button needs a link"
+                }
+            ],
+            "mediaRefs": []
+        },
+        {
+            "name": "invalid: unsafe button links",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"butn0000\",\"butn0001\",\"butn0002\",\"butn0003\",\"butn0004\",\"butn0005\",\"butn0006\",\"butn0007\",\"butn0008\",\"butn0009\",\"butn0010\"]},\"butn0000\":{\"id\":\"butn0000\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"javascript:alert(1)\"}},\"butn0001\":{\"id\":\"butn0001\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"JavaScript:x\"}},\"butn0002\":{\"id\":\"butn0002\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"//evil.example\"}},\"butn0003\":{\"id\":\"butn0003\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"data:text/html,x\"}},\"butn0004\":{\"id\":\"butn0004\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\" /x\"}},\"butn0005\":{\"id\":\"butn0005\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"/x y\"}},\"butn0006\":{\"id\":\"butn0006\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"https://\"}},\"butn0007\":{\"id\":\"butn0007\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"ftp://x\"}},\"butn0008\":{\"id\":\"butn0008\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"/x y\"}},\"butn0009\":{\"id\":\"butn0009\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"/x﻿y\"}},\"butn0010\":{\"id\":\"butn0010\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"/café\"}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "butn0000",
+                    "path": "href",
+                    "message": "Use a link starting with /, #, https://, http://, mailto: or tel:"
+                },
+                {
+                    "nodeId": "butn0001",
+                    "path": "href",
+                    "message": "Use a link starting with /, #, https://, http://, mailto: or tel:"
+                },
+                {
+                    "nodeId": "butn0002",
+                    "path": "href",
+                    "message": "Use a link starting with /, #, https://, http://, mailto: or tel:"
+                },
+                {
+                    "nodeId": "butn0003",
+                    "path": "href",
+                    "message": "Use a link starting with /, #, https://, http://, mailto: or tel:"
+                },
+                {
+                    "nodeId": "butn0004",
+                    "path": "href",
+                    "message": "Use a link starting with /, #, https://, http://, mailto: or tel:"
+                },
+                {
+                    "nodeId": "butn0005",
+                    "path": "href",
+                    "message": "Use a link starting with /, #, https://, http://, mailto: or tel:"
+                },
+                {
+                    "nodeId": "butn0006",
+                    "path": "href",
+                    "message": "Use a link starting with /, #, https://, http://, mailto: or tel:"
+                },
+                {
+                    "nodeId": "butn0007",
+                    "path": "href",
+                    "message": "Use a link starting with /, #, https://, http://, mailto: or tel:"
+                },
+                {
+                    "nodeId": "butn0008",
+                    "path": "href",
+                    "message": "Use a link starting with /, #, https://, http://, mailto: or tel:"
+                },
+                {
+                    "nodeId": "butn0009",
+                    "path": "href",
+                    "message": "Use a link starting with /, #, https://, http://, mailto: or tel:"
+                },
+                {
+                    "nodeId": "butn0010",
+                    "path": "href",
+                    "message": "Use a link starting with /, #, https://, http://, mailto: or tel:"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: column directly in page",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"text0001\",\"imag0001\",\"butn0001\",\"cols0001\",\"colu0001\"]},\"text0001\":{\"id\":\"text0001\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"Line one\\nLine two\",\"element\":\"h2\",\"align\":\"center\"}},\"imag0001\":{\"id\":\"imag0001\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\",\"alt\":\"A phone\"},\"caption\":\"Caption\",\"size\":\"medium\"}},\"butn0001\":{\"id\":\"butn0001\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Contact\",\"href\":\"/contact\",\"style\":\"secondary\",\"newTab\":true}},\"cols0001\":{\"id\":\"cols0001\",\"type\":\"columns\",\"version\":1,\"props\":{\"stackOn\":\"tablet\",\"gap\":\"large\"},\"children\":[\"colu0001\",\"colu0002\"]},\"colu0001\":{\"id\":\"colu0001\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"text0002\"]},\"colu0002\":{\"id\":\"colu0002\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"imag0002\",\"butn0002\"]},\"text0002\":{\"id\":\"text0002\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"In a column\"}},\"imag0002\":{\"id\":\"imag0002\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8058\",\"alt\":\"Second\"}}},\"butn0002\":{\"id\":\"butn0002\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"https://example.com/\"}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "colu0001",
+                    "message": "Node appears more than once in the tree"
+                },
+                {
+                    "nodeId": "colu0001",
+                    "message": "column is not allowed inside page"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: columns inside a column",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"text0001\",\"imag0001\",\"butn0001\",\"cols0001\"]},\"text0001\":{\"id\":\"text0001\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"Line one\\nLine two\",\"element\":\"h2\",\"align\":\"center\"}},\"imag0001\":{\"id\":\"imag0001\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\",\"alt\":\"A phone\"},\"caption\":\"Caption\",\"size\":\"medium\"}},\"butn0001\":{\"id\":\"butn0001\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Contact\",\"href\":\"/contact\",\"style\":\"secondary\",\"newTab\":true}},\"cols0001\":{\"id\":\"cols0001\",\"type\":\"columns\",\"version\":1,\"props\":{\"stackOn\":\"tablet\",\"gap\":\"large\"},\"children\":[\"colu0001\",\"colu0002\"]},\"colu0001\":{\"id\":\"colu0001\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"text0002\",\"cols0002\"]},\"colu0002\":{\"id\":\"colu0002\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"imag0002\",\"butn0002\"]},\"text0002\":{\"id\":\"text0002\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"In a column\"}},\"imag0002\":{\"id\":\"imag0002\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8058\",\"alt\":\"Second\"}}},\"butn0002\":{\"id\":\"butn0002\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"https://example.com/\"}},\"cols0002\":{\"id\":\"cols0002\",\"type\":\"columns\",\"version\":1,\"props\":{},\"children\":[\"colu0003\"]},\"colu0003\":{\"id\":\"colu0003\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[]}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "cols0002",
+                    "message": "columns is not allowed inside column"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: hero inside a column",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"text0001\",\"imag0001\",\"butn0001\",\"cols0001\"]},\"text0001\":{\"id\":\"text0001\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"Line one\\nLine two\",\"element\":\"h2\",\"align\":\"center\"}},\"imag0001\":{\"id\":\"imag0001\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\",\"alt\":\"A phone\"},\"caption\":\"Caption\",\"size\":\"medium\"}},\"butn0001\":{\"id\":\"butn0001\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Contact\",\"href\":\"/contact\",\"style\":\"secondary\",\"newTab\":true}},\"cols0001\":{\"id\":\"cols0001\",\"type\":\"columns\",\"version\":1,\"props\":{\"stackOn\":\"tablet\",\"gap\":\"large\"},\"children\":[\"colu0001\",\"colu0002\"]},\"colu0001\":{\"id\":\"colu0001\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"text0002\",\"hero0009\"]},\"colu0002\":{\"id\":\"colu0002\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"imag0002\",\"butn0002\"]},\"text0002\":{\"id\":\"text0002\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"In a column\"}},\"imag0002\":{\"id\":\"imag0002\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8058\",\"alt\":\"Second\"}}},\"butn0002\":{\"id\":\"butn0002\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"https://example.com/\"}},\"hero0009\":{\"id\":\"hero0009\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\"}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "hero0009",
+                    "message": "hero is not allowed inside column"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: text inside columns (not a column)",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"text0001\",\"imag0001\",\"butn0001\",\"cols0001\"]},\"text0001\":{\"id\":\"text0001\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"Line one\\nLine two\",\"element\":\"h2\",\"align\":\"center\"}},\"imag0001\":{\"id\":\"imag0001\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\",\"alt\":\"A phone\"},\"caption\":\"Caption\",\"size\":\"medium\"}},\"butn0001\":{\"id\":\"butn0001\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Contact\",\"href\":\"/contact\",\"style\":\"secondary\",\"newTab\":true}},\"cols0001\":{\"id\":\"cols0001\",\"type\":\"columns\",\"version\":1,\"props\":{\"stackOn\":\"tablet\",\"gap\":\"large\"},\"children\":[\"colu0001\",\"colu0002\",\"text0009\"]},\"colu0001\":{\"id\":\"colu0001\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"text0002\"]},\"colu0002\":{\"id\":\"colu0002\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"imag0002\",\"butn0002\"]},\"text0002\":{\"id\":\"text0002\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"In a column\"}},\"imag0002\":{\"id\":\"imag0002\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8058\",\"alt\":\"Second\"}}},\"butn0002\":{\"id\":\"butn0002\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"https://example.com/\"}},\"text0009\":{\"id\":\"text0009\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"x\"}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "text0009",
+                    "message": "text is not allowed inside columns"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: columns without columns",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"text0001\",\"imag0001\",\"butn0001\",\"cols0001\"]},\"text0001\":{\"id\":\"text0001\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"Line one\\nLine two\",\"element\":\"h2\",\"align\":\"center\"}},\"imag0001\":{\"id\":\"imag0001\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\",\"alt\":\"A phone\"},\"caption\":\"Caption\",\"size\":\"medium\"}},\"butn0001\":{\"id\":\"butn0001\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Contact\",\"href\":\"/contact\",\"style\":\"secondary\",\"newTab\":true}},\"cols0001\":{\"id\":\"cols0001\",\"type\":\"columns\",\"version\":1,\"props\":{\"stackOn\":\"tablet\",\"gap\":\"large\"},\"children\":[]}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "cols0001",
+                    "message": "At least 1 children required"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: five columns",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"text0001\",\"imag0001\",\"butn0001\",\"cols0001\"]},\"text0001\":{\"id\":\"text0001\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"Line one\\nLine two\",\"element\":\"h2\",\"align\":\"center\"}},\"imag0001\":{\"id\":\"imag0001\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\",\"alt\":\"A phone\"},\"caption\":\"Caption\",\"size\":\"medium\"}},\"butn0001\":{\"id\":\"butn0001\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Contact\",\"href\":\"/contact\",\"style\":\"secondary\",\"newTab\":true}},\"cols0001\":{\"id\":\"cols0001\",\"type\":\"columns\",\"version\":1,\"props\":{\"stackOn\":\"tablet\",\"gap\":\"large\"},\"children\":[\"colu0001\",\"colu0002\",\"colu0005\",\"colu0006\",\"colu0007\"]},\"colu0001\":{\"id\":\"colu0001\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"text0002\"]},\"colu0002\":{\"id\":\"colu0002\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"imag0002\",\"butn0002\"]},\"text0002\":{\"id\":\"text0002\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"In a column\"}},\"imag0002\":{\"id\":\"imag0002\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8058\",\"alt\":\"Second\"}}},\"butn0002\":{\"id\":\"butn0002\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"https://example.com/\"}},\"colu0005\":{\"id\":\"colu0005\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[]},\"colu0006\":{\"id\":\"colu0006\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[]},\"colu0007\":{\"id\":\"colu0007\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[]}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "cols0001",
+                    "message": "At most 4 children allowed"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: text with children",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"text0001\",\"imag0001\",\"butn0001\",\"cols0001\"]},\"text0001\":{\"id\":\"text0001\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"Line one\\nLine two\",\"element\":\"h2\",\"align\":\"center\"},\"children\":[]},\"imag0001\":{\"id\":\"imag0001\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\",\"alt\":\"A phone\"},\"caption\":\"Caption\",\"size\":\"medium\"}},\"butn0001\":{\"id\":\"butn0001\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Contact\",\"href\":\"/contact\",\"style\":\"secondary\",\"newTab\":true}},\"cols0001\":{\"id\":\"cols0001\",\"type\":\"columns\",\"version\":1,\"props\":{\"stackOn\":\"tablet\",\"gap\":\"large\"},\"children\":[\"colu0001\",\"colu0002\"]},\"colu0001\":{\"id\":\"colu0001\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"text0002\"]},\"colu0002\":{\"id\":\"colu0002\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"imag0002\",\"butn0002\"]},\"text0002\":{\"id\":\"text0002\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"In a column\"}},\"imag0002\":{\"id\":\"imag0002\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8058\",\"alt\":\"Second\"}}},\"butn0002\":{\"id\":\"butn0002\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"https://example.com/\"}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "text0001",
+                    "message": "Text cannot have children"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: new component props",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"text0001\",\"imag0001\",\"butn0001\",\"cols0001\"]},\"text0001\":{\"id\":\"text0001\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":5,\"element\":\"h1\",\"align\":\"left\"}},\"imag0001\":{\"id\":\"imag0001\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"x\"},\"size\":\"huge\"}},\"butn0001\":{\"id\":\"butn0001\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"style\":\"ghost\",\"newTab\":\"yes\"}},\"cols0001\":{\"id\":\"cols0001\",\"type\":\"columns\",\"version\":1,\"props\":{\"stackOn\":\"tablet\",\"gap\":\"large\"},\"children\":[\"colu0001\",\"colu0002\"]},\"colu0001\":{\"id\":\"colu0001\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"text0002\"]},\"colu0002\":{\"id\":\"colu0002\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"imag0002\",\"butn0002\"]},\"text0002\":{\"id\":\"text0002\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"In a column\"}},\"imag0002\":{\"id\":\"imag0002\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8058\",\"alt\":\"Second\"}}},\"butn0002\":{\"id\":\"butn0002\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"https://example.com/\"}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "butn0001",
+                    "path": "newTab",
+                    "message": "Expected a boolean"
+                },
+                {
+                    "nodeId": "text0001",
+                    "path": "text",
+                    "message": "Expected a string"
+                },
+                {
+                    "nodeId": "imag0001",
+                    "path": "size",
+                    "message": "Expected one of: full, medium, small"
+                },
+                {
+                    "nodeId": "text0001",
+                    "path": "element",
+                    "message": "Expected one of: p, h2, h3"
+                },
+                {
+                    "nodeId": "butn0001",
+                    "path": "style",
+                    "message": "Expected one of: primary, secondary"
+                },
+                {
+                    "nodeId": "text0001",
+                    "path": "align",
+                    "message": "Expected one of: start, center"
+                },
+                {
+                    "nodeId": "imag0001",
+                    "path": "image.assetId",
+                    "message": "Invalid UUID"
+                },
+                {
+                    "nodeId": "imag0001",
+                    "path": "image.alt",
+                    "message": "Required"
+                },
+                {
+                    "nodeId": "butn0001",
+                    "path": "label",
+                    "message": "Too long: at most 80 characters"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "publish: empty blocks",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"text0001\",\"imag0001\",\"butn0001\",\"cols0001\"]},\"text0001\":{\"id\":\"text0001\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"  \"}},\"imag0001\":{\"id\":\"imag0001\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":null}},\"butn0001\":{\"id\":\"butn0001\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\" \",\"href\":\"\"}},\"cols0001\":{\"id\":\"cols0001\",\"type\":\"columns\",\"version\":1,\"props\":{\"stackOn\":\"tablet\",\"gap\":\"large\"},\"children\":[\"colu0001\",\"colu0002\"]},\"colu0001\":{\"id\":\"colu0001\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"text0002\"]},\"colu0002\":{\"id\":\"colu0002\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"imag0002\",\"butn0002\"]},\"text0002\":{\"id\":\"text0002\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"In a column\"}},\"imag0002\":{\"id\":\"imag0002\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\",\"alt\":\"\"}}},\"butn0002\":{\"id\":\"butn0002\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"https://example.com/\"}}},\"seo\":{}}",
+            "issues": [],
+            "publishIssues": [
+                {
+                    "nodeId": "butn0001",
+                    "message": "Button needs a label"
+                },
+                {
+                    "nodeId": "butn0001",
+                    "message": "Button needs a link"
+                },
+                {
+                    "nodeId": "imag0001",
+                    "message": "Image block has no image"
+                },
+                {
+                    "nodeId": "imag0002",
+                    "message": "Image needs alternative text"
+                },
+                {
+                    "nodeId": "text0001",
+                    "message": "Text block is empty"
+                }
+            ],
+            "mediaRefs": [
+                "01890a5d-ac96-774b-bcce-b302099a8057"
+            ]
         }
     ],
     "operations": [
         {
             "name": "updateProps",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
             "operations": "[{\"op\":\"updateProps\",\"nodeId\":\"hero0001\",\"set\":{\"heading\":\"New\",\"text\":\"Added\"}}]",
-            "result": "{\"nodes\":{\"hero0001\":{\"id\":\"hero0001\",\"props\":{\"heading\":\"New\",\"headingLevel\":\"h1\",\"image\":null,\"text\":\"Added\"},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":1}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
+            "result": "{\"nodes\":{\"hero0001\":{\"id\":\"hero0001\",\"props\":{\"heading\":\"New\",\"headingLevel\":\"h1\",\"image\":null,\"text\":\"Added\"},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":2}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
             "error": null,
             "issues": []
         },
         {
             "name": "updateProps unset",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
             "operations": "[{\"op\":\"updateProps\",\"nodeId\":\"hero0001\",\"set\":{},\"unset\":[\"text\"]}]",
-            "result": "{\"nodes\":{\"hero0001\":{\"id\":\"hero0001\",\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"image\":null},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":1}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
+            "result": "{\"nodes\":{\"hero0001\":{\"id\":\"hero0001\",\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"image\":null},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":2}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
             "error": null,
             "issues": []
         },
         {
             "name": "updateProps unset everything",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\"}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\"}}},\"seo\":{}}",
             "operations": "[{\"op\":\"updateProps\",\"nodeId\":\"hero0001\",\"set\":{},\"unset\":[\"heading\"]}]",
-            "result": "{\"nodes\":{\"hero0001\":{\"id\":\"hero0001\",\"props\":{},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":1}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
+            "result": "{\"nodes\":{\"hero0001\":{\"id\":\"hero0001\",\"props\":{},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":2}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
             "error": null,
             "issues": [
                 {
@@ -550,31 +818,31 @@
         },
         {
             "name": "updateSeo",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{\"title\":\"Old\"}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{\"title\":\"Old\"}}",
             "operations": "[{\"op\":\"updateSeo\",\"set\":{\"description\":\"Desc\"},\"unset\":[\"title\"]}]",
-            "result": "{\"nodes\":{\"hero0001\":{\"id\":\"hero0001\",\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"image\":null,\"text\":\"\"},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":1}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{\"description\":\"Desc\"}}",
+            "result": "{\"nodes\":{\"hero0001\":{\"id\":\"hero0001\",\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"image\":null,\"text\":\"\"},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":2}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{\"description\":\"Desc\"}}",
             "error": null,
             "issues": []
         },
         {
             "name": "updateSeo to empty",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{\"title\":\"Old\"}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{\"title\":\"Old\"}}",
             "operations": "[{\"op\":\"updateSeo\",\"set\":{},\"unset\":[\"title\"]}]",
-            "result": "{\"nodes\":{\"hero0001\":{\"id\":\"hero0001\",\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"image\":null,\"text\":\"\"},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":1}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
+            "result": "{\"nodes\":{\"hero0001\":{\"id\":\"hero0001\",\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"image\":null,\"text\":\"\"},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":2}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
             "error": null,
             "issues": []
         },
         {
             "name": "insertNode",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
             "operations": "[{\"op\":\"insertNode\",\"parentId\":\"root0001\",\"index\":1,\"nodes\":[{\"id\":\"newh0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"N\"}}]}]",
-            "result": "{\"nodes\":{\"hero0001\":{\"id\":\"hero0001\",\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"image\":null,\"text\":\"\"},\"type\":\"hero\",\"version\":1},\"newh0001\":{\"id\":\"newh0001\",\"props\":{\"heading\":\"N\"},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0001\",\"newh0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":1}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
+            "result": "{\"nodes\":{\"hero0001\":{\"id\":\"hero0001\",\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"image\":null,\"text\":\"\"},\"type\":\"hero\",\"version\":1},\"newh0001\":{\"id\":\"newh0001\",\"props\":{\"heading\":\"N\"},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0001\",\"newh0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":2}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
             "error": null,
             "issues": []
         },
         {
             "name": "insertNode duplicate id",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
             "operations": "[{\"op\":\"insertNode\",\"parentId\":\"root0001\",\"index\":0,\"nodes\":[{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{}}]}]",
             "result": null,
             "error": "Node hero0001 already exists",
@@ -582,7 +850,7 @@
         },
         {
             "name": "insertNode index out of range",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
             "operations": "[{\"op\":\"insertNode\",\"parentId\":\"root0001\",\"index\":5,\"nodes\":[{\"id\":\"newh0001\",\"type\":\"hero\",\"version\":1,\"props\":{}}]}]",
             "result": null,
             "error": "Insert index out of range",
@@ -590,7 +858,7 @@
         },
         {
             "name": "insertNode into a component without children",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
             "operations": "[{\"op\":\"insertNode\",\"parentId\":\"hero0001\",\"index\":0,\"nodes\":[{\"id\":\"newh0001\",\"type\":\"hero\",\"version\":1,\"props\":{}}]}]",
             "result": null,
             "error": "Node hero0001 cannot have children",
@@ -598,15 +866,15 @@
         },
         {
             "name": "removeNode",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\",\"hero0002\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}},\"hero0002\":{\"id\":\"hero0002\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Second\"}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\",\"hero0002\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}},\"hero0002\":{\"id\":\"hero0002\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Second\"}}},\"seo\":{}}",
             "operations": "[{\"op\":\"removeNode\",\"nodeId\":\"hero0001\"}]",
-            "result": "{\"nodes\":{\"hero0002\":{\"id\":\"hero0002\",\"props\":{\"heading\":\"Second\"},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0002\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":1}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
+            "result": "{\"nodes\":{\"hero0002\":{\"id\":\"hero0002\",\"props\":{\"heading\":\"Second\"},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0002\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":2}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
             "error": null,
             "issues": []
         },
         {
             "name": "removeNode root",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
             "operations": "[{\"op\":\"removeNode\",\"nodeId\":\"root0001\"}]",
             "result": null,
             "error": "The page root cannot be removed",
@@ -614,7 +882,7 @@
         },
         {
             "name": "removeNode missing",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
             "operations": "[{\"op\":\"removeNode\",\"nodeId\":\"missing1\"}]",
             "result": null,
             "error": "Node missing1 does not exist",
@@ -622,15 +890,15 @@
         },
         {
             "name": "moveNode within parent",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\",\"hero0002\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}},\"hero0002\":{\"id\":\"hero0002\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Second\"}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\",\"hero0002\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}},\"hero0002\":{\"id\":\"hero0002\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Second\"}}},\"seo\":{}}",
             "operations": "[{\"op\":\"moveNode\",\"nodeId\":\"hero0001\",\"parentId\":\"root0001\",\"index\":1}]",
-            "result": "{\"nodes\":{\"hero0001\":{\"id\":\"hero0001\",\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"image\":null,\"text\":\"\"},\"type\":\"hero\",\"version\":1},\"hero0002\":{\"id\":\"hero0002\",\"props\":{\"heading\":\"Second\"},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0002\",\"hero0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":1}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
+            "result": "{\"nodes\":{\"hero0001\":{\"id\":\"hero0001\",\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"image\":null,\"text\":\"\"},\"type\":\"hero\",\"version\":1},\"hero0002\":{\"id\":\"hero0002\",\"props\":{\"heading\":\"Second\"},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0002\",\"hero0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":2}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
             "error": null,
             "issues": []
         },
         {
             "name": "moveNode root",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\",\"hero0002\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}},\"hero0002\":{\"id\":\"hero0002\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Second\"}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\",\"hero0002\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}},\"hero0002\":{\"id\":\"hero0002\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Second\"}}},\"seo\":{}}",
             "operations": "[{\"op\":\"moveNode\",\"nodeId\":\"root0001\",\"parentId\":\"root0001\",\"index\":0}]",
             "result": null,
             "error": "The page root cannot be moved",
@@ -638,7 +906,7 @@
         },
         {
             "name": "moveNode out of range",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\",\"hero0002\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}},\"hero0002\":{\"id\":\"hero0002\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Second\"}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\",\"hero0002\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}},\"hero0002\":{\"id\":\"hero0002\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Second\"}}},\"seo\":{}}",
             "operations": "[{\"op\":\"moveNode\",\"nodeId\":\"hero0001\",\"parentId\":\"root0001\",\"index\":2}]",
             "result": null,
             "error": "Move index out of range",
@@ -646,17 +914,62 @@
         },
         {
             "name": "sequence",
-            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\",\"hero0002\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}},\"hero0002\":{\"id\":\"hero0002\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Second\"}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\",\"hero0002\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}},\"hero0002\":{\"id\":\"hero0002\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Second\"}}},\"seo\":{}}",
             "operations": "[{\"op\":\"updateProps\",\"nodeId\":\"hero0002\",\"set\":{\"heading\":\"1\"}},{\"op\":\"moveNode\",\"nodeId\":\"hero0002\",\"parentId\":\"root0001\",\"index\":0},{\"op\":\"removeNode\",\"nodeId\":\"hero0001\"},{\"op\":\"updateSeo\",\"set\":{\"noindex\":true}}]",
-            "result": "{\"nodes\":{\"hero0002\":{\"id\":\"hero0002\",\"props\":{\"heading\":\"1\"},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0002\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":1}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{\"noindex\":true}}",
+            "result": "{\"nodes\":{\"hero0002\":{\"id\":\"hero0002\",\"props\":{\"heading\":\"1\"},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0002\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":2}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{\"noindex\":true}}",
+            "error": null,
+            "issues": []
+        },
+        {
+            "name": "insert columns subtree",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "operations": "[{\"op\":\"insertNode\",\"parentId\":\"root0001\",\"index\":1,\"nodes\":[{\"id\":\"cols0009\",\"type\":\"columns\",\"version\":1,\"props\":{},\"children\":[\"colu0009\",\"colu0010\"]},{\"id\":\"colu0009\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[]},{\"id\":\"colu0010\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[]}]}]",
+            "result": "{\"nodes\":{\"cols0009\":{\"children\":[\"colu0009\",\"colu0010\"],\"id\":\"cols0009\",\"props\":{},\"type\":\"columns\",\"version\":1},\"colu0009\":{\"children\":[],\"id\":\"colu0009\",\"props\":{},\"type\":\"column\",\"version\":1},\"colu0010\":{\"children\":[],\"id\":\"colu0010\",\"props\":{},\"type\":\"column\",\"version\":1},\"hero0001\":{\"id\":\"hero0001\",\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"image\":null,\"text\":\"\"},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0001\",\"cols0009\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":2}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
+            "error": null,
+            "issues": []
+        },
+        {
+            "name": "move text between columns",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"text0001\",\"imag0001\",\"butn0001\",\"cols0001\"]},\"text0001\":{\"id\":\"text0001\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"Line one\\nLine two\",\"element\":\"h2\",\"align\":\"center\"}},\"imag0001\":{\"id\":\"imag0001\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\",\"alt\":\"A phone\"},\"caption\":\"Caption\",\"size\":\"medium\"}},\"butn0001\":{\"id\":\"butn0001\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Contact\",\"href\":\"/contact\",\"style\":\"secondary\",\"newTab\":true}},\"cols0001\":{\"id\":\"cols0001\",\"type\":\"columns\",\"version\":1,\"props\":{\"stackOn\":\"tablet\",\"gap\":\"large\"},\"children\":[\"colu0001\",\"colu0002\"]},\"colu0001\":{\"id\":\"colu0001\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"text0002\"]},\"colu0002\":{\"id\":\"colu0002\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"imag0002\",\"butn0002\"]},\"text0002\":{\"id\":\"text0002\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"In a column\"}},\"imag0002\":{\"id\":\"imag0002\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8058\",\"alt\":\"Second\"}}},\"butn0002\":{\"id\":\"butn0002\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"https://example.com/\"}}},\"seo\":{}}",
+            "operations": "[{\"op\":\"moveNode\",\"nodeId\":\"text0002\",\"parentId\":\"colu0001\",\"index\":0}]",
+            "result": "{\"nodes\":{\"butn0001\":{\"id\":\"butn0001\",\"props\":{\"href\":\"/contact\",\"label\":\"Contact\",\"newTab\":true,\"style\":\"secondary\"},\"type\":\"button\",\"version\":1},\"butn0002\":{\"id\":\"butn0002\",\"props\":{\"href\":\"https://example.com/\",\"label\":\"Go\"},\"type\":\"button\",\"version\":1},\"cols0001\":{\"children\":[\"colu0001\",\"colu0002\"],\"id\":\"cols0001\",\"props\":{\"gap\":\"large\",\"stackOn\":\"tablet\"},\"type\":\"columns\",\"version\":1},\"colu0001\":{\"children\":[\"text0002\"],\"id\":\"colu0001\",\"props\":{},\"type\":\"column\",\"version\":1},\"colu0002\":{\"children\":[\"imag0002\",\"butn0002\"],\"id\":\"colu0002\",\"props\":{},\"type\":\"column\",\"version\":1},\"imag0001\":{\"id\":\"imag0001\",\"props\":{\"caption\":\"Caption\",\"image\":{\"alt\":\"A phone\",\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\"},\"size\":\"medium\"},\"type\":\"image\",\"version\":1},\"imag0002\":{\"id\":\"imag0002\",\"props\":{\"image\":{\"alt\":\"Second\",\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8058\"}},\"type\":\"image\",\"version\":1},\"root0001\":{\"children\":[\"text0001\",\"imag0001\",\"butn0001\",\"cols0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":2},\"text0001\":{\"id\":\"text0001\",\"props\":{\"align\":\"center\",\"element\":\"h2\",\"text\":\"Line one\\nLine two\"},\"type\":\"text\",\"version\":1},\"text0002\":{\"id\":\"text0002\",\"props\":{\"text\":\"In a column\"},\"type\":\"text\",\"version\":1}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
+            "error": null,
+            "issues": []
+        },
+        {
+            "name": "move a column into a column",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"text0001\",\"imag0001\",\"butn0001\",\"cols0001\"]},\"text0001\":{\"id\":\"text0001\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"Line one\\nLine two\",\"element\":\"h2\",\"align\":\"center\"}},\"imag0001\":{\"id\":\"imag0001\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\",\"alt\":\"A phone\"},\"caption\":\"Caption\",\"size\":\"medium\"}},\"butn0001\":{\"id\":\"butn0001\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Contact\",\"href\":\"/contact\",\"style\":\"secondary\",\"newTab\":true}},\"cols0001\":{\"id\":\"cols0001\",\"type\":\"columns\",\"version\":1,\"props\":{\"stackOn\":\"tablet\",\"gap\":\"large\"},\"children\":[\"colu0001\",\"colu0002\"]},\"colu0001\":{\"id\":\"colu0001\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"text0002\"]},\"colu0002\":{\"id\":\"colu0002\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"imag0002\",\"butn0002\"]},\"text0002\":{\"id\":\"text0002\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"In a column\"}},\"imag0002\":{\"id\":\"imag0002\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8058\",\"alt\":\"Second\"}}},\"butn0002\":{\"id\":\"butn0002\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"https://example.com/\"}}},\"seo\":{}}",
+            "operations": "[{\"op\":\"moveNode\",\"nodeId\":\"colu0002\",\"parentId\":\"colu0001\",\"index\":0}]",
+            "result": "{\"nodes\":{\"butn0001\":{\"id\":\"butn0001\",\"props\":{\"href\":\"/contact\",\"label\":\"Contact\",\"newTab\":true,\"style\":\"secondary\"},\"type\":\"button\",\"version\":1},\"butn0002\":{\"id\":\"butn0002\",\"props\":{\"href\":\"https://example.com/\",\"label\":\"Go\"},\"type\":\"button\",\"version\":1},\"cols0001\":{\"children\":[\"colu0001\"],\"id\":\"cols0001\",\"props\":{\"gap\":\"large\",\"stackOn\":\"tablet\"},\"type\":\"columns\",\"version\":1},\"colu0001\":{\"children\":[\"colu0002\",\"text0002\"],\"id\":\"colu0001\",\"props\":{},\"type\":\"column\",\"version\":1},\"colu0002\":{\"children\":[\"imag0002\",\"butn0002\"],\"id\":\"colu0002\",\"props\":{},\"type\":\"column\",\"version\":1},\"imag0001\":{\"id\":\"imag0001\",\"props\":{\"caption\":\"Caption\",\"image\":{\"alt\":\"A phone\",\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\"},\"size\":\"medium\"},\"type\":\"image\",\"version\":1},\"imag0002\":{\"id\":\"imag0002\",\"props\":{\"image\":{\"alt\":\"Second\",\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8058\"}},\"type\":\"image\",\"version\":1},\"root0001\":{\"children\":[\"text0001\",\"imag0001\",\"butn0001\",\"cols0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":2},\"text0001\":{\"id\":\"text0001\",\"props\":{\"align\":\"center\",\"element\":\"h2\",\"text\":\"Line one\\nLine two\"},\"type\":\"text\",\"version\":1},\"text0002\":{\"id\":\"text0002\",\"props\":{\"text\":\"In a column\"},\"type\":\"text\",\"version\":1}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
+            "error": null,
+            "issues": [
+                {
+                    "nodeId": "colu0002",
+                    "message": "column is not allowed inside column"
+                }
+            ]
+        },
+        {
+            "name": "move columns into its own column",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"text0001\",\"imag0001\",\"butn0001\",\"cols0001\"]},\"text0001\":{\"id\":\"text0001\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"Line one\\nLine two\",\"element\":\"h2\",\"align\":\"center\"}},\"imag0001\":{\"id\":\"imag0001\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\",\"alt\":\"A phone\"},\"caption\":\"Caption\",\"size\":\"medium\"}},\"butn0001\":{\"id\":\"butn0001\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Contact\",\"href\":\"/contact\",\"style\":\"secondary\",\"newTab\":true}},\"cols0001\":{\"id\":\"cols0001\",\"type\":\"columns\",\"version\":1,\"props\":{\"stackOn\":\"tablet\",\"gap\":\"large\"},\"children\":[\"colu0001\",\"colu0002\"]},\"colu0001\":{\"id\":\"colu0001\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"text0002\"]},\"colu0002\":{\"id\":\"colu0002\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"imag0002\",\"butn0002\"]},\"text0002\":{\"id\":\"text0002\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"In a column\"}},\"imag0002\":{\"id\":\"imag0002\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8058\",\"alt\":\"Second\"}}},\"butn0002\":{\"id\":\"butn0002\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"https://example.com/\"}}},\"seo\":{}}",
+            "operations": "[{\"op\":\"moveNode\",\"nodeId\":\"cols0001\",\"parentId\":\"colu0001\",\"index\":0}]",
+            "result": null,
+            "error": "A node cannot be moved into itself",
+            "issues": null
+        },
+        {
+            "name": "remove columns with content",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"text0001\",\"imag0001\",\"butn0001\",\"cols0001\"]},\"text0001\":{\"id\":\"text0001\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"Line one\\nLine two\",\"element\":\"h2\",\"align\":\"center\"}},\"imag0001\":{\"id\":\"imag0001\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\",\"alt\":\"A phone\"},\"caption\":\"Caption\",\"size\":\"medium\"}},\"butn0001\":{\"id\":\"butn0001\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Contact\",\"href\":\"/contact\",\"style\":\"secondary\",\"newTab\":true}},\"cols0001\":{\"id\":\"cols0001\",\"type\":\"columns\",\"version\":1,\"props\":{\"stackOn\":\"tablet\",\"gap\":\"large\"},\"children\":[\"colu0001\",\"colu0002\"]},\"colu0001\":{\"id\":\"colu0001\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"text0002\"]},\"colu0002\":{\"id\":\"colu0002\",\"type\":\"column\",\"version\":1,\"props\":{},\"children\":[\"imag0002\",\"butn0002\"]},\"text0002\":{\"id\":\"text0002\",\"type\":\"text\",\"version\":1,\"props\":{\"text\":\"In a column\"}},\"imag0002\":{\"id\":\"imag0002\",\"type\":\"image\",\"version\":1,\"props\":{\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8058\",\"alt\":\"Second\"}}},\"butn0002\":{\"id\":\"butn0002\",\"type\":\"button\",\"version\":1,\"props\":{\"label\":\"Go\",\"href\":\"https://example.com/\"}}},\"seo\":{}}",
+            "operations": "[{\"op\":\"removeNode\",\"nodeId\":\"cols0001\"}]",
+            "result": "{\"nodes\":{\"butn0001\":{\"id\":\"butn0001\",\"props\":{\"href\":\"/contact\",\"label\":\"Contact\",\"newTab\":true,\"style\":\"secondary\"},\"type\":\"button\",\"version\":1},\"imag0001\":{\"id\":\"imag0001\",\"props\":{\"caption\":\"Caption\",\"image\":{\"alt\":\"A phone\",\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\"},\"size\":\"medium\"},\"type\":\"image\",\"version\":1},\"root0001\":{\"children\":[\"text0001\",\"imag0001\",\"butn0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":2},\"text0001\":{\"id\":\"text0001\",\"props\":{\"align\":\"center\",\"element\":\"h2\",\"text\":\"Line one\\nLine two\"},\"type\":\"text\",\"version\":1}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
             "error": null,
             "issues": []
         },
         {
             "name": "numeric-looking ids",
-            "document": "{\"schemaVersion\":1,\"root\":\"1000\",\"nodes\":{\"1000\":{\"id\":\"1000\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"2000\"]},\"2000\":{\"id\":\"2000\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\"}}},\"seo\":{}}",
+            "document": "{\"schemaVersion\":1,\"root\":\"1000\",\"nodes\":{\"1000\":{\"id\":\"1000\",\"type\":\"page\",\"version\":2,\"props\":{},\"children\":[\"2000\"]},\"2000\":{\"id\":\"2000\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\"}}},\"seo\":{}}",
             "operations": "[{\"op\":\"updateProps\",\"nodeId\":\"2000\",\"set\":{\"heading\":\"y\"}}]",
-            "result": "{\"nodes\":{\"1000\":{\"children\":[\"2000\"],\"id\":\"1000\",\"props\":{},\"type\":\"page\",\"version\":1},\"2000\":{\"id\":\"2000\",\"props\":{\"heading\":\"y\"},\"type\":\"hero\",\"version\":1}},\"root\":\"1000\",\"schemaVersion\":1,\"seo\":{}}",
+            "result": "{\"nodes\":{\"1000\":{\"children\":[\"2000\"],\"id\":\"1000\",\"props\":{},\"type\":\"page\",\"version\":2},\"2000\":{\"id\":\"2000\",\"props\":{\"heading\":\"y\"},\"type\":\"hero\",\"version\":1}},\"root\":\"1000\",\"schemaVersion\":1,\"seo\":{}}",
             "error": null,
             "issues": []
         }

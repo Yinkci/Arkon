@@ -1,0 +1,18 @@
+{
+  "type": "button",
+  "version": 1,
+  "label": "Button",
+  "children": false,
+  "props": {
+    "label": { "type": "string", "maxLength": 80 },
+    "href": { "type": "link", "maxLength": 2000, "default": "/" },
+    "style": { "type": "enum", "values": ["primary", "secondary"], "default": "primary" },
+    "newTab": { "type": "boolean", "default": false }
+  },
+  "defaultProps": { "label": "Learn more", "href": "/", "style": "primary", "newTab": false },
+  "inlineFields": { "label": { "kind": "line" } },
+  "publishChecks": [
+    { "rule": "notBlank", "prop": "label", "message": "Button needs a label" },
+    { "rule": "notBlank", "prop": "href", "message": "Button needs a link" }
+  ]
+}

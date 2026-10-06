@@ -4,8 +4,6 @@ namespace Tests\Support;
 
 use App\Arkon\Components\ComponentRegistry;
 use App\Arkon\Components\Render\ComponentRenderer;
-use App\Arkon\Components\Render\HeroV1;
-use App\Arkon\Components\Render\PageV1;
 use App\Arkon\Components\Render\RenderContext;
 use App\Arkon\Renderer\Element;
 use Illuminate\Support\Facades\File;
@@ -40,7 +38,8 @@ final class HeroV2 implements ComponentRenderer
         File::put("{$directory}/hero/v2.json", json_encode($v2));
         File::put("{$directory}/hero/v2.css", '.ak-hero2{display:block;padding:3rem}.ak-hero2__title{font-size:3rem}');
 
-        return new ComponentRegistry($directory, ['page@1' => PageV1::class, 'hero@1' => HeroV1::class, 'hero@2' => self::class], [
+        return new ComponentRegistry($directory, [...ComponentRegistry::RENDERERS, 'hero@2' => self::class], [
+            ...ComponentRegistry::migrations(),
             'hero@1' => function (array $props) {
                 $props['body'] = $props['text'] ?? '';
                 unset($props['text']);

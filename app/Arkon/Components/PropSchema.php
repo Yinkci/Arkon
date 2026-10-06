@@ -11,7 +11,8 @@ use InvalidArgumentException;
  * Interpreter for the small prop-schema language used by component manifests.
  * The TypeScript twin is resources/js/arkon/components/props.ts.
  *
- * Field types: string {maxLength, minLength}, enum {values}, boolean, uuid,
+ * Field types: string {maxLength, minLength}, link {maxLength} (a string
+ * matching the shared safe-link pattern), enum {values}, boolean, uuid,
  * object {properties, nullable}. A field without `default` is required. Objects
  * are strict: unknown keys are rejected.
  */
@@ -106,6 +107,22 @@ final class PropSchema
             case 'boolean':
                 if (! is_bool($value)) {
                     $issues[] = ['path' => $at, 'message' => Rules::message('expectedBoolean')];
+                }
+
+                return $value;
+
+            case 'link':
+                // A string limited to safe destinations: relative paths, #fragments, ?queries,
+                // http(s), mailto: and tel:. Never javascript:, data: or protocol-relative //host.
+                if (! is_string($value)) {
+                    $issues[] = ['path' => $at, 'message' => Rules::message('expectedString')];
+
+                    return null;
+                }
+                if (isset($field['maxLength']) && Text::utf16Length($value) > $field['maxLength']) {
+                    $issues[] = ['path' => $at, 'message' => Rules::message('tooLong', ['max' => $field['maxLength']])];
+                } elseif (! Rules::matches('link', $value)) {
+                    $issues[] = ['path' => $at, 'message' => Rules::message('unsafeLink')];
                 }
 
                 return $value;

@@ -38,6 +38,8 @@ export function validatePageDocument(input: unknown): Issue[] {
             if (!('children' in node)) issues.push({ nodeId: node.id, message: message('missingChildren') });
             const max = definition.children.max;
             if (max !== undefined && children.length > max) issues.push({ nodeId: node.id, message: message('tooManyChildren', { max }) });
+            const min = definition.children.min;
+            if (min !== undefined && children.length < min) issues.push({ nodeId: node.id, message: message('tooFewChildren', { min }) });
             for (const childId of children) {
                 const child = doc.nodes[childId];
                 if (child && !definition.children.allow.includes(child.type)) {
@@ -59,7 +61,8 @@ export function publishIssues(doc: PageDocument): Issue[] {
         for (const check of definition.publishChecks) {
             if (check.when !== undefined && !valueAt(props, check.when)) continue;
             const value = valueAt(props, check.prop);
-            if (typeof value !== 'string' || isBlank(value)) issues.push({ nodeId: node.id, message: check.message });
+            const failed = check.rule === 'present' ? value === null || value === undefined : typeof value !== 'string' || isBlank(value);
+            if (failed) issues.push({ nodeId: node.id, message: check.message });
         }
     }
     return issues;

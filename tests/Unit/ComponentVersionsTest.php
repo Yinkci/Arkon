@@ -4,8 +4,6 @@ namespace Tests\Unit;
 
 use App\Arkon\Components\ComponentRegistry;
 use App\Arkon\Components\DocumentValidator;
-use App\Arkon\Components\Render\HeroV1;
-use App\Arkon\Components\Render\PageV1;
 use App\Arkon\Support\Json;
 use Illuminate\Support\Facades\File;
 use Tests\TestCase;
@@ -42,7 +40,8 @@ class ComponentVersionsTest extends TestCase
 
     private function registry(bool $withMigration = true): ComponentRegistry
     {
-        return new ComponentRegistry($this->dir, ['page@1' => PageV1::class, 'hero@1' => HeroV1::class], $withMigration ? [
+        return new ComponentRegistry($this->dir, ComponentRegistry::RENDERERS, $withMigration ? [
+            ...ComponentRegistry::migrations(),
             'hero@1' => function (array $props) {
                 $props['body'] = $props['text'] ?? '';
                 unset($props['text']);
@@ -69,7 +68,8 @@ class ComponentVersionsTest extends TestCase
         $registry = $this->registry();
         $validator = new DocumentValidator($registry);
         $old = $this->v1Document();
-        $this->assertSame([['nodeId' => 'hero0001', 'message' => 'Unsupported hero version 1']], array_slice($validator->validate($old), 0, 1));
+        $this->assertContains(['nodeId' => 'hero0001', 'message' => 'Unsupported hero version 1'], $validator->validate($old));
+        $this->assertContains(['nodeId' => 'root0001', 'message' => 'Unsupported page version 1'], $validator->validate($old));
 
         $migrated = $registry->migrateDocument($old);
         $this->assertSame([], $validator->validate($migrated));

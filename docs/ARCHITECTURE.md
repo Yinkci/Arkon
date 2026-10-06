@@ -59,7 +59,7 @@ every save authoritatively. Both must agree exactly, so:
    with `Support\Json::decode`, which keeps empty objects as `stdClass`, and operations keep that form, so
    `props: {}` and `seo: {}` are never turned into lists and `[]` sent where an object belongs is rejected exactly
    as TypeScript rejects it.
-4. **A shared conformance suite.** `tests/Conformance/fixtures.json` holds 82 tricky cases (documents, operations,
+4. **A shared conformance suite.** `tests/Conformance/fixtures.json` holds 100 tricky cases (documents, operations,
    URL paths) with the PHP results; `php tests/Conformance/build.php` regenerates it. PHPUnit fails if PHP's
    behaviour changes; Vitest (`tests/Conformance/conformance.test.ts`) fails unless TypeScript produces exactly the
    same issues, documents, inverses and messages. Verified by mutation: counting code points instead of UTF-16
@@ -99,6 +99,48 @@ To change a rule: edit the JSON, run `php tests/Conformance/build.php`, review t
   and CSS), and proves: the v1 publication reproduces byte for byte (current-version rendering would fail, migrated
   rendering differs); editing and publishing move forward to v2 with the migrated document stored; a re-render
   keeps v1 markup; legacy and unavailable inputs are reported. It fails if the renderer uses current definitions.
+
+### Components and the visual builder
+
+| Component | Version | Props (defaults) | Children | Publish checks |
+|---|---|---|---|---|
+| `page` | 2 | none (SEO lives on the document) | `hero`, `text`, `image`, `button`, `columns`, max 50 | – |
+| `hero` | 1 | unchanged | – | heading, image alt |
+| `text` | 1 | `text` ("Write something here."), `element` p/h2/h3, `align` start/center | – | not blank |
+| `image` | 1 | `image` {assetId, alt} or null, `caption`, `size` full/medium/small | – | has an image; alt text |
+| `button` | 1 | `label` ("Learn more"), `href` ("/", type `link`), `style` primary/secondary, `newTab` | – | label; link |
+| `columns` | 1 | `stackOn` tablet/mobile (mobile), `gap` small/medium/large (medium) | `column`, min 1, max 4 | – |
+| `column` | 1 | none | `text`, `image`, `button`, max 20 | – |
+
+- **page v2** exists only to allow the new children (v1 allowed `hero` only). Its migration is the identity and it
+  shares page v1's renderer and (empty) CSS, so v1 publications still reproduce byte for byte and drafts move to
+  v2 when opened, like any other version bump. The renderer version did not change: new component styles live in
+  each component's own CSS, never in the base stylesheet.
+- **Nesting is data.** Each manifest's `children` lists allowed types, `max` and (new) `min`. Columns cannot hold
+  Columns or a Hero, a Column can only live in Columns, and the last Column cannot be removed. Both validators
+  report `childNotAllowed`, `tooManyChildren` and `tooFewChildren`; every structural operation is re-validated on
+  the server, so a crafted request cannot create invalid nesting.
+- **Safe links.** The `link` prop type accepts only `/path` (not `//`), `#…`, `?…`, `http(s)://host…`, `mailto:` and
+  `tel:`, as one ASCII-only regular expression in `rules.json` (`patterns.link`), so PHP and JavaScript agree on
+  every character (non-ASCII and invisible characters such as U+00A0 and U+FEFF are rejected; use percent-encoding).
+  The serializer's URL check still refuses `javascript:` and `//` as a second line of defence. A new-tab button gets
+  `rel="noopener noreferrer"`.
+- **Publish rule `present`** (value is not null) joins `notBlank`, for "Image block has no image".
+- **Structure editing** (`resources/js/arkon/editor/structure.ts`) produces only the existing `insertNode`,
+  `moveNode` and `removeNode` operations, so saving, batching, retries, history and inverses (undo/redo) work for
+  structure exactly as for text. It decides where an added component goes (inside a selected container if allowed,
+  else after the selection, else at the end of the page), which drag-and-drop targets are valid (never into its own
+  subtree, a container that does not accept it, or a full one), and index adjustment for moves within a parent.
+- **Editor UI.** The **Layers** tab has the Add palette, the tree with Move up / Move down / Remove buttons for
+  every node (the keyboard and screen-reader path), and HTML5 drag and drop of layers and of palette items that
+  shows only valid drop positions. A toolbar above the canvas offers Select parent / Move / Remove for the
+  selection. Each component has its own inspector; the Button inspector applies a link only once it is safe and
+  shows the error otherwise. Desktop/tablet/mobile previews resize the canvas iframe, so components' real media
+  queries apply (Columns stack below 900px or 600px).
+- **Editor-only output.** Selection outlines, empty-column hints and the empty-image placeholder are canvas CSS or
+  editor-mode markup (`data-ak-*`, `ak-image__empty`); production rendering never emits them, and published pages
+  have no scripts.
+
 ## 5. Data model
 
 Same tables as the reference, with Laravel's plural names: `sites`, `site_domains`, `site_members`, `pages`,
@@ -182,8 +224,9 @@ Ported from the reference (§9), with three stricter rules:
 | PHPUnit `tests/Unit` | renderer, conformance, component versions | exact production markup, escaping, editor annotations; PHP side of the conformance fixtures; inverses restore documents; version migration |
 | PHPUnit `LifecycleRaceTest`, `CreateIntentTest`, `ReadConsistencyTest`, `ComponentHistoryTest` | 19 | forced interleavings of delete with waiting publish/save/restore/title/unpublish/delete (both orders), rename with a waiting save, identical and conflicting creates waiting on the path lock; a rename committed in the middle of editor, page-load and preview reads; create-intent replay after rename/delete and its backfill; historical reproduction across component versions |
 | PHPUnit `tests/Feature` | pages, requests, page management, media, concurrency, upgrade, runtime safety, HTTP | everything in reference `pages`, `requests`, `page-management`, `media`, `media-access`, `consistency`, `upgrade` and `config` tests, plus the HTTP layer (sign-in, rate limit, no sign-up, JSON envelopes, `{}` fidelity, canvas endpoint, public headers, redirects, preview, media with a real session cookie) |
-| Vitest | editor state, operations, conformance, request keys | the reference editor-state tests; TypeScript matches PHP on all 82 fixtures; request keys without `crypto.randomUUID` |
-| Playwright `e2e/` | 14 | **write flows**, at an insecure origin like Herd's (`http://arkon-e2e.test:8100`, mapped to the PHP server inside Chromium only; asserts `isSecureContext === false` and no `randomUUID`) against `arkonlaravel_e2e`: editor flow with save/publish/upload/restore, typing/undo during slow saves, aborted and lost saves, exact publish retries, Ctrl+S during a slow restore, page create/rename/unpublish/delete, editor role limits |
+| Vitest | editor state, operations, conformance, structure, request keys | the reference editor-state tests; TypeScript matches PHP on all 100 fixtures; structure helpers (placement, drop targets, undo/redo of structural changes); request keys without `crypto.randomUUID` |
+| PHPUnit `StructuralEditingTest` | 9 | add/nest/reorder/remove through the save API, the server applying undo inverses, invalid nesting and unsafe links refused, publish of a nested layout as clean semantic HTML with recorded component versions, publish checks of the new components, editor/viewer/outsider permissions, foreign assets, a pre-milestone page v1 publication still reproducing |
+| Playwright `e2e/` | 17 | **builder**: palette, layers, move buttons, drag and drop (incl. refused invalid drops and palette drags), unsafe link refused in the inspector, structural undo/redo, mobile stacking, save/reload/publish clean HTML, structure toolbar, editor role builds but cannot publish; **write flows**, at an insecure origin like Herd's (`http://arkon-e2e.test:8100`, mapped to the PHP server inside Chromium only; asserts `isSecureContext === false` and no `randomUUID`) against `arkonlaravel_e2e`: editor flow with save/publish/upload/restore, typing/undo during slow saves, aborted and lost saves, exact publish retries, Ctrl+S during a slow restore, page create/rename/unpublish/delete, editor role limits |
 | Playwright `e2e-herd/` | 1 | **authenticated, non-persisting** smoke test through Herd itself (dev database): sign-in, dashboard, editor canvas, history, member-only preview, clean public responses, insecure-context conditions, and one write request (create with a reserved URL) that generates a request key and is refused before anything is written. It does not save or publish |
 
 - Integration tests use `arkonlaravel_test` as the runtime role; the schema owner only truncates between tests.
@@ -217,11 +260,12 @@ Ported from the reference (§9), with three stricter rules:
 Implemented: everything in the reference foundation and page-management slice (login, CLI accounts, membership
 and roles, iframe editor with inline hero editing, inspector, upload, preview, undo/redo, history and restore,
 batch saves, safe retries, publish intents, epoch ordering, private media, page create/rename/redirect/unpublish/
-delete, clean public HTML), plus publication inputs and versioned component manifests.
+delete, clean public HTML), plus publication inputs and versioned component manifests, and the visual builder
+(Text, Image, Button, Columns/Column; add, select, edit, remove, reorder by buttons or drag and drop, nesting in
+Columns, responsive previews, structural undo/redo).
 
-Deferred, as in the reference: collections and content entries, AI, dependency tables beyond media and the
-outbox/workers, design-token editing, editable site settings, autosave, drag and drop, site switcher, member
-management UI, row-level security.
+Deferred: collections and content entries, AI, dependency tables beyond media and the outbox/workers,
+design-token editing, editable site settings, autosave, site switcher, member management UI, row-level security.
 
 ### Known limitations
 
@@ -239,3 +283,9 @@ management UI, row-level security.
   reproduced; their stored HTML is authoritative.
 - Published images can stay in browser/CDN caches after removal (reference tradeoff).
 - There is no importer from the reference project's database; the two run side by side on separate databases.
+- Drag and drop works in the Layers panel, not directly on the canvas (selecting on the canvas works). Touch
+  devices use the move buttons, since HTML5 drag and drop has no touch support.
+- Links must be ASCII (percent-encode other characters). An empty button link renders `href="#"` in drafts;
+  publishing requires a link.
+- Columns hold Text, Image and Button only (no Hero or nested Columns); at most 4 columns and 20 blocks per column.
+- Only the first top-level block's image is loaded eagerly with high priority; nested images are lazy-loaded.

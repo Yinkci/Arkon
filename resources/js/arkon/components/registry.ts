@@ -6,12 +6,12 @@ export interface ComponentManifest {
     type: string;
     version: number;
     label: string;
-    children: false | { allow: string[]; max?: number };
+    children: false | { allow: string[]; min?: number; max?: number };
     props: Record<string, Field>;
     defaultProps: Record<string, unknown>;
     inlineFields?: Record<string, { kind: 'line' | 'multiline' }>;
     mediaRefs?: string[];
-    publishChecks?: { rule: 'notBlank'; prop: string; when?: string; message: string }[];
+    publishChecks?: { rule: 'notBlank' | 'present'; prop: string; when?: string; message: string }[];
 }
 
 const modules = import.meta.glob<ComponentManifest>('../../../arkon/components/*/v*.json', { eager: true, import: 'default' });

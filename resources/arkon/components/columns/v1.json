@@ -1,0 +1,11 @@
+{
+  "type": "columns",
+  "version": 1,
+  "label": "Columns",
+  "children": { "allow": ["column"], "min": 1, "max": 4 },
+  "props": {
+    "stackOn": { "type": "enum", "values": ["tablet", "mobile"], "default": "mobile" },
+    "gap": { "type": "enum", "values": ["small", "medium", "large"], "default": "medium" }
+  },
+  "defaultProps": { "stackOn": "mobile", "gap": "medium" }
+}

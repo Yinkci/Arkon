@@ -67,11 +67,14 @@ final class ComponentDefinition
             if (isset($check['when']) && in_array(data_get($props, $check['when']), [null, false, '', 0, 0.0], true)) {
                 continue;
             }
-            if ($check['rule'] === 'notBlank') {
-                $value = data_get($props, $check['prop']);
-                if (! is_string($value) || Text::isBlank($value)) {
-                    $problems[] = $check['message'];
-                }
+            $value = data_get($props, $check['prop']);
+            $failed = match ($check['rule']) {
+                'notBlank' => ! is_string($value) || Text::isBlank($value),
+                'present' => $value === null,
+                default => throw new \InvalidArgumentException("Unknown publish check {$check['rule']}"),
+            };
+            if ($failed) {
+                $problems[] = $check['message'];
             }
         }
 

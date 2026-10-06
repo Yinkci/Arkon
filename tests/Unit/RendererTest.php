@@ -88,6 +88,30 @@ class RendererTest extends TestCase
         $this->assertStringContainsString('data-ak-prop="text"', $this->render(Factories::pageDocument([Factories::heroNode(['text' => ''])]), 'editor')['body']);
     }
 
+    public function test_new_components_keep_editor_affordances_out_of_production(): void
+    {
+        $doc = Json::decode('{"schemaVersion":1,"root":"root0001","nodes":{'
+            .'"root0001":{"id":"root0001","type":"page","version":2,"props":{},"children":["imag0001","cols0001"]},'
+            .'"imag0001":{"id":"imag0001","type":"image","version":1,"props":{}},'
+            .'"cols0001":{"id":"cols0001","type":"columns","version":1,"props":{},"children":["colu0001"]},'
+            .'"colu0001":{"id":"colu0001","type":"column","version":1,"props":{},"children":["butn0001"]},'
+            .'"butn0001":{"id":"butn0001","type":"button","version":1,"props":{"label":"<b>Go</b>","href":"/a?x=1&y=\"2\""}}'
+            .'},"seo":{}}');
+        $render = fn (string $mode) => app(PageRenderer::class)->render($doc, $mode, ['title' => 'T', 'path' => '/'], ['name' => 'S'], [])['body'];
+
+        $production = $render('production');
+        $this->assertSame(
+            '<main><figure class="ak-image ak-image--full"></figure><div class="ak-columns ak-columns--stack-mobile"><div class="ak-column">'
+            .'<p class="ak-action"><a class="ak-button ak-button--primary" href="/a?x=1&amp;y=&quot;2&quot;">&lt;b&gt;Go&lt;/b&gt;</a></p></div></div></main>',
+            $production,
+        );
+        $editor = $render('editor');
+        $this->assertStringContainsString('class="ak-image__empty"', $editor);
+        $this->assertStringContainsString('data-ak-type="column"', $editor);
+        $this->assertStringContainsString('data-ak-prop="label"', $editor);
+        $this->assertStringContainsString('data-ak-prop="caption"', $editor);
+    }
+
     public function test_escapes_user_content(): void
     {
         $doc = Factories::pageDocument([Factories::heroNode(['heading' => '<script>alert("x")</script>', 'text' => 'a & b'])]);

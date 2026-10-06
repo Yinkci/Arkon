@@ -1,0 +1,5 @@
+.ak-text{max-width:var(--ak-container);margin:var(--ak-space-8) auto;padding:0 var(--ak-gutter);white-space:pre-line}
+.ak-text--center{text-align:center}
+h2.ak-text{font-size:clamp(1.75rem,1.4rem + 1.5vw,2.5rem);line-height:1.2;letter-spacing:-.01em}
+h3.ak-text{font-size:clamp(1.25rem,1.1rem + .6vw,1.5rem);line-height:1.3}
+.ak-column>.ak-text{margin:0;padding:0;max-width:none}

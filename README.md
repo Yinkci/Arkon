@@ -60,6 +60,12 @@ Five wrong passwords lock the address for a minute.
 - `http://arkonlaravel.test/admin`: dashboard. `http://arkonlaravel.test/`: the public home page (404 until published).
 - **Pages → Home → Edit.** Click the heading or text in the canvas and type, or use **Properties**. Ctrl+S saves,
   Ctrl+Z / Ctrl+Shift+Z undo and redo outside text fields.
+- **Layers** tab: **+ Text / Image / Button / Columns** adds a block after the selection (or inside a selected
+  column); drag palette items or layers into place, or use the ↑ ↓ ✕ buttons on each layer (the toolbar above
+  the canvas does the same for the selection). Columns hold text, images and buttons; the Columns inspector adds
+  or removes columns and sets gap and when they stack. Undo/redo covers structural changes. Use
+  **desktop / tablet / mobile** to preview breakpoints.
+- Button links must start with `/`, `#`, `https://`, `http://`, `mailto:` or `tel:`; anything else is refused.
 - **Upload image** in Properties, then add alternative text (publishing is blocked without it). Uploads stay private
   (404 to visitors) until a published page uses them; the canvas shows them through short-lived signed URLs.
 - **Save draft** never changes the live page. **Preview** shows the saved draft exactly as it would be published.

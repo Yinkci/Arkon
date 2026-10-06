@@ -1,0 +1,26 @@
+{
+  "type": "image",
+  "version": 1,
+  "label": "Image",
+  "children": false,
+  "props": {
+    "image": {
+      "type": "object",
+      "nullable": true,
+      "default": null,
+      "properties": {
+        "assetId": { "type": "uuid" },
+        "alt": { "type": "string", "maxLength": 300 }
+      }
+    },
+    "caption": { "type": "string", "maxLength": 300, "default": "" },
+    "size": { "type": "enum", "values": ["full", "medium", "small"], "default": "full" }
+  },
+  "defaultProps": { "image": null, "caption": "", "size": "full" },
+  "inlineFields": { "caption": { "kind": "line" } },
+  "mediaRefs": ["image.assetId"],
+  "publishChecks": [
+    { "rule": "present", "prop": "image", "message": "Image block has no image" },
+    { "rule": "notBlank", "prop": "image.alt", "when": "image", "message": "Image needs alternative text" }
+  ]
+}

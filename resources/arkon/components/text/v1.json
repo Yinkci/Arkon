@@ -1,0 +1,14 @@
+{
+  "type": "text",
+  "version": 1,
+  "label": "Text",
+  "children": false,
+  "props": {
+    "text": { "type": "string", "maxLength": 5000 },
+    "element": { "type": "enum", "values": ["p", "h2", "h3"], "default": "p" },
+    "align": { "type": "enum", "values": ["start", "center"], "default": "start" }
+  },
+  "defaultProps": { "text": "Write something here.", "element": "p", "align": "start" },
+  "inlineFields": { "text": { "kind": "multiline" } },
+  "publishChecks": [{ "rule": "notBlank", "prop": "text", "message": "Text block is empty" }]
+}

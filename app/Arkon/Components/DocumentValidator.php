@@ -84,6 +84,10 @@ final class DocumentValidator
                 if ($max !== null && count($children) > $max) {
                     $issues[] = ['nodeId' => $node['id'], 'message' => Rules::message('tooManyChildren', ['max' => $max])];
                 }
+                $min = $definition->children['min'] ?? null;
+                if ($min !== null && count($children) < $min) {
+                    $issues[] = ['nodeId' => $node['id'], 'message' => Rules::message('tooFewChildren', ['min' => $min])];
+                }
                 foreach ($children as $childId) {
                     $child = $nodes[$childId] ?? null;
                     if ($child !== null && ! in_array($child['type'], $definition->children['allow'], true)) {

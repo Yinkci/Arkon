@@ -6,6 +6,7 @@ export type Field =
     | { type: 'enum'; values: string[]; default?: unknown }
     | { type: 'boolean'; default?: unknown }
     | { type: 'uuid'; default?: unknown }
+    | { type: 'link'; maxLength?: number; default?: unknown }
     | { type: 'object'; properties?: Record<string, Field>; nullable?: boolean; default?: unknown };
 
 export interface PropIssue {
@@ -58,6 +59,16 @@ function parseField(field: Field, value: unknown, at: string, issues: PropIssue[
             return value;
         case 'boolean':
             if (typeof value !== 'boolean') issues.push({ path: at, message: message('expectedBoolean') });
+            return value;
+        case 'link':
+            // Safe destinations only (shared pattern): relative, #, ?, http(s), mailto:, tel:.
+            if (typeof value !== 'string') {
+                issues.push({ path: at, message: message('expectedString') });
+                return null;
+            }
+            if (field.maxLength !== undefined && value.length > field.maxLength)
+                issues.push({ path: at, message: message('tooLong', { max: field.maxLength }) });
+            else if (!matches('link', value)) issues.push({ path: at, message: message('unsafeLink') });
             return value;
         case 'uuid':
             if (!matches('uuid', value)) issues.push({ path: at, message: message('invalidUuid') });

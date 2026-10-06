@@ -128,4 +128,8 @@ export const CANVAS_CSS = `
 [data-ak-prop]:empty::before{content:attr(data-ak-placeholder);opacity:.45}
 [contenteditable]{outline:none}
 [data-ak-type]:not([data-ak-type="page"]){cursor:default}
+[data-ak-type="column"]{outline:1px dashed rgba(79,70,229,.25);outline-offset:4px;min-height:3rem}
+[data-ak-type="column"]:empty::before{content:"Empty column: select it, then add text, an image or a button";display:block;padding:1rem;font-size:.875rem;opacity:.5}
+.ak-image__empty{display:block;padding:2rem 1rem;border:2px dashed #d4d4d8;border-radius:1rem;text-align:center}
+.ak-image__empty::before{content:attr(data-ak-placeholder);opacity:.6}
 `;

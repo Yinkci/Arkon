@@ -72,7 +72,7 @@ class ComponentHistoryTest extends DatabaseTestCase
     {
         $v1 = $this->publish(1);
         $stored = $this->publication($v1['publicationId']);
-        $this->assertSame(['hero@1', 'page@1'], json_decode($stored->render_inputs, true)['components']);
+        $this->assertSame(['hero@1', 'page@2'], json_decode($stored->render_inputs, true)['components']);
         $this->assertStringContainsString('ak-hero__heading', $stored->html);
 
         $this->registerHeroV2();
@@ -105,9 +105,9 @@ class ComponentHistoryTest extends DatabaseTestCase
         // Publishing the unsaved, in-memory migration stores the migrated document as its own revision.
         $v2 = $this->publish(1);
         $this->assertNotSame($v1['revisionId'], $v2['revisionId']);
-        $this->assertSame(['hero' => 2, 'page' => 1], $this->versionsIn($v2['revisionId']));
+        $this->assertSame(['hero' => 2, 'page' => 2], $this->versionsIn($v2['revisionId']));
         $this->assertSame('Published with components upgraded to current versions', DB::table('page_revisions')->where('id', $v2['revisionId'])->value('message'));
-        $this->assertSame(['hero' => 1, 'page' => 1], $this->versionsIn($v1['revisionId']), 'history is never rewritten');
+        $this->assertSame(['hero' => 1, 'page' => 2], $this->versionsIn($v1['revisionId']), 'history is never rewritten');
         $html = $this->publication($v2['publicationId'])->html;
         $this->assertStringContainsString('ak-hero2__body', $html);
         $this->assertSame('published', $this->pages()->listPages($this->f['ctx'])[0]['status']);
@@ -115,7 +115,7 @@ class ComponentHistoryTest extends DatabaseTestCase
         // Saving an edit persists v2; both publications still reproduce exactly.
         $saved = $this->pages()->saveDraft($this->f['ctx'], ['pageId' => $this->f['pageId'], 'baseVersion' => 1, 'saveKey' => self::key(),
             'operations' => [['op' => 'updateProps', 'nodeId' => $this->f['heroId'], 'set' => ['body' => 'New body']]]]);
-        $this->assertSame(['hero' => 2, 'page' => 1], $this->versionsIn($saved['revision']['id']));
+        $this->assertSame(['hero' => 2, 'page' => 2], $this->versionsIn($saved['revision']['id']));
         foreach ([$v1, $v2] as $publication) {
             $result = $this->pages()->reproducePublication($this->f['siteId'], $publication['publicationId']);
             $this->assertTrue($result['matches'], $publication['publicationId']);

@@ -1,0 +1,5 @@
+.ak-action{max-width:var(--ak-container);margin:var(--ak-space-8) auto;padding:0 var(--ak-gutter)}
+.ak-button{display:inline-block;padding:.75rem 1.25rem;border-radius:.5rem;font-weight:600;text-decoration:none;border:2px solid var(--ak-color-primary)}
+.ak-button--primary{background:var(--ak-color-primary);color:#fff}
+.ak-button--secondary{background:transparent;color:var(--ak-color-primary)}
+.ak-column>.ak-action{margin:0;padding:0;max-width:none}

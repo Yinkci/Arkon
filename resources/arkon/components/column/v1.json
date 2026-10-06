@@ -1,0 +1,8 @@
+{
+  "type": "column",
+  "version": 1,
+  "label": "Column",
+  "children": { "allow": ["text", "image", "button"], "max": 20 },
+  "props": {},
+  "defaultProps": {}
+}

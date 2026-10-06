@@ -2,9 +2,14 @@
 
 namespace App\Arkon\Components;
 
+use App\Arkon\Components\Render\ButtonV1;
+use App\Arkon\Components\Render\ColumnsV1;
+use App\Arkon\Components\Render\ColumnV1;
 use App\Arkon\Components\Render\ComponentRenderer;
 use App\Arkon\Components\Render\HeroV1;
+use App\Arkon\Components\Render\ImageV1;
 use App\Arkon\Components\Render\PageV1;
+use App\Arkon\Components\Render\TextV1;
 use App\Arkon\Support\Json;
 use Closure;
 use RuntimeException;
@@ -39,12 +44,33 @@ final class ComponentRegistry
         }
     }
 
+    /**
+     * Renderers of every released component version ("type@version"). Never
+     * remove an entry: publications made with it must stay reproducible.
+     */
+    public const RENDERERS = [
+        'page@1' => PageV1::class,
+        // v2 only widens which sections a page may contain; its markup is unchanged.
+        'page@2' => PageV1::class,
+        'hero@1' => HeroV1::class,
+        'text@1' => TextV1::class,
+        'image@1' => ImageV1::class,
+        'button@1' => ButtonV1::class,
+        'columns@1' => ColumnsV1::class,
+        'column@1' => ColumnV1::class,
+    ];
+
+    /** @return array<string, Closure(array): array> "type@fromVersion" → props of version+1 */
+    public static function migrations(): array
+    {
+        return [
+            'page@1' => fn (array $props) => $props,
+        ];
+    }
+
     public static function default(): self
     {
-        return new self(resource_path('arkon/components'), [
-            'page@1' => PageV1::class,
-            'hero@1' => HeroV1::class,
-        ]);
+        return new self(resource_path('arkon/components'), self::RENDERERS, self::migrations());
     }
 
     public function get(string $type, int $version): ?ComponentDefinition
