@@ -95,6 +95,29 @@ describe('moving', () => {
         doc = apply(doc, insertOps({ parentId: l.columns, index: 3 }, createNodes('column')));
         expect(dropPlacement(doc, { type: 'column' }, l.colA, 'after')).toBeNull();
     });
+
+    it('a column moves to another Columns block only if its own block keeps a column', () => {
+        const l = layout();
+        // A second Columns block with two columns, after the first.
+        const second = createNodes('columns');
+        let doc = apply(l.doc, insertOps({ parentId: l.doc.root, index: 2 }, second));
+        const [colC] = doc.nodes[second[0]!.id]!.children!;
+        // From a block with two columns: allowed, and the result is valid.
+        const transfer = dropPlacement(doc, { nodeId: l.colB, type: 'column' }, colC!, 'after');
+        expect(transfer).toEqual({ parentId: second[0]!.id, index: 1 });
+        doc = apply(doc, dropOps({ nodeId: l.colB, type: 'column' }, transfer!));
+        // Now the first block has one column left: it may not give it away, in any position...
+        for (const position of ['before', 'after'] as const) {
+            expect(dropPlacement(doc, { nodeId: l.colA, type: 'column' }, colC!, position)).toBeNull();
+        }
+        // ...but the block itself still moves, and a lone column still reorders within its own block.
+        expect(dropPlacement(doc, { nodeId: l.columns, type: 'columns' }, l.tail, 'after')).toEqual({ parentId: doc.root, index: 3 });
+        const third = apply(doc, insertOps({ parentId: l.columns, index: 1 }, createNodes('column')));
+        expect(dropPlacement(third, { nodeId: l.colA, type: 'column' }, third.nodes[l.columns]!.children![1]!, 'after')).toEqual({
+            parentId: l.columns,
+            index: 1,
+        });
+    });
 });
 
 describe('removing', () => {

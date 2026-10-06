@@ -92,7 +92,7 @@ class RendererTest extends TestCase
     {
         $doc = Json::decode('{"schemaVersion":1,"root":"root0001","nodes":{'
             .'"root0001":{"id":"root0001","type":"page","version":2,"props":{},"children":["imag0001","cols0001"]},'
-            .'"imag0001":{"id":"imag0001","type":"image","version":1,"props":{}},'
+            .'"imag0001":{"id":"imag0001","type":"image","version":2,"props":{}},'
             .'"cols0001":{"id":"cols0001","type":"columns","version":1,"props":{},"children":["colu0001"]},'
             .'"colu0001":{"id":"colu0001","type":"column","version":1,"props":{},"children":["butn0001"]},'
             .'"butn0001":{"id":"butn0001","type":"button","version":1,"props":{"label":"<b>Go</b>","href":"/a?x=1&y=\"2\""}}'

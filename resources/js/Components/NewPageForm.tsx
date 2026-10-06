@@ -3,7 +3,8 @@ import { useId, useRef, useState } from 'react';
 import { slugify } from '@/arkon/schema/paths';
 import { api, newRequestKey } from '@/lib/api';
 
-const field = 'mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200';
+const field =
+    'mt-1 w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-fg outline-none placeholder:text-faint focus:border-accent focus:ring-2 focus:ring-accent-soft';
 
 export function NewPageForm() {
     const [title, setTitle] = useState('');
@@ -38,11 +39,11 @@ export function NewPageForm() {
     }
 
     return (
-        <form onSubmit={onSubmit} className="space-y-3 rounded-lg border border-zinc-200 bg-white p-4" aria-label="New page">
+        <form onSubmit={onSubmit} className="space-y-3 rounded-lg border border-line bg-surface p-4 shadow-hairline" aria-label="New page">
             <h2 className="text-sm font-semibold">New page</h2>
             <div className="grid grid-cols-2 gap-3">
                 <div>
-                    <label htmlFor={ids.title} className="block text-xs font-medium text-zinc-600">
+                    <label htmlFor={ids.title} className="block text-xs font-medium text-muted">
                         Title
                     </label>
                     <input
@@ -58,7 +59,7 @@ export function NewPageForm() {
                     />
                 </div>
                 <div>
-                    <label htmlFor={ids.path} className="block text-xs font-medium text-zinc-600">
+                    <label htmlFor={ids.path} className="block text-xs font-medium text-muted">
                         URL path
                     </label>
                     <input
@@ -76,16 +77,16 @@ export function NewPageForm() {
                 </div>
             </div>
             {error && (
-                <p role="alert" className="text-sm text-red-700">
+                <p role="alert" className="text-sm text-danger">
                     {error}
                 </p>
             )}
             <div className="flex items-center justify-between">
-                <p className="text-xs text-zinc-500">New pages start as unpublished drafts.</p>
+                <p className="text-xs text-muted">New pages start as unpublished drafts.</p>
                 <button
                     type="submit"
                     disabled={pending}
-                    className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-60"
+                    className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg hover:bg-accent-hover disabled:opacity-60"
                 >
                     {pending ? 'Creating…' : 'Create page'}
                 </button>

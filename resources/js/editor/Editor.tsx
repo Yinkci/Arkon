@@ -1,4 +1,4 @@
-import { Link } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Issue } from '@/arkon/rules';
 import type { PageDocument } from '@/arkon/schema/document';
@@ -19,13 +19,14 @@ import {
     type PublishIntent,
 } from '@/arkon/editor/state';
 import { api, newRequestKey, type ApiResult } from '@/lib/api';
-import type { EditorInit, LiveInfo, MediaInfo, PageStatus, Revision } from '@/types';
+import type { EditorInit, LiveInfo, MediaInfo, PageStatus, RecoveryItem, Revision } from '@/types';
 import { Canvas, type Viewport } from './Canvas';
 import { HistoryPanel } from './HistoryPanel';
-import { Inspector } from './Inspector';
+import { Inspector, type UnresolvedField } from './Inspector';
 import { LayersPanel } from './LayersPanel';
 import { StructureBar } from './StructureBar';
 import { PageSettings } from './PageSettings';
+import { RecoveryPanel } from './RecoveryPanel';
 
 type Activity = 'idle' | 'saving' | 'publishing' | 'restoring' | 'settings';
 interface Notice {
@@ -92,9 +93,34 @@ export function Editor({ init }: { init: EditorInit }) {
     const publishing = useRef(false);
     const intentRef = useRef<PublishIntent | null>(null);
 
+    // Field input that can't be applied yet (e.g. a half-typed link). Never in the document,
+    // so saves stay valid; but it is visible work, so it is flagged, guards leaving, and
+    // must be fixed or reverted before Preview and Publish.
+    const [unresolved, setUnresolvedState] = useState<Record<string, UnresolvedField>>({});
+    const unresolvedRef = useRef(unresolved);
+    const replaceUnresolved = useCallback((next: Record<string, UnresolvedField>) => {
+        unresolvedRef.current = next;
+        setUnresolvedState(next);
+    }, []);
+    const setUnresolved = useCallback(
+        (key: string, field: UnresolvedField | null) => {
+            const next = { ...unresolvedRef.current };
+            if (field) next[key] = field;
+            else delete next[key];
+            replaceUnresolved(next);
+        },
+        [replaceUnresolved],
+    );
+    const unresolvedCount = Object.keys(unresolved).length;
+
+    // A draft stored before a rule was tightened opens in recovery: shown as stored, and nothing
+    // else can change, save or publish until each affected value is corrected or its block removed.
+    const [recovery, setRecoveryState] = useState<RecoveryItem[] | null>(init.recovery ?? null);
+    const recoveryRef = useRef(recovery);
+
     const { edit: canEdit, publish: canPublish, upload: canUpload } = init.permissions;
     const unsaved = hasUnsavedChanges(doc);
-    const locked = conflict || activity === 'restoring';
+    const locked = conflict || activity === 'restoring' || recovery !== null;
 
     // ── Canvas: editor-mode HTML from the server's renderer (the one that publishes) ──
     const [canvas, setCanvas] = useState(init.canvas);
@@ -141,7 +167,7 @@ export function Editor({ init }: { init: EditorInit }) {
     const apply = useCallback(
         (ops: PageOperation[], options: { coalesceKey?: string; fromCanvas?: boolean } = {}): boolean => {
             // While restoring, the draft is about to be replaced: edits would be silently lost.
-            const blocked = !canEdit || conflictRef.current || activityRef.current === 'restoring';
+            const blocked = !canEdit || conflictRef.current || activityRef.current === 'restoring' || recoveryRef.current !== null;
             const outcome = blocked || ops.length === 0 ? null : dispatch(docRef.current, ops, { coalesceKey: options.coalesceKey });
             if (!outcome?.ok) {
                 if (outcome) setNotice({ tone: 'error', message: "That change isn't valid.", issues: outcome.issues });
@@ -162,6 +188,24 @@ export function Editor({ init }: { init: EditorInit }) {
             if (apply(ops) && select !== undefined) setSelectedId(select);
         },
         [apply],
+    );
+
+    /** The user's repair: one edit like any other (unsaved until saved), and where history starts. */
+    const applyRepair = useCallback(
+        (ops: PageOperation[]) => {
+            const outcome = dispatch(docRef.current, ops);
+            if (!outcome.ok) {
+                setNotice({ tone: 'error', message: "The repair doesn't make the page valid yet.", issues: outcome.issues });
+                return;
+            }
+            // Undo stops here: undoing would only bring back the links the repair removed.
+            commit({ ...outcome.state, undo: [], redo: [] });
+            recoveryRef.current = null;
+            setRecoveryState(null);
+            outsideChange();
+            setNotice({ tone: 'info', message: 'Repair applied to the draft. Save the draft to keep it; publish when you are ready.' });
+        },
+        [commit, outsideChange],
     );
 
     const refreshStatus = useCallback(async () => {
@@ -185,7 +229,8 @@ export function Editor({ init }: { init: EditorInit }) {
         // Single entry point for every save trigger (button, parent and canvas shortcuts,
         // Preview, Publish). A restore or a title/URL update is about to move the draft
         // version: saving now would race it, so nothing is queued or sent.
-        if (activityRef.current === 'restoring' || activityRef.current === 'settings' || conflictRef.current) return Promise.resolve(null);
+        if (activityRef.current === 'restoring' || activityRef.current === 'settings' || conflictRef.current || recoveryRef.current)
+            return Promise.resolve(null);
         if (savePromise.current) return savePromise.current;
         const run = async (): Promise<number | null> => {
             const started = beginSave(docRef.current, newRequestKey);
@@ -238,14 +283,40 @@ export function Editor({ init }: { init: EditorInit }) {
         return promise;
     }, [pageId, commit, setActivity, setConflict, refreshStatus]);
 
+    // A component removed (or undone away) takes its unresolved input with it.
+    useEffect(() => {
+        const current = unresolvedRef.current;
+        const kept = Object.fromEntries(Object.entries(current).filter(([, field]) => doc.document.nodes[field.nodeId]));
+        if (Object.keys(kept).length !== Object.keys(current).length) replaceUnresolved(kept);
+    }, [doc.document, replaceUnresolved]);
+
+    /** True (and shows the fields) when unresolved input must be fixed or reverted first. */
+    const blockedByUnresolved = useCallback((action: 'publishing' | 'previewing'): boolean => {
+        const fields = Object.values(unresolvedRef.current);
+        if (fields.length === 0) return false;
+        setSelectedId(fields[0]!.nodeId);
+        setTab('inspect');
+        const names = [...new Set(fields.map((f) => f.label))].join(', ');
+        setNotice({
+            tone: 'error',
+            message: `Fix or revert the ${names} before ${action}. The page still has the last valid value.`,
+            issues: fields.map((f) => ({ message: `${f.label} “${f.value}”: ${f.error}` })),
+        });
+        return true;
+    }, []);
+
     const publish = useCallback(async () => {
-        if (publishing.current || activityRef.current === 'restoring') return;
+        if (publishing.current || activityRef.current === 'restoring' || recoveryRef.current) return;
+        if (blockedByUnresolved('publishing')) return;
         publishing.current = true;
         try {
             // Save until nothing is pending (edits may arrive while saving), then publish that exact version.
             let version = await save();
             for (let i = 0; version !== null && hasUnsavedChanges(docRef.current) && i < 3; i++) version = await save();
             if (version === null || hasUnsavedChanges(docRef.current)) return;
+            // Again after awaiting the save: a field may have become unresolved meanwhile. Nothing is
+            // awaited between this check and sending the intent, so it is the last moment that counts.
+            if (blockedByUnresolved('publishing')) return;
 
             // Same page and version as an unconfirmed attempt → same key (a retry); otherwise a new intent.
             const intent = publishIntentFor(intentRef.current ?? loadIntent(pageId), pageId, version, newRequestKey);
@@ -278,7 +349,7 @@ export function Editor({ init }: { init: EditorInit }) {
             publishing.current = false;
             if (activityRef.current === 'publishing') setActivity('idle');
         }
-    }, [pageId, save, setActivity, setConflict, refreshStatus]);
+    }, [pageId, save, setActivity, setConflict, refreshStatus, blockedByUnresolved]);
 
     const restore = useCallback(
         async (revision: Revision) => {
@@ -287,7 +358,8 @@ export function Editor({ init }: { init: EditorInit }) {
                 setNotice({ tone: 'error', message: "A save hasn't been confirmed yet. Save again first, then restore." });
                 return;
             }
-            if (docRef.current.pending.length > 0 && !confirm('Restoring discards your unsaved changes. Continue?')) return;
+            const discards = docRef.current.pending.length > 0 || Object.keys(unresolvedRef.current).length > 0;
+            if (discards && !confirm('Restoring discards your unsaved changes. Continue?')) return;
             setActivity('restoring');
             let result: ApiResult<{ version: number; document: PageDocument }>;
             try {
@@ -305,11 +377,12 @@ export function Editor({ init }: { init: EditorInit }) {
                 return;
             }
             commit(initialState(result.data.document, result.data.version));
+            replaceUnresolved({});
             outsideChange();
             setNotice({ tone: 'info', message: `Restored revision #${revision.number} into the draft. Publish to make it live.` });
             void refreshStatus();
         },
-        [pageId, commit, setActivity, setConflict, refreshStatus, outsideChange],
+        [pageId, commit, setActivity, setConflict, refreshStatus, outsideChange, replaceUnresolved],
     );
 
     /**
@@ -401,14 +474,21 @@ export function Editor({ init }: { init: EditorInit }) {
                 step('redo');
             }
         }
+        const wouldLoseWork = () => hasUnsavedChanges(docRef.current) || Object.keys(unresolvedRef.current).length > 0;
         function onBeforeUnload(event: BeforeUnloadEvent) {
-            if (hasUnsavedChanges(docRef.current)) event.preventDefault();
+            if (wouldLoseWork()) event.preventDefault();
         }
         window.addEventListener('keydown', onKey);
         window.addEventListener('beforeunload', onBeforeUnload);
+        // Links inside the app (Inertia visits) don't fire beforeunload: ask before leaving.
+        const stopGuard = router.on('before', (event) => {
+            if (event.detail.visit.method !== 'get' || !wouldLoseWork()) return;
+            if (!confirm('Leave the editor? Unsaved changes and fields that are not saved yet will be lost.')) event.preventDefault();
+        });
         return () => {
             window.removeEventListener('keydown', onKey);
             window.removeEventListener('beforeunload', onBeforeUnload);
+            stopGuard();
         };
     }, [save, step]);
 
@@ -425,11 +505,16 @@ export function Editor({ init }: { init: EditorInit }) {
                   ? 'Updating title & URL…'
                   : conflict
                     ? 'Out of date'
-                    : doc.inFlight
-                      ? 'Save not confirmed'
-                      : unsaved
-                        ? 'Unsaved changes'
-                        : 'Draft saved';
+                    : recovery
+                      ? 'Needs repair'
+                      : doc.inFlight
+                        ? 'Save not confirmed'
+                        : unresolvedCount > 0
+                          ? // Saving applies valid changes only: never claim that what is on screen is saved.
+                            `${unsaved ? 'Unsaved changes, ' : ''}${unresolvedCount} invalid field${unresolvedCount === 1 ? '' : 's'} not saved`
+                          : unsaved
+                            ? 'Unsaved changes'
+                            : 'Draft saved';
 
     return (
         <div className="flex h-screen flex-col">
@@ -480,7 +565,7 @@ export function Editor({ init }: { init: EditorInit }) {
                 </div>
                 <div className="ml-auto flex items-center gap-3">
                     <div className="text-right text-xs" aria-live="polite">
-                        <p data-testid="save-status" className={unsaved || conflict ? 'text-amber-700' : 'text-zinc-600'}>
+                        <p data-testid="save-status" className={unsaved || conflict || unresolvedCount > 0 ? 'text-amber-700' : 'text-zinc-600'}>
                             {statusText}
                         </p>
                         <p data-testid="live-status" className="text-zinc-500">
@@ -496,10 +581,13 @@ export function Editor({ init }: { init: EditorInit }) {
                         type="button"
                         disabled={busy || locked}
                         onClick={async () => {
+                            // The preview would not show what is typed in an unresolved field.
+                            if (recoveryRef.current || blockedByUnresolved('previewing')) return;
                             // Open synchronously (popup blockers), then point it at the preview once the draft is saved.
                             const preview = window.open('about:blank', '_blank');
                             const version = await save();
-                            if (version === null) preview?.close();
+                            // Rechecked after the save: input typed while it was pending must not be skipped.
+                            if (version === null || blockedByUnresolved('previewing')) preview?.close();
                             else if (preview) preview.location.href = `/preview/${pageId}`;
                         }}
                         className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50 disabled:opacity-50"
@@ -568,79 +656,100 @@ export function Editor({ init }: { init: EditorInit }) {
                             apply([{ op: 'updateProps', nodeId, set: { [prop]: value } }], { coalesceKey: `${nodeId}:${prop}`, fromCanvas: true })
                         }
                         onSaveShortcut={() => void save()}
+                        readOnly={recovery !== null}
                     />
                 </section>
                 <aside className="flex w-80 shrink-0 flex-col border-l border-zinc-200 bg-white" aria-label="Sidebar">
-                    <div className="flex border-b border-zinc-200 text-sm" role="tablist">
-                        {(['inspect', 'layers', 'history'] as const).map((t) => (
-                            <button
-                                key={t}
-                                type="button"
-                                role="tab"
-                                aria-selected={tab === t}
-                                onClick={() => setTab(t)}
-                                className={`flex-1 px-3 py-2 ${tab === t ? 'border-b-2 border-indigo-600 font-medium' : 'text-zinc-500'}`}
-                            >
-                                {t === 'inspect' ? 'Properties' : t === 'layers' ? 'Layers' : 'History'}
-                            </button>
-                        ))}
-                    </div>
-                    <div className="min-h-0 flex-1 overflow-auto">
-                        {tab === 'layers' ? (
-                            <LayersPanel
+                    {recovery ? (
+                        <div className="min-h-0 flex-1 overflow-auto">
+                            <RecoveryPanel
+                                items={recovery}
                                 document={doc.document}
-                                selectedId={selectedId}
-                                canEdit={canEdit && !locked}
-                                onSelect={setSelectedId}
-                                onStructure={structure}
+                                canEdit={canEdit && !conflict}
+                                onShow={setSelectedId}
+                                onApply={applyRepair}
                             />
-                        ) : tab === 'inspect' ? (
-                            <>
-                                {selectedNode && (
-                                    <button type="button" onClick={() => setSelectedId(null)} className="px-4 pt-3 text-xs text-indigo-600 hover:underline">
-                                        ← Page settings
+                        </div>
+                    ) : (
+                        <>
+                            <div className="flex border-b border-zinc-200 text-sm" role="tablist">
+                                {(['inspect', 'layers', 'history'] as const).map((t) => (
+                                    <button
+                                        key={t}
+                                        type="button"
+                                        role="tab"
+                                        aria-selected={tab === t}
+                                        onClick={() => setTab(t)}
+                                        className={`flex-1 px-3 py-2 ${tab === t ? 'border-b-2 border-indigo-600 font-medium' : 'text-zinc-500'}`}
+                                    >
+                                        {t === 'inspect' ? 'Properties' : t === 'layers' ? 'Layers' : 'History'}
                                     </button>
-                                )}
-                                {selectedNode && (
-                                    <StructureBar
+                                ))}
+                            </div>
+                            <div className="min-h-0 flex-1 overflow-auto">
+                                {tab === 'layers' ? (
+                                    <LayersPanel
                                         document={doc.document}
-                                        node={selectedNode}
+                                        selectedId={selectedId}
                                         canEdit={canEdit && !locked}
                                         onSelect={setSelectedId}
                                         onStructure={structure}
                                     />
+                                ) : tab === 'inspect' ? (
+                                    <>
+                                        {selectedNode && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedId(null)}
+                                                className="px-4 pt-3 text-xs text-indigo-600 hover:underline"
+                                            >
+                                                ← Page settings
+                                            </button>
+                                        )}
+                                        {selectedNode && (
+                                            <StructureBar
+                                                document={doc.document}
+                                                node={selectedNode}
+                                                canEdit={canEdit && !locked}
+                                                onSelect={setSelectedId}
+                                                onStructure={structure}
+                                            />
+                                        )}
+                                        {!selectedNode && (
+                                            <PageSettings
+                                                key={`${pageMeta.title}|${pageMeta.path}`}
+                                                title={pageMeta.title}
+                                                path={pageMeta.path}
+                                                live={live && { title: live.title, path: live.path }}
+                                                canEdit={canEdit && !locked}
+                                                blockedReason={
+                                                    unsaved
+                                                        ? 'Save your changes first, then update the title and URL.'
+                                                        : busy
+                                                          ? 'Wait for the current action to finish.'
+                                                          : null
+                                                }
+                                                onApply={applySettings}
+                                            />
+                                        )}
+                                        <Inspector
+                                            document={doc.document}
+                                            selected={selectedNode}
+                                            media={media}
+                                            canEdit={canEdit && !locked}
+                                            canUpload={canUpload}
+                                            onChange={(ops, coalesceKey) => apply(ops, { coalesceKey })}
+                                            onUpload={upload}
+                                            unresolved={unresolved}
+                                            onUnresolved={setUnresolved}
+                                        />
+                                    </>
+                                ) : (
+                                    <HistoryPanel revisions={revisions} canRestore={canEdit && !locked && !busy} onRestore={(r) => void restore(r)} />
                                 )}
-                                {!selectedNode && (
-                                    <PageSettings
-                                        key={`${pageMeta.title}|${pageMeta.path}`}
-                                        title={pageMeta.title}
-                                        path={pageMeta.path}
-                                        live={live && { title: live.title, path: live.path }}
-                                        canEdit={canEdit && !locked}
-                                        blockedReason={
-                                            unsaved
-                                                ? 'Save your changes first, then update the title and URL.'
-                                                : busy
-                                                  ? 'Wait for the current action to finish.'
-                                                  : null
-                                        }
-                                        onApply={applySettings}
-                                    />
-                                )}
-                                <Inspector
-                                    document={doc.document}
-                                    selected={selectedNode}
-                                    media={media}
-                                    canEdit={canEdit && !locked}
-                                    canUpload={canUpload}
-                                    onChange={(ops, coalesceKey) => apply(ops, { coalesceKey })}
-                                    onUpload={upload}
-                                />
-                            </>
-                        ) : (
-                            <HistoryPanel revisions={revisions} canRestore={canEdit && !locked && !busy} onRestore={(r) => void restore(r)} />
-                        )}
-                    </div>
+                            </div>
+                        </>
+                    )}
                 </aside>
             </div>
         </div>

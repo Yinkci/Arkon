@@ -65,7 +65,14 @@ Five wrong passwords lock the address for a minute.
   the canvas does the same for the selection). Columns hold text, images and buttons; the Columns inspector adds
   or removes columns and sets gap and when they stack. Undo/redo covers structural changes. Use
   **desktop / tablet / mobile** to preview breakpoints.
-- Button links must start with `/`, `#`, `https://`, `http://`, `mailto:` or `tel:`; anything else is refused.
+- Button links must start with `/`, `#`, `https://`, `http://`, `mailto:` or `tel:`, and contain no spaces,
+  backslashes or accented characters (percent-encode them); anything else is refused. A link that isn't valid yet
+  stays in the field and is not applied: the status says "invalid field not saved", and Preview and Publish ask
+  you to fix it or click **Revert link** first.
+- A draft saved before backslash links were refused opens with **This draft needs repair**: it lists each stored
+  link exactly; correct it or remove its block, click **Apply repair**, then save. Until then nothing else can be
+  edited, saved or published, and the live page stays as it is.
+- Image **Size** is a maximum width on the page and a share of the column inside Columns (whole, 2/3, 2/5).
 - **Upload image** in Properties, then add alternative text (publishing is blocked without it). Uploads stay private
   (404 to visitors) until a published page uses them; the canvas shows them through short-lived signed URLs.
 - **Save draft** never changes the live page. **Preview** shows the saved draft exactly as it would be published.
@@ -88,6 +95,10 @@ $env:HERD_EMAIL="..."; $env:HERD_PASSWORD="..."; npm run test:herd   # smoke tes
                                # looks around, sends one request the server refuses; never saves or publishes
 php artisan arkon:reproduce-publication <id>   # re-render a publication from its recorded inputs and compare
 ```
+
+`package.json` overrides `shell-quote` to 1.11.0 for `concurrently` only (10.0.5 pins 1.9.0, affected by
+GHSA-pqg4-j6r4-53mv). `concurrently` is what `composer dev` / `php artisan dev` runs on Windows; remove the
+override once a `concurrently` release depends on a fixed version.
 
 First Playwright run only: `npx playwright install chromium`. The e2e setup migrates and empties `arkonlaravel_e2e`
 (schema owner from `.migrate.env`), then seeds its own accounts. Tests never use the dev database.

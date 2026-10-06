@@ -26,20 +26,27 @@ final class PropSchema
      * request JSON) distinguishes `{}` from `[]`; internal form (stored documents)
      * uses arrays for every object.
      *
+     * `$recorded` also accepts values that were valid under the policy in effect when
+     * content was recorded (currently: links with backslashes, see `patterns.linkRecorded`).
+     * It is only for reproducing and re-rendering stored revisions, never for new content.
+     *
      * @return array{0: array|null, 1: list<array{path: string, message: string}>} [parsed, issues]
      */
-    public function parse(mixed $props, bool $raw = true): array
+    public function parse(mixed $props, bool $raw = true, bool $recorded = false): array
     {
         $issues = [];
-        $parsed = self::parseObject($this->fields, $props, '', $issues, $raw);
+        $parsed = self::parseObject($this->fields, $props, '', $issues, $raw, $recorded);
 
         return [$issues === [] ? $parsed : null, $issues];
     }
 
-    /** Parses props that are known to be valid (throws otherwise). */
+    /**
+     * Parses props that a caller has already validated, under the editing or the recorded
+     * policy (throws otherwise).
+     */
     public function parseValid(mixed $props): array
     {
-        [$parsed, $issues] = $this->parse($props);
+        [$parsed, $issues] = $this->parse($props, recorded: true);
         if ($parsed === null) {
             throw new InvalidArgumentException('Invalid props: '.implode('; ', array_column($issues, 'message')));
         }
@@ -47,7 +54,7 @@ final class PropSchema
         return $parsed;
     }
 
-    private static function parseObject(array $fields, mixed $value, string $at, array &$issues, bool $raw): ?array
+    private static function parseObject(array $fields, mixed $value, string $at, array &$issues, bool $raw, bool $recorded): ?array
     {
         if (! Json::isObject($value) && ($raw || $value !== [])) {
             $issues[] = ['path' => $at, 'message' => Rules::message('expectedObject')];
@@ -72,13 +79,13 @@ final class PropSchema
 
                 continue;
             }
-            $out[$key] = self::parseField($field, $entries[$key], $path, $issues, $raw);
+            $out[$key] = self::parseField($field, $entries[$key], $path, $issues, $raw, $recorded);
         }
 
         return $out;
     }
 
-    private static function parseField(array $field, mixed $value, string $at, array &$issues, bool $raw): mixed
+    private static function parseField(array $field, mixed $value, string $at, array &$issues, bool $raw, bool $recorded): mixed
     {
         switch ($field['type']) {
             case 'string':
@@ -113,7 +120,8 @@ final class PropSchema
 
             case 'link':
                 // A string limited to safe destinations: relative paths, #fragments, ?queries,
-                // http(s), mailto: and tel:. Never javascript:, data: or protocol-relative //host.
+                // http(s), mailto: and tel:. Never javascript:, data:, protocol-relative //host,
+                // or a backslash (browsers read /\host as //host).
                 if (! is_string($value)) {
                     $issues[] = ['path' => $at, 'message' => Rules::message('expectedString')];
 
@@ -121,7 +129,7 @@ final class PropSchema
                 }
                 if (isset($field['maxLength']) && Text::utf16Length($value) > $field['maxLength']) {
                     $issues[] = ['path' => $at, 'message' => Rules::message('tooLong', ['max' => $field['maxLength']])];
-                } elseif (! Rules::matches('link', $value)) {
+                } elseif (! Rules::matches('link', $value) && ! ($recorded && Rules::matches('linkRecorded', $value))) {
                     $issues[] = ['path' => $at, 'message' => Rules::message('unsafeLink')];
                 }
 
@@ -139,7 +147,7 @@ final class PropSchema
                     return null;
                 }
 
-                return self::parseObject($field['properties'] ?? [], $value, $at, $issues, $raw);
+                return self::parseObject($field['properties'] ?? [], $value, $at, $issues, $raw, $recorded);
         }
 
         throw new InvalidArgumentException("Unknown prop type {$field['type']}");

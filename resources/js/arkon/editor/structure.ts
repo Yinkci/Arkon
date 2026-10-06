@@ -74,7 +74,8 @@ export type DropPosition = 'before' | 'after' | 'inside';
 /**
  * Where a component (an existing node being moved, or a new one of `type`) would land when
  * dropped on `targetId` at `position`. Null when not allowed: wrong nesting, a full
- * container, or moving a node into its own subtree.
+ * container, a source container that would drop below its minimum, or moving a node into
+ * its own subtree.
  */
 export function dropPlacement(doc: PageDocument, dragged: { nodeId?: NodeId; type: string }, targetId: NodeId, position: DropPosition): Placement | null {
     const target = doc.nodes[targetId];
@@ -98,6 +99,8 @@ export function dropPlacement(doc: PageDocument, dragged: { nodeId?: NodeId; typ
     const parent = doc.nodes[parentId]!;
     const sameParent = from?.parentId === parentId;
     if (!canContain(parent, dragged.type, sameParent ? 0 : 1)) return null;
+    // Moving out of a container takes a child away from it: it must keep its minimum (a Columns block's last column).
+    if (dragged.nodeId && !sameParent && !canRemove(doc, dragged.nodeId)) return null;
     // Move indices count positions after the node has left its old place.
     if (sameParent && from && from.index < index) index -= 1;
     if (sameParent && from && from.index === index) return null; // no change

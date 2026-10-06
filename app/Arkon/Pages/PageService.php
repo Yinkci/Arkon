@@ -3,6 +3,7 @@
 namespace App\Arkon\Pages;
 
 use App\Arkon\Audit\AuditLog;
+use App\Arkon\Components\DocumentValidator;
 use App\Arkon\Database\Transactions;
 use App\Arkon\Errors\ConflictException;
 use App\Arkon\Errors\NotFoundException;
@@ -39,6 +40,7 @@ class PageService
         private readonly MediaService $media,
         private readonly PageRenderer $renderer,
         private readonly AuditLog $audit,
+        private readonly DocumentValidator $validator,
     ) {}
 
     // ── Reading ─────────────────────────────────────────────────────────────
@@ -114,7 +116,9 @@ class PageService
             return [
                 ...$state,
                 'revisions' => $this->listRevisions($ctx, $pageId),
-                'canvas' => $this->renderCanvas($ctx, $pageId, $state['draft']['document'], $signer),
+                // A draft in recovery is shown as stored (its first paint only); every later canvas
+                // render goes through the normal endpoint and the current rules.
+                'canvas' => $this->readSnapshot(fn () => $this->readCanvas($ctx, $pageId, $state['draft']['document'], $signer, recorded: $state['recovery'] !== null)),
             ];
         });
     }
@@ -141,13 +145,15 @@ class PageService
         $draft = $this->store->loadDraft($ctx->siteId, $page->id);
         $live = $this->store->loadLive($ctx->siteId, $page->id);
         $doc = $this->store->document($draft->document);
+        $recovery = $this->recoveryFor($doc);
 
         return [
             'page' => ['id' => $page->id, 'path' => $page->path, 'title' => $page->title],
             'draft' => ['document' => $doc, 'version' => (int) $draft->version],
+            'recovery' => $recovery,
             'live' => $live ? self::liveInfo($live) : null,
             'status' => self::statusOf($draft, $live?->revision_id),
-            'media' => array_values($this->media->mediaMap($ctx->siteId, $this->store->safeMediaRefs($doc))),
+            'media' => array_values($this->media->mediaMap($ctx->siteId, $this->store->safeMediaRefs($doc, pinned: $recovery !== null))),
             'permissions' => [
                 'edit' => Permissions::allows($role, 'page.edit'),
                 'publish' => Permissions::allows($role, 'page.publish'),
@@ -155,6 +161,37 @@ class PageService
                 'upload' => Permissions::allows($role, 'media.upload'),
             ],
         ];
+    }
+
+    /**
+     * Null for a valid draft. A draft stored before a rule was tightened (links with
+     * backslashes) is valid only under the recorded policy: it opens in recovery, listing
+     * each stored value the editor must correct or remove before anything else saves.
+     * Nothing is changed here; the stored draft stays as it is until the user's repair is
+     * saved as a normal revision. A draft invalid in any other way is not recoverable this
+     * way and fails as before.
+     *
+     * @return list<array{nodeId: string, type: string, path: string, value: string, message: string}>|null
+     */
+    private function recoveryFor(mixed $doc): ?array
+    {
+        $issues = $this->validator->validate($doc);
+        if ($issues === [] || $this->validator->validatePinned($doc) !== []) {
+            return null;
+        }
+        $nodes = Json::entries($doc['nodes']);
+        $items = [];
+        foreach ($issues as $issue) {
+            $node = $nodes[$issue['nodeId'] ?? ''] ?? null;
+            $value = $node ? (Json::entries($node['props'])[$issue['path'] ?? ''] ?? null) : null;
+            // Only issues the recorded policy explains: an unsafe link stored as a string.
+            if ($node === null || $issue['message'] !== Rules::message('unsafeLink') || ! is_string($value)) {
+                return null;
+            }
+            $items[] = ['nodeId' => $node['id'], 'type' => $node['type'], 'path' => $issue['path'], 'value' => $value, 'message' => $issue['message']];
+        }
+
+        return $items;
     }
 
     public static function liveInfo(object $live): array
@@ -222,17 +259,18 @@ class PageService
         return $this->readSnapshot(fn () => $this->readCanvas($ctx, $pageId, $document, $signer));
     }
 
-    private function readCanvas(SiteContext $ctx, string $pageId, mixed $document, MediaSigner $signer): array
+    /** @param bool $recorded the stored draft in recovery (see recoveryFor); never for documents sent by the editor */
+    private function readCanvas(SiteContext $ctx, string $pageId, mixed $document, MediaSigner $signer, bool $recorded = false): array
     {
         $this->authorizer->authorize($ctx, 'page.view');
         $page = $this->store->loadPage($ctx->siteId, Input::id($pageId));
         $site = DB::table('sites')->where('id', $ctx->siteId)->first(['name']);
         $media = [];
-        foreach ($this->media->mediaMap($ctx->siteId, $this->store->safeMediaRefs($document)) as $id => $info) {
+        foreach ($this->media->mediaMap($ctx->siteId, $this->store->safeMediaRefs($document, pinned: $recorded)) as $id => $info) {
             $media[$id] = [...$info, 'url' => $signer->signUrl($info['url'])];
         }
         try {
-            $out = $this->renderer->render($document, 'editor', ['title' => $page->title, 'path' => $page->path], ['name' => $site->name], $media);
+            $out = $this->renderer->render($document, 'editor', ['title' => $page->title, 'path' => $page->path], ['name' => $site->name], $media, pinned: $recorded);
         } catch (RenderException $error) {
             throw new ValidationException('The page could not be rendered', $error->issues);
         }

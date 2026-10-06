@@ -10,6 +10,7 @@ export const BRIDGE_SCRIPT = String.raw`(() => {
   let selectedId = null;
   let hoverId = null;
   let editing = null;
+  let readOnly = false; // set by the parent, e.g. while a draft needs repair
   const NBSP = new RegExp(String.fromCharCode(160), "g");
 
   const nodeEl = (id) => (id ? document.querySelector('[data-ak-id="' + CSS.escape(id) + '"]') : null);
@@ -52,7 +53,7 @@ export const BRIDGE_SCRIPT = String.raw`(() => {
     const field = event.target instanceof Element ? event.target.closest("[data-ak-prop]") : null;
     selectedId = node ? node.getAttribute("data-ak-id") : null;
     send({ type: "select", nodeId: selectedId });
-    if (field && node && node.contains(field)) startEditing(field);
+    if (field && node && node.contains(field) && !readOnly) startEditing(field);
     else stopEditing();
     reportRects();
   }, true);
@@ -102,6 +103,9 @@ export const BRIDGE_SCRIPT = String.raw`(() => {
       document.body.innerHTML = msg.body;
       markMultiline(msg.multiline);
       reportRects();
+    } else if (msg.type === "mode") {
+      readOnly = msg.readOnly === true;
+      if (readOnly) stopEditing();
     } else if (msg.type === "select") {
       selectedId = msg.nodeId;
       nodeEl(selectedId)?.scrollIntoView({ block: "nearest" });

@@ -18,6 +18,7 @@ use App\Arkon\Support\Json;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Tests\DatabaseTestCase;
+use Tests\Support\OlderLinkPolicy;
 
 /**
  * The visual builder's structural edits as the server sees them: add, move and
@@ -26,6 +27,8 @@ use Tests\DatabaseTestCase;
  */
 class StructuralEditingTest extends DatabaseTestCase
 {
+    use OlderLinkPolicy;
+
     private const HOST = 'builder.test';
 
     private array $f;
@@ -184,6 +187,39 @@ class StructuralEditingTest extends DatabaseTestCase
         }
     }
 
+    public function test_backslash_links_are_rejected_because_browsers_read_them_as_another_host(): void
+    {
+        $this->buildLayout();
+        foreach (['/\\example.com', '/\\\\example.com', '/a\\b', 'https://\\evil.example'] as $href) {
+            $this->assertRejected([['op' => 'updateProps', 'nodeId' => 'butn0001', 'set' => ['href' => $href]]], 'backslashes');
+        }
+        $this->save([['op' => 'updateProps', 'nodeId' => 'butn0001', 'set' => ['href' => '/%5Cliteral']]]);
+    }
+
+    public function test_a_publication_recorded_under_the_older_link_policy_still_reproduces_but_cannot_be_republished(): void
+    {
+        $this->buildLayout(app(MediaService::class)->upload($this->f['ctx'], self::png(), 'dot.png')['id']);
+        // Before this policy, a slash followed by a backslash was accepted.
+        $this->underOlderLinkPolicy(function () {
+            $this->save([['op' => 'updateProps', 'nodeId' => 'butn0001', 'set' => ['href' => '/\\example.com']]]);
+            $this->publish();
+        });
+        $publicationId = DB::table('publications')->value('id');
+
+        $result = $this->pages()->reproducePublication($this->f['siteId'], $publicationId);
+        $this->assertSame('reproduced', $result['status'], (string) $result['reason']);
+        $this->assertTrue($result['matches']);
+
+        // New content follows the current policy: publishing the draft as it is, or saving
+        // anything else while the old link remains, is refused until the link is fixed.
+        $this->assertThrows(fn () => $this->publish(), ValidationException::class);
+        $this->assertRejected([['op' => 'updateProps', 'nodeId' => 'text0001', 'set' => ['text' => 'Changed']]], 'backslashes');
+        $this->save([['op' => 'updateProps', 'nodeId' => 'butn0001', 'set' => ['href' => '/example']]]);
+        $this->publish();
+        $this->assertStringContainsString('href="/example"', $this->pages()->livePage($this->f['siteId'], '/')->html);
+        $this->assertTrue($this->pages()->reproducePublication($this->f['siteId'], $publicationId)['matches'], 'the older publication still reproduces');
+    }
+
     public function test_publishing_renders_clean_semantic_html_and_makes_nested_images_public(): void
     {
         $asset = app(MediaService::class)->upload($this->f['ctx'], self::png(), 'dot.png');
@@ -199,7 +235,7 @@ class StructuralEditingTest extends DatabaseTestCase
         foreach (['data-ak-', '<script', 'contenteditable', 'ak-image__empty', 'Empty column', 'draggable', '/build/'] as $forbidden) {
             $this->assertStringNotContainsStringIgnoringCase($forbidden, $html);
         }
-        $this->assertSame(['button@1', 'column@1', 'columns@1', 'hero@1', 'image@1', 'page@2', 'text@1'], json_decode(DB::table('publications')->value('render_inputs'), true)['components']);
+        $this->assertSame(['button@1', 'column@1', 'columns@1', 'hero@1', 'image@2', 'page@2', 'text@1'], json_decode(DB::table('publications')->value('render_inputs'), true)['components']);
         // The image nested two levels deep is linked to the publication and therefore public on the site's host.
         $access = app(MediaService::class)->resolveAccess(substr($asset['url'], 7), self::HOST, null, null, new MediaSigner);
         $this->assertSame('public', $access['access'] ?? null);
@@ -240,6 +276,48 @@ class StructuralEditingTest extends DatabaseTestCase
         $foreign = app(MediaService::class)->upload($other['ctx'], self::png(), 'theirs.png');
         $this->buildLayout();
         $this->assertRejected([['op' => 'updateProps', 'nodeId' => 'imag0001', 'set' => ['image' => ['assetId' => $foreign['id'], 'alt' => 'x']]]], 'does not exist');
+    }
+
+    public function test_image_v1_publications_reproduce_and_republishing_moves_to_v2_where_sizes_apply_in_columns(): void
+    {
+        // The registry before image v2: inside a column every size rendered at the column's full width.
+        $dir = storage_path('testing/components-'.uniqid());
+        File::copyDirectory(resource_path('arkon/components'), $dir);
+        File::delete(["{$dir}/image/v2.json", "{$dir}/image/v2.css"]);
+        $this->useRegistry(new ComponentRegistry($dir, ComponentRegistry::RENDERERS));
+        $this->buildLayout(app(MediaService::class)->upload($this->f['ctx'], self::png(), 'dot.png')['id']);
+        $this->save([['op' => 'updateProps', 'nodeId' => 'imag0001', 'set' => ['size' => 'small']]]);
+        $old = $this->publish();
+        $oldHtml = $this->pages()->livePage($this->f['siteId'], '/')->html;
+        $this->assertStringContainsString('.ak-column>.ak-image{margin:0;padding:0;max-width:none}', $oldHtml);
+        $this->assertStringNotContainsString('.ak-column>.ak-image--small', $oldHtml);
+
+        // Deploy image v2.
+        $this->useRegistry(ComponentRegistry::default());
+        File::deleteDirectory($dir);
+        $result = $this->pages()->reproducePublication($this->f['siteId'], $old['publicationId']);
+        $this->assertSame('reproduced', $result['status'], (string) $result['reason']);
+        $this->assertTrue($result['matches']);
+        $this->assertContains('image@1', json_decode(DB::table('publications')->where('id', $old['publicationId'])->value('render_inputs'), true)['components']);
+
+        // The draft opens at v2 (same props) and the next publication uses v2's stylesheet; the markup is unchanged.
+        $doc = $this->pages()->editorState($this->f['ctx'], $this->f['pageId'])['draft']['document'];
+        $this->assertSame(2, $doc['nodes']['imag0001']['version']);
+        $this->assertSame('small', $doc['nodes']['imag0001']['props']['size']);
+        $this->publish();
+        $newHtml = $this->pages()->livePage($this->f['siteId'], '/')->html;
+        $this->assertStringContainsString('.ak-column>.ak-image--small{width:40%}', $newHtml);
+        $figure = '#<figure class="ak-image ak-image--small"><img src="/media/[0-9a-f-]+\.png" alt="A dot" width="1" height="1" decoding="async" loading="lazy"><figcaption>Dot</figcaption></figure>#';
+        $this->assertMatchesRegularExpression($figure, $oldHtml);
+        $this->assertMatchesRegularExpression($figure, $newHtml);
+        $this->assertTrue($this->pages()->reproducePublication($this->f['siteId'], $old['publicationId'])['matches'], 'the v1 publication still reproduces');
+    }
+
+    private function useRegistry(ComponentRegistry $registry): void
+    {
+        $this->app->instance(ComponentRegistry::class, $registry);
+        $this->app->forgetInstance(DocumentValidator::class);
+        $this->app->forgetInstance(PageRenderer::class);
     }
 
     public function test_pages_published_before_this_milestone_still_reproduce_and_then_migrate_forward(): void

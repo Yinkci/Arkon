@@ -67,7 +67,7 @@ final class DocumentValidator
             if ($definition === null) {
                 continue;
             }
-            [, $propIssues] = $definition->props->parse($node['props']);
+            [, $propIssues] = $definition->props->parse($node['props'], recorded: $pinned);
             foreach ($propIssues as $issue) {
                 $issues[] = ['nodeId' => $node['id'], 'path' => $issue['path'], 'message' => $issue['message']];
             }

@@ -3,6 +3,90 @@
 @source '../views';
 @source '../js';
 
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
 @theme {
-    --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --font-sans: 'Segoe UI Variable Text', 'Segoe UI', ui-sans-serif, system-ui, -apple-system, Roboto, sans-serif;
+}
+
+/*
+ * Admin tokens. Screens that adopt them render inside an element with data-theme="light|dark"
+ * (AdminLayout resolves the "system" preference). Everything else keeps the light defaults.
+ */
+:root,
+[data-theme] {
+    --ak-canvas: #f6f6f7;
+    --ak-surface: #ffffff;
+    --ak-raised: #fbfbfc;
+    --ak-line: #e6e6e9;
+    --ak-line-strong: #d4d4d9;
+    --ak-fg: #17171a;
+    --ak-muted: #63636e;
+    --ak-faint: #9a9aa4;
+    --ak-accent: #4a4ad6;
+    --ak-accent-hover: #3c3cc4;
+    --ak-accent-fg: #ffffff;
+    --ak-accent-soft: #ededfc;
+    --ak-live: #1d8a57;
+    --ak-changed: #b26b00;
+    --ak-draft: #8a8a94;
+    --ak-danger: #c4302b;
+    --ak-danger-soft: #fdeeed;
+    --ak-shadow: 0 1px 2px rgb(20 20 30 / 0.05);
+    --ak-shadow-pop: 0 12px 32px -8px rgb(20 20 30 / 0.18), 0 2px 6px rgb(20 20 30 / 0.06);
+    color-scheme: light;
+}
+
+[data-theme='dark'] {
+    --ak-canvas: #121215;
+    --ak-surface: #18181c;
+    --ak-raised: #1d1d22;
+    --ak-line: #2a2a31;
+    --ak-line-strong: #3a3a43;
+    --ak-fg: #ececf0;
+    --ak-muted: #a0a0ab;
+    --ak-faint: #6c6c77;
+    --ak-accent: #8d8dfa;
+    --ak-accent-hover: #a3a3ff;
+    --ak-accent-fg: #121215;
+    --ak-accent-soft: #23234a;
+    --ak-live: #3fc187;
+    --ak-changed: #e7a73a;
+    --ak-draft: #85858f;
+    --ak-danger: #f0716b;
+    --ak-danger-soft: #3a1d1d;
+    --ak-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+    --ak-shadow-pop: 0 16px 40px -8px rgb(0 0 0 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.04);
+    color-scheme: dark;
+}
+
+@theme inline {
+    --color-canvas: var(--ak-canvas);
+    --color-surface: var(--ak-surface);
+    --color-raised: var(--ak-raised);
+    --color-line: var(--ak-line);
+    --color-line-strong: var(--ak-line-strong);
+    --color-fg: var(--ak-fg);
+    --color-muted: var(--ak-muted);
+    --color-faint: var(--ak-faint);
+    --color-accent: var(--ak-accent);
+    --color-accent-hover: var(--ak-accent-hover);
+    --color-accent-fg: var(--ak-accent-fg);
+    --color-accent-soft: var(--ak-accent-soft);
+    --color-live: var(--ak-live);
+    --color-changed: var(--ak-changed);
+    --color-draft: var(--ak-draft);
+    --color-danger: var(--ak-danger);
+    --color-danger-soft: var(--ak-danger-soft);
+    --shadow-hairline: var(--ak-shadow);
+    --shadow-pop: var(--ak-shadow-pop);
+}
+
+[data-theme] :focus-visible {
+    outline: 2px solid var(--ak-accent);
+    outline-offset: 2px;
+}
+
+[data-theme] ::selection {
+    background: var(--ak-accent-soft);
 }

@@ -46,13 +46,13 @@ final class Conformance
             'nodes' => [
                 'root0001' => ['id' => 'root0001', 'type' => 'page', 'version' => 2, 'props' => $o, 'children' => ['text0001', 'imag0001', 'butn0001', 'cols0001']],
                 'text0001' => ['id' => 'text0001', 'type' => 'text', 'version' => 1, 'props' => ['text' => "Line one\nLine two", 'element' => 'h2', 'align' => 'center']],
-                'imag0001' => ['id' => 'imag0001', 'type' => 'image', 'version' => 1, 'props' => ['image' => ['assetId' => self::UUID, 'alt' => 'A phone'], 'caption' => 'Caption', 'size' => 'medium']],
+                'imag0001' => ['id' => 'imag0001', 'type' => 'image', 'version' => 2, 'props' => ['image' => ['assetId' => self::UUID, 'alt' => 'A phone'], 'caption' => 'Caption', 'size' => 'medium']],
                 'butn0001' => ['id' => 'butn0001', 'type' => 'button', 'version' => 1, 'props' => ['label' => 'Contact', 'href' => '/contact', 'style' => 'secondary', 'newTab' => true]],
                 'cols0001' => ['id' => 'cols0001', 'type' => 'columns', 'version' => 1, 'props' => ['stackOn' => 'tablet', 'gap' => 'large'], 'children' => ['colu0001', 'colu0002']],
                 'colu0001' => ['id' => 'colu0001', 'type' => 'column', 'version' => 1, 'props' => $o, 'children' => ['text0002']],
                 'colu0002' => ['id' => 'colu0002', 'type' => 'column', 'version' => 1, 'props' => $o, 'children' => ['imag0002', 'butn0002']],
                 'text0002' => ['id' => 'text0002', 'type' => 'text', 'version' => 1, 'props' => ['text' => 'In a column']],
-                'imag0002' => ['id' => 'imag0002', 'type' => 'image', 'version' => 1, 'props' => ['image' => ['assetId' => '01890a5d-ac96-774b-bcce-b302099a8058', 'alt' => 'Second']]],
+                'imag0002' => ['id' => 'imag0002', 'type' => 'image', 'version' => 2, 'props' => ['image' => ['assetId' => '01890a5d-ac96-774b-bcce-b302099a8058', 'alt' => 'Second']]],
                 'butn0002' => ['id' => 'butn0002', 'type' => 'button', 'version' => 1, 'props' => ['label' => 'Go', 'href' => 'https://example.com/']],
             ],
             'seo' => $o,
@@ -146,8 +146,12 @@ final class Conformance
             'valid: two heroes' => $two,
             'invalid: page v1 under editing rules' => str_replace('"type":"page","version":2', '"type":"page","version":1', self::doc()),
             'valid: text, image, button and columns' => self::layout(),
+            'invalid: image v1 under editing rules' => str_replace('"type":"image","version":2', '"type":"image","version":1', self::layout()),
             'valid: button links' => self::buttons(['/', '/contact?x=1#y', '#top', '?q=1', 'https://example.com/a', 'http://a.b', 'mailto:a@b.c', 'tel:+1(234)5-6', '']),
             'invalid: unsafe button links' => self::buttons(['javascript:alert(1)', 'JavaScript:x', '//evil.example', 'data:text/html,x', ' /x', '/x y', 'https://', 'ftp://x', "/x\u{00A0}y", "/x\u{FEFF}y", "/caf\u{E9}"]),
+            // Browsers treat \ as / in http(s) URLs: /\host and /\\host lead to another site.
+            'invalid: backslash links' => self::buttons(['/\\example.com', '/\\\\example.com', '/\\/example.com', '/a\\b', '#\\x', '?\\x', 'https://\\evil.example', 'http://a.b\\c', 'mailto:a\\b@c.d']),
+            'valid: links with brackets and percent-encoded backslash' => self::buttons(['/a[1]', '/x]y', '/%5Cexample.com', '/a?b=%5C']),
             'invalid: column directly in page' => self::layout(fn (&$d) => $d['nodes']['root0001']['children'][] = 'colu0001'),
             'invalid: columns inside a column' => self::layout(function (&$d) {
                 $d['nodes']['colu0001']['children'][] = 'cols0002';

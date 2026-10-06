@@ -3,50 +3,91 @@ import { useState } from 'react';
 import { api } from '@/lib/api';
 import type { PageRow, PageStatus } from '@/types';
 import { ConfirmDialog } from './ConfirmDialog';
+import { fullDate, relativeTime } from '@/lib/time';
 
-const STATUS: Record<PageStatus, { label: string; className: string }> = {
-    draft: { label: 'Not published', className: 'bg-zinc-100 text-zinc-700' },
-    published: { label: 'Published', className: 'bg-emerald-50 text-emerald-700' },
-    changed: { label: 'Unpublished changes', className: 'bg-amber-50 text-amber-800' },
+export const STATUS_LABEL: Record<PageStatus, string> = {
+    draft: 'Not published',
+    published: 'Published',
+    changed: 'Unpublished changes',
 };
+
+/** Draft and live in one glyph: a ring (not live), half filled (live, draft ahead), filled (live, in sync). */
+export function StatusMark({ status, className = '' }: { status: PageStatus; className?: string }) {
+    const color = status === 'published' ? 'text-live' : status === 'changed' ? 'text-changed' : 'text-draft';
+    return (
+        <svg aria-hidden="true" viewBox="0 0 10 10" className={`size-2.5 shrink-0 ${color} ${className}`}>
+            <circle cx="5" cy="5" r="4" fill={status === 'published' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" />
+            {status === 'changed' && <path d="M5 1a4 4 0 0 1 0 8z" fill="currentColor" />}
+        </svg>
+    );
+}
+
+const action = 'rounded px-1.5 py-1 text-muted hover:bg-line/60 hover:text-fg';
 
 export function PagesTable({ pages, canPublish, canDelete }: { pages: PageRow[]; canPublish: boolean; canDelete: boolean }) {
     return (
-        <table className="w-full overflow-hidden rounded-lg border border-zinc-200 bg-white text-sm">
-            <thead className="bg-zinc-50 text-left text-xs text-zinc-500">
-                <tr>
-                    <th className="px-4 py-2 font-medium">Page</th>
-                    <th className="px-4 py-2 font-medium">Status</th>
-                    <th className="px-4 py-2 font-medium">Last published</th>
-                    <th className="px-4 py-2">
+        <table className="w-full text-sm">
+            <thead className="text-left text-xs text-muted max-sm:sr-only">
+                <tr className="border-b border-line">
+                    <th scope="col" className="w-full py-2 pr-4 font-normal">
+                        Page
+                    </th>
+                    <th scope="col" className="min-w-44 py-2 pr-4 font-normal">
+                        Status
+                    </th>
+                    <th scope="col" className="hidden min-w-32 py-2 pr-4 font-normal md:table-cell">
+                        Last published
+                    </th>
+                    <th scope="col" className="py-2">
                         <span className="sr-only">Actions</span>
                     </th>
                 </tr>
             </thead>
             <tbody>
                 {pages.map((page) => (
-                    <tr key={page.id} className="border-t border-zinc-100" data-testid="page-row" data-path={page.path}>
-                        <td className="px-4 py-3">
+                    <tr
+                        key={page.id}
+                        className="border-b border-line last:border-b-0 max-sm:flex max-sm:flex-wrap max-sm:items-center max-sm:gap-x-3 max-sm:gap-y-1 max-sm:py-3"
+                        data-testid="page-row"
+                        data-path={page.path}
+                    >
+                        <td className="py-3 pr-4 align-middle max-sm:basis-full max-sm:py-0">
                             <p className="font-medium">{page.title}</p>
-                            <p className="text-xs text-zinc-500">
+                            <p className="mt-0.5 text-xs text-muted">
                                 {page.path}
-                                {page.livePath && page.livePath !== page.path && <span className="ml-1 text-amber-700">(live at {page.livePath})</span>}
+                                {page.livePath && page.livePath !== page.path && <span className="ml-1.5 text-changed">live at {page.livePath}</span>}
                             </p>
                         </td>
-                        <td className="px-4 py-3">
-                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS[page.status].className}`}>{STATUS[page.status].label}</span>
+                        <td className="py-3 pr-4 align-middle whitespace-nowrap max-sm:py-0">
+                            <span className="inline-flex items-center gap-1.5 text-xs text-muted">
+                                <StatusMark status={page.status} />
+                                {STATUS_LABEL[page.status]}
+                            </span>
                         </td>
-                        <td className="px-4 py-3 text-zinc-600">{page.publishedAt ? new Date(page.publishedAt).toLocaleString('en-GB') : '—'}</td>
-                        <td className="space-x-3 px-4 py-3 text-right whitespace-nowrap">
-                            {page.livePath && (
-                                <a href={page.livePath} target="_blank" rel="noreferrer" className="text-zinc-600 hover:underline">
-                                    View live
-                                </a>
+                        <td className="hidden py-3 pr-4 align-middle text-xs whitespace-nowrap text-muted tabular-nums md:table-cell">
+                            {page.publishedAt ? (
+                                <time dateTime={page.publishedAt} title={fullDate(page.publishedAt)}>
+                                    {relativeTime(page.publishedAt)}
+                                </time>
+                            ) : (
+                                <span className="text-faint">Never</span>
                             )}
-                            <PageRowActions page={page} canPublish={canPublish} canDelete={canDelete} />
-                            <Link href={`/admin/editor/${page.id}`} className="font-medium text-indigo-600 hover:underline">
-                                Edit
-                            </Link>
+                        </td>
+                        <td className="py-3 align-middle max-sm:ml-auto max-sm:py-0">
+                            <div className="flex items-center justify-end gap-1 text-xs whitespace-nowrap">
+                                {page.livePath && (
+                                    <a href={page.livePath} target="_blank" rel="noreferrer" className={action}>
+                                        View live
+                                    </a>
+                                )}
+                                <PageRowActions page={page} canPublish={canPublish} canDelete={canDelete} />
+                                <Link
+                                    href={`/admin/editor/${page.id}`}
+                                    className="ml-1 rounded-md border border-line-strong bg-surface px-2.5 py-1 font-medium shadow-hairline hover:border-faint"
+                                >
+                                    Edit
+                                </Link>
+                            </div>
                         </td>
                     </tr>
                 ))}
@@ -74,12 +115,12 @@ function PageRowActions({ page, canPublish, canDelete }: { page: PageRow; canPub
     return (
         <>
             {canPublish && page.livePublicationId && (
-                <button type="button" onClick={() => setDialog('unpublish')} className="text-zinc-600 hover:underline">
+                <button type="button" onClick={() => setDialog('unpublish')} className={action}>
                     Unpublish
                 </button>
             )}
             {canDelete && (
-                <button type="button" onClick={() => setDialog('delete')} className="text-red-700 hover:underline">
+                <button type="button" onClick={() => setDialog('delete')} className="rounded px-1.5 py-1 text-danger hover:bg-danger-soft">
                     Delete
                 </button>
             )}

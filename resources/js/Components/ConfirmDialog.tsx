@@ -49,7 +49,7 @@ export function ConfirmDialog({ open, title, children, confirmLabel, requireText
                 event.preventDefault();
                 close();
             }}
-            className="m-auto w-full max-w-md rounded-xl border border-zinc-200 p-0 shadow-xl backdrop:bg-zinc-900/40"
+            className="m-auto w-full max-w-md rounded-xl text-left whitespace-normal border border-line bg-surface p-0 text-fg shadow-pop backdrop:bg-black/40"
         >
             <form
                 method="dialog"
@@ -71,34 +71,39 @@ export function ConfirmDialog({ open, title, children, confirmLabel, requireText
                 <h2 id={titleId} className="text-lg font-semibold">
                     {title}
                 </h2>
-                <div className="space-y-2 text-sm text-zinc-700">{children}</div>
+                <div className="space-y-2 text-sm text-muted">{children}</div>
                 {requireText && (
                     <div>
                         <label htmlFor={inputId} className="block text-sm font-medium">
-                            Type <code className="rounded bg-zinc-100 px-1">{requireText}</code> to confirm
+                            Type <code className="rounded bg-line px-1">{requireText}</code> to confirm
                         </label>
                         <input
                             id={inputId}
                             value={typed}
                             onChange={(e) => setTyped(e.target.value)}
                             autoComplete="off"
-                            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                            className="mt-1 w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-fg outline-none placeholder:text-faint focus:border-accent focus:ring-2 focus:ring-accent-soft"
                         />
                     </div>
                 )}
                 {error && (
-                    <p role="alert" className="text-sm text-red-700">
+                    <p role="alert" className="text-sm text-danger">
                         {error}
                     </p>
                 )}
                 <div className="flex justify-end gap-2">
-                    <button type="button" onClick={close} disabled={pending} className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50">
+                    <button
+                        type="button"
+                        onClick={close}
+                        disabled={pending}
+                        className="rounded-md border border-line-strong px-3 py-1.5 text-sm hover:bg-line/50"
+                    >
                         Cancel
                     </button>
                     <button
                         type="submit"
                         disabled={!ready || pending}
-                        className={`rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 ${tone === 'danger' ? 'bg-red-600 hover:bg-red-500' : 'bg-indigo-600 hover:bg-indigo-500'}`}
+                        className={`rounded-md px-3 py-1.5 text-sm font-medium disabled:opacity-50 ${tone === 'danger' ? 'bg-danger text-surface hover:opacity-90' : 'bg-accent text-accent-fg hover:bg-accent-hover'}`}
                     >
                         {pending ? 'Working…' : confirmLabel}
                     </button>

@@ -55,6 +55,8 @@ final class ComponentRegistry
         'hero@1' => HeroV1::class,
         'text@1' => TextV1::class,
         'image@1' => ImageV1::class,
+        // v2 keeps the markup; only its stylesheet changes (sizes apply inside columns too).
+        'image@2' => ImageV1::class,
         'button@1' => ButtonV1::class,
         'columns@1' => ColumnsV1::class,
         'column@1' => ColumnV1::class,
@@ -65,6 +67,7 @@ final class ComponentRegistry
     {
         return [
             'page@1' => fn (array $props) => $props,
+            'image@1' => fn (array $props) => $props,
         ];
     }
 

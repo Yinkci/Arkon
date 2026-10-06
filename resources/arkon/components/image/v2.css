@@ -1,0 +1,8 @@
+.ak-image{max-width:var(--ak-container);margin:var(--ak-space-8) auto;padding:0 var(--ak-gutter)}
+.ak-image--medium{max-width:48rem}
+.ak-image--small{max-width:28rem}
+.ak-image img{display:block;width:100%;height:auto;border-radius:var(--ak-radius-lg)}
+.ak-image figcaption{margin-top:.5rem;font-size:.875rem;color:var(--ak-color-muted)}
+.ak-column>.ak-image{margin:0;padding:0;max-width:none;width:100%}
+.ak-column>.ak-image--medium{width:66.667%}
+.ak-column>.ak-image--small{width:40%}

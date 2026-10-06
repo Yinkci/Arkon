@@ -19,6 +19,8 @@ export interface CanvasProps {
     viewport: Viewport;
     /** Incremented when the document changed from outside the canvas, so the iframe must re-render. */
     renderToken: number;
+    /** No inline editing (selection still works). */
+    readOnly?: boolean;
     onSelect(nodeId: string | null): void;
     onInlineEdit(nodeId: string, prop: string, value: string): void;
     onSaveShortcut(): void;
@@ -77,6 +79,10 @@ export function Canvas(props: CanvasProps) {
         if (ready) post({ type: 'render', body: props.body, css: props.css, multiline: props.multiline });
         // Only re-render the iframe for outside changes; inline edits are already visible there.
     }, [ready, props.renderToken]);
+
+    useEffect(() => {
+        if (ready) post({ type: 'mode', readOnly: props.readOnly === true });
+    }, [ready, props.readOnly]);
 
     useEffect(() => {
         if (ready) post({ type: 'select', nodeId: props.selectedId });

@@ -40,9 +40,21 @@ export interface Revision {
     isLive: boolean;
 }
 
+/** A stored value the current rules refuse, in a draft saved before they were tightened. */
+export interface RecoveryItem {
+    nodeId: string;
+    type: string;
+    /** The prop holding the value, e.g. "href". */
+    path: string;
+    value: string;
+    message: string;
+}
+
 export interface EditorInit {
     page: { id: string; path: string; title: string };
     draft: { document: PageDocument; version: number };
+    /** Null for a normal draft; otherwise the draft opens in recovery (see RecoveryPanel). */
+    recovery: RecoveryItem[] | null;
     live: LiveInfo | null;
     status: PageStatus;
     media: MediaInfo[];

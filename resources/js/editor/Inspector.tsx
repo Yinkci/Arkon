@@ -1,9 +1,22 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { matches, message } from '@/arkon/rules';
 import { canContain, createNodes, insertOps } from '@/arkon/editor/structure';
-import type { Node, PageDocument } from '@/arkon/schema/document';
+import { findParent, type Node, type PageDocument } from '@/arkon/schema/document';
 import type { PageOperation } from '@/arkon/schema/operations';
 import type { MediaInfo } from '@/types';
+
+/**
+ * A field the user typed into that can't be applied yet (e.g. a half-typed link). It is
+ * kept by the editor, not the document: the document only ever holds valid values.
+ */
+export interface UnresolvedField {
+    nodeId: string;
+    prop: string;
+    /** For messages: "Button link". */
+    label: string;
+    value: string;
+    error: string;
+}
 
 type Image = { assetId: string; alt: string } | null;
 
@@ -20,6 +33,9 @@ export interface InspectorProps {
     canUpload: boolean;
     onChange(ops: PageOperation[], coalesceKey?: string): void;
     onUpload(file: File): Promise<MediaInfo | null>;
+    /** Unresolved field input by `${nodeId}:${prop}`; survives selection changes. */
+    unresolved: Record<string, UnresolvedField>;
+    onUnresolved(key: string, field: UnresolvedField | null): void;
 }
 
 type NodeInspectorProps = InspectorProps & { node: Node; set(values: Record<string, unknown>, key?: string): void };
@@ -146,6 +162,20 @@ function TextInspector({ node, canEdit, set }: NodeInspectorProps) {
 
 function ImageInspector({ node, canEdit, set, ...rest }: NodeInspectorProps) {
     const p = node.props;
+    // Sizes are maximum widths on the page and shares of the column inside Columns (image v2 CSS).
+    const location = findParent(rest.document, node.id);
+    const inColumn = location !== null && rest.document.nodes[location.parentId]?.type === 'column';
+    const sizes: ['full' | 'medium' | 'small', string][] = inColumn
+        ? [
+              ['full', 'Full (whole column)'],
+              ['medium', 'Medium (2/3 of the column)'],
+              ['small', 'Small (2/5 of the column)'],
+          ]
+        : [
+              ['full', 'Full (page width)'],
+              ['medium', 'Medium (up to 768 px)'],
+              ['small', 'Small (up to 448 px)'],
+          ];
     return (
         <div className="space-y-4 p-4">
             <h2 className="text-sm font-semibold">Image</h2>
@@ -154,11 +184,7 @@ function ImageInspector({ node, canEdit, set, ...rest }: NodeInspectorProps) {
             <SelectField
                 label="Size"
                 value={(p.size as 'full' | 'medium' | 'small') ?? 'full'}
-                options={[
-                    ['full', 'Full width'],
-                    ['medium', 'Medium'],
-                    ['small', 'Small'],
-                ]}
+                options={sizes}
                 disabled={!canEdit}
                 onChange={(v) => set({ size: v })}
             />
@@ -166,15 +192,27 @@ function ImageInspector({ node, canEdit, set, ...rest }: NodeInspectorProps) {
     );
 }
 
-function ButtonInspector({ node, canEdit, set }: NodeInspectorProps) {
+function ButtonInspector({ node, canEdit, set, unresolved, onUnresolved }: NodeInspectorProps) {
     const p = node.props;
     const linkId = useId();
     const tabId = useId();
-    // The link is edited locally and applied only when it is safe, so typing "https://…" letter by
-    // letter never produces an invalid document (and an unsafe link never reaches the page).
-    const [link, setLink] = useState(String(p.href ?? ''));
-    useEffect(() => setLink(String(p.href ?? '')), [p.href]);
-    const linkError = link.length > 2000 ? message('tooLong', { max: 2000 }) : matches('link', link) ? null : message('unsafeLink');
+    // A link is applied only when it is safe, so typing "https://…" letter by letter never
+    // produces an invalid document. Until then the typed text is held by the editor as an
+    // unresolved field: shown here, flagged in the save status, and blocking Preview/Publish.
+    const key = `${node.id}:href`;
+    const applied = String(p.href ?? '');
+    const pending = unresolved[key];
+    const link = pending?.value ?? applied;
+    const linkError = pending?.error ?? null;
+    const editLink = (value: string) => {
+        const error = value.length > 2000 ? message('tooLong', { max: 2000 }) : matches('link', value) ? null : message('unsafeLink');
+        if (error) {
+            onUnresolved(key, { nodeId: node.id, prop: 'href', label: 'Button link', value, error });
+            return;
+        }
+        onUnresolved(key, null);
+        if (value !== applied) set({ href: value }, 'href');
+    };
     return (
         <div className="space-y-4 p-4">
             <h2 className="text-sm font-semibold">Button</h2>
@@ -191,15 +229,21 @@ function ButtonInspector({ node, canEdit, set }: NodeInspectorProps) {
                     placeholder="/contact or https://example.com"
                     aria-invalid={linkError !== null}
                     aria-describedby={`${linkId}-hint`}
-                    onChange={(e) => {
-                        const value = e.target.value;
-                        setLink(value);
-                        if (matches('link', value) && value.length <= 2000) set({ href: value }, 'href');
-                    }}
+                    onChange={(e) => editLink(e.target.value)}
                 />
                 <p id={`${linkId}-hint`} role={linkError ? 'alert' : undefined} className={`mt-1 text-xs ${linkError ? 'text-red-700' : 'text-zinc-500'}`}>
                     {linkError ?? 'A page on this site (/about), a section (#top), or a full web, email or phone link.'}
                 </p>
+                {pending && (
+                    <div className="mt-1 flex items-center justify-between gap-2 text-xs text-zinc-600">
+                        <span>
+                            Not applied. The button still links to <code className="rounded bg-zinc-100 px-1">{applied || '(no link)'}</code>.
+                        </span>
+                        <button type="button" onClick={() => onUnresolved(key, null)} className={smallButton}>
+                            Revert link
+                        </button>
+                    </div>
+                )}
             </div>
             <SelectField
                 label="Style"

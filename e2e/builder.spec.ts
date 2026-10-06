@@ -1,6 +1,6 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
-import { E2E_EDITOR } from './fixtures';
-import { BASE_URL, createPage } from './support';
+import { expect, test, type FrameLocator, type Locator, type Page } from '@playwright/test';
+import { E2E_EDITOR, PNG_1X1 } from './fixtures';
+import { BASE_URL, createPage, interceptNext, isAction, publicationCount } from './support';
 
 const status = (page: Page) => page.getByTestId('save-status');
 const notice = (page: Page) => page.getByTestId('notice');
@@ -155,6 +155,230 @@ test('removing and reordering with the structure toolbar, and the last column ca
     await page.getByRole('button', { name: 'Undo' }).click();
     expect(await outline(page)).toEqual(['columns<page', 'column<columns', 'column<columns', 'hero<page']);
     await expect(layers(page)).toHaveCount(4);
+});
+
+test('an unfinished link is kept and flagged, and blocks Preview and Publish until fixed or reverted', async ({ page }) => {
+    const id = await createPage('/link-draft', 'Link draft');
+    await page.goto(`/admin/editor/${id}`);
+    await openLayers(page);
+    await page.getByRole('button', { name: 'Add Button' }).click();
+    await page.getByRole('tab', { name: 'Properties' }).click();
+    await page.getByLabel('Link').fill('/contact');
+    await page.getByRole('button', { name: 'Save draft' }).click();
+    await expect(status(page)).toHaveText('Draft saved');
+
+    // Half-typed: not applied to the page, and the editor says so instead of "Draft saved".
+    await page.getByLabel('Link').fill('https://');
+    await expect(page.getByRole('alert').filter({ hasText: 'Use a link starting with' })).toBeVisible();
+    await expect(status(page)).toHaveText('1 invalid field not saved');
+    await page.keyboard.press('ControlOrMeta+s');
+    await expect(status(page)).toHaveText('1 invalid field not saved');
+    // Valid changes still save, without claiming the link was saved too.
+    await page.getByLabel('Label').fill('Talk to us');
+    await expect(status(page)).toHaveText('Unsaved changes, 1 invalid field not saved');
+    await page.getByRole('button', { name: 'Save draft' }).click();
+    await expect(status(page)).toHaveText('1 invalid field not saved');
+    await expect(canvas(page).locator('a.ak-button')).toHaveAttribute('href', '/contact');
+
+    // Selecting something else and coming back keeps what was typed.
+    await openLayers(page);
+    await layer(page, 'hero').getByRole('button').first().click();
+    await layer(page, 'button').getByRole('button').first().click();
+    await page.getByRole('tab', { name: 'Properties' }).click();
+    await expect(page.getByLabel('Link')).toHaveValue('https://');
+
+    // Publish and Preview are blocked (no popup), and the field is shown again.
+    await openLayers(page);
+    const popups: Page[] = [];
+    page.on('popup', (popup) => popups.push(popup));
+    await page.getByRole('button', { name: 'Publish' }).click();
+    await expect(notice(page)).toContainText('Fix or revert the Button link before publishing');
+    await expect(page.getByLabel('Link')).toBeVisible();
+    await page.getByRole('button', { name: 'Preview' }).click();
+    await expect(notice(page)).toContainText('Fix or revert the Button link before previewing');
+    expect(popups).toHaveLength(0);
+    expect((await publicHtml(page, '/link-draft')).status).toBe(404);
+
+    // Leaving warns: reload/close (beforeunload) and in-app navigation (declined here).
+    expect(
+        await page.evaluate(() => {
+            const event = new Event('beforeunload', { cancelable: true });
+            window.dispatchEvent(event);
+            return event.defaultPrevented;
+        }),
+    ).toBe(true);
+    page.once('dialog', (dialog) => void dialog.dismiss());
+    await page.getByRole('link', { name: 'Arkon' }).click();
+    await expect(page).toHaveURL(new RegExp(`/admin/editor/${id}$`));
+    await expect(page.getByLabel('Link')).toHaveValue('https://');
+
+    // Revert puts the applied link back; fixing it applies the new one.
+    await page.getByRole('button', { name: 'Revert link' }).click();
+    await expect(page.getByLabel('Link')).toHaveValue('/contact');
+    await expect(status(page)).toHaveText('Draft saved');
+    await page.getByLabel('Link').fill('https://example.com/');
+    await expect(status(page)).toHaveText('Unsaved changes');
+    await page.getByRole('button', { name: 'Publish' }).click();
+    await expect(notice(page)).toContainText('Published');
+    expect((await publicHtml(page, '/link-draft')).html).toContain('href="https://example.com/"');
+});
+
+/** A page with a saved button linking to /contact, its label changed (unsaved), the button selected in Properties. */
+async function buttonWithUnsavedLabel(page: Page, path: string): Promise<string> {
+    const id = await createPage(path, 'Held action');
+    await page.goto(`/admin/editor/${id}`);
+    await openLayers(page);
+    await page.getByRole('button', { name: 'Add Button' }).click();
+    await page.getByRole('tab', { name: 'Properties' }).click();
+    await page.getByLabel('Link').fill('/contact');
+    await page.getByRole('button', { name: 'Save draft' }).click();
+    await expect(status(page)).toHaveText('Draft saved');
+    await page.getByLabel('Label').fill('Get in touch');
+    await expect(status(page)).toHaveText('Unsaved changes');
+    return id;
+}
+
+test('a link made invalid while Publish waits for its save blocks the publication', async ({ page }) => {
+    const id = await buttonWithUnsavedLabel(page, '/held-publish');
+    const publishRequests: string[] = [];
+    page.on('request', (request) => {
+        if (isAction(request, 'publish')) publishRequests.push(request.url());
+    });
+    const slow = await interceptNext(page, 'save', 'delay');
+    const saveSent = page.waitForRequest((request) => isAction(request, 'save'));
+    await page.getByRole('button', { name: 'Publish' }).click();
+    await saveSent;
+    // While the save is held, the link becomes unfinished.
+    await page.getByLabel('Link').fill('https://');
+    slow.release();
+
+    await expect(notice(page)).toContainText('Fix or revert the Button link before publishing');
+    await expect(status(page)).toHaveText('1 invalid field not saved');
+    await expect(page.getByLabel('Link')).toHaveValue('https://');
+    await expect(page.getByLabel('Link')).toHaveAttribute('aria-invalid', 'true');
+    expect(publishRequests).toEqual([]);
+    expect(await publicationCount(id)).toBe(0);
+    expect((await publicHtml(page, '/held-publish')).status).toBe(404);
+    await slow.stop();
+
+    // Fixed: publishing works normally, with the label saved while it was held.
+    await page.getByLabel('Link').fill('https://example.com/');
+    await page.getByRole('button', { name: 'Publish' }).click();
+    await expect(notice(page)).toContainText('Published');
+    expect(await publicationCount(id)).toBe(1);
+    const live = await publicHtml(page, '/held-publish');
+    expect(live.html).toContain('<a class="ak-button ak-button--primary" href="https://example.com/">Get in touch</a>');
+});
+
+test('a link made invalid while Preview waits for its save closes the preview instead of showing it', async ({ page }) => {
+    const id = await buttonWithUnsavedLabel(page, '/held-preview');
+    const slow = await interceptNext(page, 'save', 'delay');
+    const saveSent = page.waitForRequest((request) => isAction(request, 'save'));
+    const popupOpened = page.waitForEvent('popup');
+    await page.getByRole('button', { name: 'Preview' }).click();
+    const popup = await popupOpened;
+    const popupRequests: string[] = [];
+    popup.on('request', (request) => popupRequests.push(request.url()));
+    await saveSent;
+    await page.getByLabel('Link').fill('https://');
+    slow.release();
+
+    await expect(notice(page)).toContainText('Fix or revert the Button link before previewing');
+    await expect.poll(() => popup.isClosed()).toBe(true);
+    expect(popupRequests.filter((url) => url.includes('/preview/'))).toEqual([]);
+    await expect(status(page)).toHaveText('1 invalid field not saved');
+    await expect(page.getByLabel('Link')).toHaveValue('https://');
+    await slow.stop();
+
+    // Reverted: the preview opens normally and shows the saved draft.
+    await page.getByRole('button', { name: 'Revert link' }).click();
+    await expect(status(page)).toHaveText('Draft saved');
+    const next = page.waitForEvent('popup');
+    await page.getByRole('button', { name: 'Preview' }).click();
+    const preview = await next;
+    await expect(preview).toHaveURL(new RegExp(`/preview/${id}$`));
+    await expect(preview.locator('a.ak-button')).toHaveText('Get in touch');
+    await expect(preview.locator('a.ak-button')).toHaveAttribute('href', '/contact');
+    await preview.close();
+});
+
+test('image sizes inside a column match the inspector in the canvas, preview and live page', async ({ page }) => {
+    const id = await createPage('/image-sizes', 'Image sizes');
+    await page.goto(`/admin/editor/${id}`);
+    await openLayers(page);
+    await page.getByRole('button', { name: 'Add Columns' }).click();
+    await page.getByRole('tab', { name: 'Properties' }).click();
+    await page.getByRole('button', { name: 'Remove last column' }).click(); // one full-width column
+    await openLayers(page);
+    await layer(page, 'column').getByRole('button').first().click();
+    for (let i = 0; i < 3; i++) await page.getByRole('button', { name: 'Add Image' }).click();
+
+    const sizes = ['full', 'medium', 'small'];
+    for (const [i, size] of sizes.entries()) {
+        await openLayers(page);
+        await layer(page, 'image', i).getByRole('button').first().click();
+        await page.getByRole('tab', { name: 'Properties' }).click();
+        if (i === 0) await page.getByLabel('Upload image').setInputFiles({ name: 'dot.png', mimeType: 'image/png', buffer: PNG_1X1 });
+        else await page.getByLabel('Choose from library').selectOption({ index: 1 });
+        await page.getByLabel(/Alternative text/).fill(`Dot ${size}`);
+        await page.getByLabel('Size').selectOption(size);
+    }
+
+    // Width of each image as a percentage of its column.
+    const percentages = (root: Page | FrameLocator) =>
+        root
+            .locator('.ak-column > .ak-image')
+            .evaluateAll((els) => els.map((el) => Math.round((el.getBoundingClientRect().width / el.parentElement!.getBoundingClientRect().width) * 100)));
+    const expectSizes = async (root: Page | FrameLocator) => {
+        await expect.poll(() => percentages(root)).toHaveLength(3);
+        const [full, medium, small] = await percentages(root);
+        expect(full).toBe(100);
+        expect(medium).toBeGreaterThanOrEqual(60);
+        expect(medium).toBeLessThanOrEqual(70);
+        expect(small).toBeGreaterThanOrEqual(35);
+        expect(small).toBeLessThanOrEqual(45);
+    };
+    await expect.poll(async () => (await percentages(canvas(page))).join(',')).toMatch(/^100,6\d,(3[5-9]|4[0-5])$/);
+    await expectSizes(canvas(page));
+
+    await page.getByRole('button', { name: 'Save draft' }).click();
+    await expect(status(page)).toHaveText('Draft saved');
+    const preview = await page.context().newPage();
+    await preview.goto(`/preview/${id}`);
+    await expectSizes(preview);
+
+    await page.getByRole('button', { name: 'Publish' }).click();
+    await expect(notice(page)).toContainText('Published');
+    await preview.goto('/image-sizes');
+    await expectSizes(preview);
+    const live = await publicHtml(page, '/image-sizes');
+    expect(live.html).toContain('<figure class="ak-image ak-image--small">');
+    await preview.close();
+});
+
+test('a Columns block never gives away its last column, but columns move between blocks that keep one', async ({ page }) => {
+    const id = await createPage('/columns-transfer', 'Columns transfer');
+    await page.goto(`/admin/editor/${id}`);
+    await openLayers(page);
+    await page.getByRole('button', { name: 'Add Columns' }).click(); // block 1, selected
+    await page.getByRole('tab', { name: 'Properties' }).click();
+    await page.getByRole('button', { name: 'Remove last column' }).click(); // block 1 has one column
+    await openLayers(page);
+    await page.getByRole('button', { name: 'Add Columns' }).click(); // block 2, two columns
+    const start = ['hero<page', 'columns<page', 'column<columns', 'columns<page', 'column<columns', 'column<columns'];
+    expect(await outline(page)).toEqual(start);
+
+    // Block 1's only column is not offered as a drop into block 2: nothing changes, no error.
+    await drop(layer(page, 'column', 0), layer(page, 'column', 1), 'after');
+    expect(await outline(page)).toEqual(start);
+    await expect(notice(page)).toHaveCount(0);
+
+    // Block 2 has two: one of them may move into block 1.
+    await drop(layer(page, 'column', 2), layer(page, 'column', 0), 'after');
+    expect(await outline(page)).toEqual(['hero<page', 'columns<page', 'column<columns', 'column<columns', 'columns<page', 'column<columns']);
+    await expect(notice(page)).toHaveCount(0);
+    await page.getByRole('button', { name: 'Save draft' }).click();
+    await expect(status(page)).toHaveText('Draft saved');
 });
 
 test.describe('as an editor', () => {
