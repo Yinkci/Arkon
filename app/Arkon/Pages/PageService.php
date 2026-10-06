@@ -1,0 +1,553 @@
+<?php
+
+namespace App\Arkon\Pages;
+
+use App\Arkon\Audit\AuditLog;
+use App\Arkon\Database\Transactions;
+use App\Arkon\Errors\ConflictException;
+use App\Arkon\Errors\NotFoundException;
+use App\Arkon\Errors\ValidationException;
+use App\Arkon\Media\MediaService;
+use App\Arkon\Media\MediaSigner;
+use App\Arkon\Renderer\PageRenderer;
+use App\Arkon\Renderer\RenderException;
+use App\Arkon\Schema\OperationException;
+use App\Arkon\Schema\Operations;
+use App\Arkon\Sites\Authorizer;
+use App\Arkon\Sites\Permissions;
+use App\Arkon\Sites\SiteContext;
+use App\Arkon\Support\Fingerprint;
+use App\Arkon\Support\Input;
+use App\Arkon\Support\Json;
+use App\Arkon\Support\Rules;
+use App\Arkon\Support\Time;
+use App\Arkon\Support\Uuid;
+use Illuminate\Support\Facades\DB;
+
+/**
+ * Drafts, revisions, publishing and the public lookups. Port of
+ * packages/core/src/pages.ts. Every method authorizes first, inside its
+ * transaction, and every query is scoped to the context's site.
+ */
+class PageService
+{
+    public function __construct(
+        private readonly Authorizer $authorizer,
+        private readonly Transactions $transactions,
+        private readonly PageStore $store,
+        private readonly MediaService $media,
+        private readonly PageRenderer $renderer,
+        private readonly AuditLog $audit,
+    ) {}
+
+    // ── Reading ─────────────────────────────────────────────────────────────
+
+    /** @return 'draft'|'published'|'changed' */
+    public static function statusOf(object $draft, ?string $liveRevisionId): string
+    {
+        if ($liveRevisionId === null) {
+            return 'draft';
+        }
+        $matchesCheckpoint = $draft->checkpoint_version !== null && (int) $draft->checkpoint_version === (int) $draft->version;
+
+        return $matchesCheckpoint && $draft->checkpoint_revision_id === $liveRevisionId ? 'published' : 'changed';
+    }
+
+    public function listPages(SiteContext $ctx): array
+    {
+        $this->authorizer->authorize($ctx, 'page.view');
+        $rows = DB::table('pages as p')
+            ->join('page_drafts as d', 'd.page_id', '=', 'p.id')
+            ->leftJoin('live_pages as l', 'l.page_id', '=', 'p.id')
+            ->leftJoin('publications as pub', 'pub.id', '=', 'l.publication_id')
+            ->where('p.site_id', $ctx->siteId)
+            ->whereNull('p.deleted_at')
+            ->orderBy('p.path')
+            ->get([
+                'p.id', 'p.path', 'p.title', 'd.updated_at', 'd.version', 'd.checkpoint_version', 'd.checkpoint_revision_id',
+                'pub.revision_id as live_revision_id', 'pub.id as live_publication_id', 'l.path as live_path', 'pub.created_at as published_at',
+            ]);
+
+        return $rows->map(fn ($r) => [
+            'id' => $r->id,
+            'path' => $r->path,
+            'title' => $r->title,
+            // Where the page is served now; differs from `path` while a URL change is unpublished.
+            'livePath' => $r->live_path,
+            // For stale checks: the draft version and live publication the user acts on.
+            'version' => (int) $r->version,
+            'livePublicationId' => $r->live_publication_id,
+            'updatedAt' => Time::iso($r->updated_at),
+            'publishedAt' => Time::iso($r->published_at),
+            'status' => self::statusOf($r, $r->live_revision_id),
+        ])->all();
+    }
+
+    public function editorState(SiteContext $ctx, string $pageId): array
+    {
+        $role = $this->authorizer->authorize($ctx, 'page.view');
+        $page = $this->store->loadPage($ctx->siteId, Input::id($pageId));
+        $draft = $this->store->loadDraft($ctx->siteId, $page->id);
+        $live = $this->store->loadLive($ctx->siteId, $page->id);
+        $doc = $this->store->document($draft->document);
+
+        return [
+            'page' => ['id' => $page->id, 'path' => $page->path, 'title' => $page->title],
+            'draft' => ['document' => $doc, 'version' => (int) $draft->version],
+            'live' => $live ? self::liveInfo($live) : null,
+            'status' => self::statusOf($draft, $live?->revision_id),
+            'media' => array_values($this->media->mediaMap($ctx->siteId, $this->store->safeMediaRefs($doc))),
+            'permissions' => [
+                'edit' => Permissions::allows($role, 'page.edit'),
+                'publish' => Permissions::allows($role, 'page.publish'),
+                'delete' => Permissions::allows($role, 'page.delete'),
+                'upload' => Permissions::allows($role, 'media.upload'),
+            ],
+        ];
+    }
+
+    public static function liveInfo(object $live): array
+    {
+        return [
+            'revisionNumber' => (int) $live->revision_number,
+            'publishedAt' => Time::iso($live->published_at),
+            'publicationId' => $live->publication_id,
+            'path' => $live->path,
+            'title' => $live->title,
+        ];
+    }
+
+    public function listRevisions(SiteContext $ctx, string $pageId): array
+    {
+        $this->authorizer->authorize($ctx, 'page.view');
+        $page = $this->store->loadPage($ctx->siteId, Input::id($pageId));
+        $live = $this->store->loadLive($ctx->siteId, $page->id);
+
+        return DB::table('page_revisions as r')
+            ->leftJoin('users as u', 'u.id', '=', 'r.author_id')
+            ->where('r.site_id', $ctx->siteId)
+            ->where('r.page_id', $page->id)
+            ->orderByDesc('r.number')
+            ->limit(100)
+            ->get(['r.id', 'r.number', 'r.source', 'r.message', 'r.created_at', 'u.name as author_name'])
+            ->map(fn ($r) => [
+                'id' => $r->id,
+                'number' => (int) $r->number,
+                'source' => $r->source,
+                'message' => $r->message,
+                'createdAt' => Time::iso($r->created_at),
+                'authorName' => $r->author_name,
+                'isLive' => $r->id === $live?->revision_id,
+            ])->all();
+    }
+
+    /** Renders the current draft exactly as it would be published (production mode). */
+    public function renderPreview(SiteContext $ctx, string $pageId): string
+    {
+        $this->authorizer->authorize($ctx, 'page.view');
+        $page = $this->store->loadPage($ctx->siteId, Input::id($pageId));
+        $draft = $this->store->loadDraft($ctx->siteId, $page->id);
+
+        return $this->store->renderForSite($ctx->siteId, $page->title, $page->path, $this->store->document($draft->document), false)['html'];
+    }
+
+    /**
+     * Editor-mode rendering of the editor's local document for the canvas: the
+     * same renderer as production, plus data-ak-* annotations. Images get signed
+     * URLs because the sandboxed canvas cannot send the session cookie.
+     *
+     * @return array{body: string, css: string}
+     */
+    public function renderCanvas(SiteContext $ctx, string $pageId, mixed $document, MediaSigner $signer): array
+    {
+        $this->authorizer->authorize($ctx, 'page.view');
+        $page = $this->store->loadPage($ctx->siteId, Input::id($pageId));
+        $site = DB::table('sites')->where('id', $ctx->siteId)->first(['name']);
+        $media = [];
+        foreach ($this->media->mediaMap($ctx->siteId, $this->store->safeMediaRefs($document)) as $id => $info) {
+            $media[$id] = [...$info, 'url' => $signer->signUrl($info['url'])];
+        }
+        try {
+            $out = $this->renderer->render($document, 'editor', ['title' => $page->title, 'path' => $page->path], ['name' => $site->name], $media);
+        } catch (RenderException $error) {
+            throw new ValidationException('The page could not be rendered', $error->issues);
+        }
+
+        return ['body' => $out['body'], 'css' => $out['css']];
+    }
+
+    /**
+     * Public lookup: the published HTML for a path, or null. Never reads drafts.
+     * Deleting a page removes its live row in the same transaction; the join on
+     * a non-deleted page is a second line of defence, not the guarantee.
+     */
+    public function livePage(string $siteId, string $path): ?object
+    {
+        return DB::table('live_pages as l')
+            ->join('publications as p', 'p.id', '=', 'l.publication_id')
+            ->join('pages as pg', fn ($j) => $j->on('pg.site_id', '=', 'l.site_id')->on('pg.id', '=', 'l.page_id'))
+            ->whereNull('pg.deleted_at')
+            ->where('l.site_id', $siteId)
+            ->where('l.path', $path)
+            ->first(['p.id as publication_id', 'p.html']);
+    }
+
+    /**
+     * Public lookup for an old URL. Redirects point at a page and resolve to its
+     * current live path, so they never chain or loop; a page that is unpublished
+     * or deleted has no target and the old URL is simply not found.
+     */
+    public function resolveRedirect(string $siteId, string $path): ?string
+    {
+        $target = DB::table('redirects as r')
+            ->join('live_pages as l', fn ($j) => $j->on('l.site_id', '=', 'r.site_id')->on('l.page_id', '=', 'r.page_id'))
+            ->join('pages as p', fn ($j) => $j->on('p.site_id', '=', 'r.site_id')->on('p.id', '=', 'r.page_id'))
+            ->whereNull('p.deleted_at')
+            ->where('r.site_id', $siteId)
+            ->where('r.from_path', $path)
+            ->value('l.path');
+
+        return $target !== null && $target !== $path ? $target : null;
+    }
+
+    // ── Writing drafts ──────────────────────────────────────────────────────
+
+    /**
+     * Applies operations to the draft the caller was looking at. Rejects the save
+     * if anyone changed the draft since (StaleVersionException), so nothing is
+     * overwritten. A retry of an already-applied save (same key, same request)
+     * returns the original result instead of failing as stale or applying twice.
+     * Saving creates a checkpoint revision. It never touches the live page.
+     *
+     * @param  array{pageId: mixed, baseVersion: mixed, operations: mixed, saveKey: mixed, message?: mixed}  $input  operations in raw JSON form
+     * @return array{version: int, revision: array{id: string, number: int}, document: mixed, replayed: bool}
+     */
+    public function saveDraft(SiteContext $ctx, array $input): array
+    {
+        $pageId = Input::id($input['pageId'] ?? null);
+        $valid = Input::validate($input, [
+            'baseVersion' => ['required', 'integer', 'min:1'],
+            'saveKey' => Input::requestKeyRule(),
+            'message' => ['nullable', 'string', 'max:'.Rules::get('limits.saveMessage')],
+        ]);
+        [$operations, $issues] = Operations::parse($input['operations'] ?? null);
+        $max = Rules::get('limits.operations');
+        if ($issues === [] && (count($operations) < 1 || count($operations) > $max)) {
+            $issues[] = ['path' => 'operations', 'message' => "Expected 1 to {$max} operations"];
+        }
+        if ($issues !== []) {
+            throw new ValidationException('The change is not valid', $issues);
+        }
+        $baseVersion = (int) $valid['baseVersion'];
+        $saveKey = $valid['saveKey'];
+        $message = trim((string) ($valid['message'] ?? '')) ?: 'Saved draft';
+        $fingerprint = Fingerprint::of(['kind' => 'save', 'pageId' => $pageId, 'baseVersion' => $baseVersion, 'operations' => $operations]);
+
+        return $this->transactions->run(function () use ($ctx, $pageId, $baseVersion, $operations, $saveKey, $message, $fingerprint) {
+            $this->authorizer->authorize($ctx, 'page.edit');
+            [$page, $draft] = $this->store->lockForWrite($ctx->siteId, $pageId);
+
+            if ($draft->last_save_key === $saveKey) {
+                if ($draft->last_save_fingerprint !== $fingerprint) {
+                    throw new ConflictException('This save key was already used for a different save');
+                }
+                $revision = DB::table('page_revisions')->where('id', $draft->checkpoint_revision_id)->first(['id', 'number']);
+
+                return [
+                    'version' => (int) $draft->version,
+                    'revision' => ['id' => $revision->id, 'number' => (int) $revision->number],
+                    'document' => Json::decode($draft->document),
+                    'replayed' => true,
+                ];
+            }
+            $this->store->assertVersion($draft, $baseVersion);
+
+            try {
+                $next = Operations::apply($this->store->document($draft->document), $operations)['doc'];
+            } catch (OperationException $error) {
+                throw new ValidationException($error->getMessage());
+            }
+            $this->store->validateForSave($ctx->siteId, $next);
+
+            $version = (int) $draft->version + 1;
+            $revision = $this->store->insertRevision($ctx, $pageId, $next, $page->title, $page->path, $message);
+            DB::table('page_drafts')->where('page_id', $pageId)->update([
+                'document' => Json::encode($next),
+                'version' => $version,
+                'checkpoint_revision_id' => $revision['id'],
+                'checkpoint_version' => $version,
+                'last_save_key' => $saveKey,
+                'last_save_fingerprint' => $fingerprint,
+                'updated_by' => $ctx->userId,
+                'updated_at' => now(),
+            ]);
+            DB::table('pages')->where('id', $pageId)->update(['updated_at' => now()]);
+            $this->audit->forContext($ctx, 'page.draft.save', 'page', $pageId, [
+                'version' => $version, 'revision' => $revision['number'], 'operations' => count($operations),
+            ]);
+
+            return ['version' => $version, 'revision' => $revision, 'document' => $next, 'replayed' => false];
+        });
+    }
+
+    /**
+     * Copies a revision into the draft as a new version. History itself is never
+     * modified. Restore brings back content only: the page keeps its current
+     * draft title and URL.
+     *
+     * @return array{version: int, revision: array{id: string, number: int}, document: mixed}
+     */
+    public function restoreRevision(SiteContext $ctx, array $input): array
+    {
+        $pageId = Input::id($input['pageId'] ?? null);
+        $revisionId = Input::id($input['revisionId'] ?? null, 'Revision');
+        $expectedVersion = (int) Input::validate($input, ['expectedVersion' => ['required', 'integer', 'min:1']])['expectedVersion'];
+
+        return $this->transactions->run(function () use ($ctx, $pageId, $revisionId, $expectedVersion) {
+            $this->authorizer->authorize($ctx, 'page.edit');
+            [$page, $draft] = $this->store->lockForWrite($ctx->siteId, $pageId);
+            $this->store->assertVersion($draft, $expectedVersion);
+            $source = DB::table('page_revisions')
+                ->where('site_id', $ctx->siteId)->where('page_id', $pageId)->where('id', $revisionId)
+                ->first() ?? throw new NotFoundException('Revision');
+            $doc = $this->store->document($source->document);
+            $this->store->validateForSave($ctx->siteId, $doc);
+
+            $version = (int) $draft->version + 1;
+            $revision = $this->store->insertRevision($ctx, $pageId, $doc, $page->title, $page->path, "Restored from #{$source->number}");
+            DB::table('page_drafts')->where('page_id', $pageId)->update([
+                'document' => Json::encode($doc),
+                'version' => $version,
+                'checkpoint_revision_id' => $revision['id'],
+                'checkpoint_version' => $version,
+                'last_save_key' => null,
+                'last_save_fingerprint' => null,
+                'updated_by' => $ctx->userId,
+                'updated_at' => now(),
+            ]);
+            $this->audit->forContext($ctx, 'page.revision.restore', 'page', $pageId, [
+                'from' => (int) $source->number, 'revision' => $revision['number'], 'version' => $version,
+            ]);
+
+            return ['version' => $version, 'revision' => $revision, 'document' => $doc];
+        });
+    }
+
+    // ── Publishing ──────────────────────────────────────────────────────────
+
+    /**
+     * Publishes exactly the draft version the caller saw. Idempotent per key: a
+     * retry with the same key and request returns the first result; the same key
+     * for a different page or version is rejected. The live pointer only moves to
+     * a higher epoch, so retries and late duplicates cannot roll the page back.
+     *
+     * @return array{publicationId: string, revisionId: string, epoch: int, publishedAt: string, replayed: bool}
+     */
+    public function publish(SiteContext $ctx, array $input): array
+    {
+        $pageId = Input::id($input['pageId'] ?? null);
+        $valid = Input::validate($input, [
+            'expectedVersion' => ['required', 'integer', 'min:1'],
+            'idempotencyKey' => Input::requestKeyRule(),
+        ]);
+        $expectedVersion = (int) $valid['expectedVersion'];
+        $key = $valid['idempotencyKey'];
+        $fingerprint = Fingerprint::of(['kind' => 'publish', 'pageId' => $pageId, 'expectedVersion' => $expectedVersion]);
+
+        return $this->transactions->run(function () use ($ctx, $pageId, $expectedVersion, $key, $fingerprint) {
+            $this->authorizer->authorize($ctx, 'page.publish');
+
+            $replay = function () use ($ctx, $key, $fingerprint): ?array {
+                $existing = DB::table('publications')->where('site_id', $ctx->siteId)->where('idempotency_key', $key)->first();
+                if ($existing === null) {
+                    return null;
+                }
+                if ($existing->request_fingerprint !== $fingerprint) {
+                    throw new ConflictException('This publish key was already used for a different page or version');
+                }
+
+                return [
+                    'publicationId' => $existing->id, 'revisionId' => $existing->revision_id, 'epoch' => (int) $existing->epoch,
+                    'publishedAt' => Time::iso($existing->created_at), 'replayed' => true,
+                ];
+            };
+            if ($early = $replay()) {
+                return $early;
+            }
+
+            // Re-reads the page after the lock: a publish that waited behind a delete must not resurrect it.
+            [$page, $draft] = $this->store->lockForWrite($ctx->siteId, $pageId);
+            // A concurrent duplicate may have committed while this request waited for the lock.
+            if ($late = $replay()) {
+                return $late;
+            }
+            $this->store->assertVersion($draft, $expectedVersion);
+
+            // Lock order: draft row, then site row (epoch). Saves only lock the draft, so this cannot deadlock.
+            $epoch = $this->store->lockNextEpoch($ctx->siteId);
+
+            // Older component versions are migrated forward in memory; what gets rendered is $doc.
+            $doc = $this->store->document($draft->document);
+            $revisionId = $draft->checkpoint_version !== null && (int) $draft->checkpoint_version === (int) $draft->version
+                ? $draft->checkpoint_revision_id
+                : null;
+            // A publication's revision document is exactly the document rendered, so the publication can be
+            // reproduced from it. A checkpoint stored at older component versions is not that document.
+            $upgraded = $revisionId !== null
+                && Json::canonical(Json::decode(DB::table('page_revisions')->where('id', $revisionId)->value('document'))) !== Json::canonical($doc);
+            if ($revisionId === null || $upgraded) {
+                $message = $upgraded ? 'Published with components upgraded to current versions' : 'Published';
+                $revisionId = $this->store->insertRevision($ctx, $pageId, $doc, $page->title, $page->path, $message)['id'];
+                DB::table('page_drafts')->where('page_id', $pageId)->update([
+                    'checkpoint_revision_id' => $revisionId, 'checkpoint_version' => $draft->version,
+                ]);
+            }
+
+            // The title and URL being published are the revision's, not whatever the page row says later.
+            $meta = DB::table('page_revisions')->where('id', $revisionId)->first(['title', 'path']);
+            $previous = $this->store->loadLive($ctx->siteId, $pageId);
+            $occupied = DB::table('live_pages')->where('site_id', $ctx->siteId)->where('path', $meta->path)->where('page_id', '!=', $pageId)->exists();
+            if ($occupied) {
+                throw new ConflictException("Another page is live at {$meta->path}. Change this page's URL or unpublish the other page first.");
+            }
+
+            // Rendered while holding the epoch lock: what it reads is the published state at `epoch`.
+            $rendered = $this->store->renderForSite($ctx->siteId, $meta->title, $meta->path, $doc, true);
+            $publicationId = Uuid::v7();
+            $created = DB::selectOne(
+                'INSERT INTO publications (id, site_id, page_id, revision_id, path, html, epoch, idempotency_key, request_fingerprint, render_inputs, published_by)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?) RETURNING created_at',
+                [$publicationId, $ctx->siteId, $pageId, $revisionId, $meta->path, $rendered['html'], $epoch, $key, $fingerprint, Json::encode($rendered['inputs']), $ctx->userId],
+            );
+            $this->store->recordPublicationMedia($ctx->siteId, $publicationId, $this->store->safeMediaRefs($doc));
+
+            DB::statement(
+                'INSERT INTO live_pages (page_id, site_id, path, publication_id, epoch, updated_at) VALUES (?, ?, ?, ?, ?, now())
+                 ON CONFLICT (page_id) DO UPDATE SET publication_id = EXCLUDED.publication_id, epoch = EXCLUDED.epoch, path = EXCLUDED.path, updated_at = now()
+                 WHERE live_pages.epoch < EXCLUDED.epoch',
+                [$pageId, $ctx->siteId, $meta->path, $publicationId, $epoch],
+            );
+
+            // A live page always wins over a redirect from its own URL.
+            DB::table('redirects')->where('site_id', $ctx->siteId)->where('from_path', $meta->path)->delete();
+            // The URL this page was served at until now keeps working: it redirects to the page.
+            $movedFrom = $previous && $previous->path !== $meta->path ? $previous->path : null;
+            if ($movedFrom !== null) {
+                DB::statement(
+                    'INSERT INTO redirects (site_id, from_path, page_id) VALUES (?, ?, ?)
+                     ON CONFLICT (site_id, from_path) DO UPDATE SET page_id = EXCLUDED.page_id, created_at = now()',
+                    [$ctx->siteId, $movedFrom, $pageId],
+                );
+            }
+
+            $this->audit->forContext($ctx, 'page.publish', 'page', $pageId, [
+                'publicationId' => $publicationId, 'revisionId' => $revisionId, 'epoch' => $epoch,
+                'version' => (int) $draft->version, 'path' => $meta->path, 'redirectedFrom' => $movedFrom,
+            ]);
+
+            return ['publicationId' => $publicationId, 'revisionId' => $revisionId, 'epoch' => $epoch, 'publishedAt' => Time::iso($created->created_at), 'replayed' => false];
+        });
+    }
+
+    // ── Reproduction (internal: audits and tooling) ─────────────────────────────
+
+    /**
+     * Renders a publication again from its own revision document and recorded
+     * inputs (renderer version, component versions, site, page and media
+     * metadata) and compares the result with the stored HTML.
+     *
+     * Publications made before inputs were recorded (render_inputs NULL) are
+     * "legacy": they are not reproducible, and their stored HTML stays the
+     * authoritative copy. "unavailable" means the recorded renderer or a
+     * component version is no longer registered.
+     *
+     * @return array{status: 'reproduced'|'legacy'|'unavailable', matches: bool|null, html: string|null, reason: string|null}
+     */
+    public function reproducePublication(string $siteId, string $publicationId): array
+    {
+        $publication = Uuid::isValid($publicationId)
+            ? DB::table('publications')->where('site_id', $siteId)->where('id', $publicationId)->first()
+            : null;
+        if ($publication === null) {
+            throw new NotFoundException('Publication');
+        }
+        if ($publication->render_inputs === null) {
+            return ['status' => 'legacy', 'matches' => null, 'html' => null, 'reason' => 'Published before render inputs were recorded'];
+        }
+        $revision = DB::table('page_revisions')->where('site_id', $siteId)->where('id', $publication->revision_id)->value('document');
+        try {
+            $html = $this->renderer->reproduce(Json::decode($revision), Json::toArray(Json::decode($publication->render_inputs)))['html'];
+        } catch (RenderException $error) {
+            return ['status' => 'unavailable', 'matches' => null, 'html' => null, 'reason' => $error->getMessage().': '.implode('; ', array_column($error->issues, 'message'))];
+        }
+
+        return ['status' => 'reproduced', 'matches' => $html === $publication->html, 'html' => $html, 'reason' => null];
+    }
+
+    // ── Background re-render (internal: called by jobs, never directly from HTTP) ──
+
+    /**
+     * Phase 1 of a dependency-driven re-render: read the live revision, its
+     * dependencies and the site's epoch from one REPEATABLE READ snapshot and
+     * render. Nothing is written.
+     */
+    public function prepareRerender(string $siteId, string $pageId): ?array
+    {
+        return $this->transactions->run(function () use ($siteId, $pageId) {
+            $epoch = DB::table('sites')->where('id', $siteId)->value('publish_epoch');
+            $live = $this->store->loadLive($siteId, $pageId);
+            if ($epoch === null || $live === null) {
+                return null;
+            }
+            $this->store->loadPage($siteId, $pageId);
+            $revision = DB::table('page_revisions')->where('id', $live->revision_id)->first();
+            // The live revision exactly as published, each node at its own component version: a dependency
+            // change must not silently upgrade content. Only the site's data is current.
+            $doc = Json::decode($revision->document);
+            $rendered = $this->store->renderForSite($siteId, $revision->title, $live->path, $doc, false, pinned: true);
+
+            return [
+                'siteId' => $siteId, 'pageId' => $pageId, 'revisionId' => $live->revision_id, 'path' => $live->path,
+                'html' => $rendered['html'], 'inputs' => $rendered['inputs'], 'mediaIds' => $this->store->safeMediaRefs($doc, pinned: true),
+                'epoch' => (int) $epoch,
+            ];
+        }, isolation: 'REPEATABLE READ', readOnly: true);
+    }
+
+    /**
+     * Phase 2: store the re-render and move the live pointer only if nothing
+     * newer became live since the snapshot. Retrying is safe (same idempotency
+     * key), and a job that finishes late can never replace a newer publication.
+     *
+     * @return array{applied: bool}
+     */
+    public function commitRerender(array $prepared): array
+    {
+        return $this->transactions->run(function () use ($prepared) {
+            $publicationId = Uuid::v7();
+            $key = "rerender-{$prepared['pageId']}-{$prepared['epoch']}";
+            $inserted = DB::select(
+                'INSERT INTO publications (id, site_id, page_id, revision_id, path, html, epoch, idempotency_key, request_fingerprint, render_inputs, published_by)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, NULL) ON CONFLICT DO NOTHING RETURNING id',
+                [
+                    $publicationId, $prepared['siteId'], $prepared['pageId'], $prepared['revisionId'], $prepared['path'], $prepared['html'],
+                    $prepared['epoch'], $key, Fingerprint::of(['kind' => 'rerender', 'pageId' => $prepared['pageId'], 'epoch' => $prepared['epoch']]),
+                    Json::encode($prepared['inputs']),
+                ],
+            );
+            if ($inserted === []) {
+                return ['applied' => false];
+            }
+            $this->store->recordPublicationMedia($prepared['siteId'], $publicationId, $prepared['mediaIds']);
+
+            // UPDATE only: a re-render must never re-publish a page that was unpublished meanwhile.
+            $moved = DB::update(
+                'UPDATE live_pages SET publication_id = ?, epoch = ?, updated_at = now() WHERE site_id = ? AND page_id = ? AND epoch < ?
+                 AND EXISTS (SELECT 1 FROM pages WHERE pages.site_id = live_pages.site_id AND pages.id = live_pages.page_id AND pages.deleted_at IS NULL)',
+                [$publicationId, $prepared['epoch'], $prepared['siteId'], $prepared['pageId'], $prepared['epoch']],
+            );
+
+            return ['applied' => $moved > 0];
+        });
+    }
+}

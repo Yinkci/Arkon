@@ -1,0 +1,10 @@
+vendor
+node_modules
+public
+storage
+bootstrap/cache
+*.php
+*.blade.php
+package-lock.json
+composer.lock
+resources/arkon

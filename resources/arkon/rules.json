@@ -1,0 +1,63 @@
+{
+  "$comment": "Shared validation rules. Read by PHP (app/Arkon/Support/Rules.php) and TypeScript (resources/js/arkon/rules.ts). Changing a rule changes both; tests/Conformance pins the behaviour of both implementations.",
+  "schemaVersion": 1,
+  "maxDepth": 6,
+  "maxNodes": 2000,
+  "patterns": {
+    "nodeId": "^[A-Za-z0-9_-]{4,32}$",
+    "componentType": "^[a-z][a-z0-9-]{0,39}$",
+    "propKey": "^[A-Za-z][A-Za-z0-9]{0,39}$",
+    "requestKey": "^[A-Za-z0-9_-]{16,100}$",
+    "uuid": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+    "pathSegment": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+  },
+  "limits": {
+    "variant": 40,
+    "editorName": 80,
+    "pageTitle": 120,
+    "path": 200,
+    "operations": 1000,
+    "insertNodes": 200,
+    "saveMessage": 200
+  },
+  "seo": {
+    "title": { "type": "string", "maxLength": 120 },
+    "description": { "type": "string", "maxLength": 320 },
+    "noindex": { "type": "boolean" }
+  },
+  "reservedPathSegments": ["admin", "login", "logout", "api", "preview", "media", "build"],
+  "messages": {
+    "expectedObject": "Expected an object",
+    "expectedString": "Expected a string",
+    "expectedBoolean": "Expected a boolean",
+    "expectedList": "Expected a list",
+    "expectedPositiveInteger": "Expected a positive integer",
+    "required": "Required",
+    "unrecognizedKey": "Unrecognized key \"{key}\"",
+    "tooLong": "Too long: at most {max} characters",
+    "tooShort": "Too short: at least {min} characters",
+    "oneOf": "Expected one of: {values}",
+    "invalidUuid": "Invalid UUID",
+    "invalidNodeId": "Invalid node id",
+    "invalidComponentType": "Invalid component type",
+    "unsupportedSchemaVersion": "Unsupported schema version",
+    "tooManyNodes": "Too many nodes (max {max})",
+    "keyMismatch": "Node key does not match id",
+    "rootMissing": "Root node is missing",
+    "duplicateInTree": "Node appears more than once in the tree",
+    "childMissing": "Referenced child does not exist",
+    "tooDeep": "Nesting deeper than {max}",
+    "detached": "Node is not attached to the tree",
+    "rootNotPage": "Root node must be a page",
+    "unknownComponent": "Unknown component type \"{type}\"",
+    "unsupportedVersion": "Unsupported {type} version {version}",
+    "cannotHaveChildren": "{label} cannot have children",
+    "missingChildren": "Container is missing children",
+    "tooManyChildren": "At most {max} children allowed",
+    "childNotAllowed": "{child} is not allowed inside {parent}",
+    "pathShape": "Path must start with / and must not end with /",
+    "pathSegments": "Path segments may contain only lowercase letters, digits and single hyphens",
+    "pathReserved": "This path is reserved by Arkon",
+    "titleRequired": "A title is required"
+  }
+}

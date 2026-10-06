@@ -1,0 +1,27 @@
+{
+  "type": "hero",
+  "version": 1,
+  "label": "Hero",
+  "children": false,
+  "props": {
+    "heading": { "type": "string", "maxLength": 160 },
+    "headingLevel": { "type": "enum", "values": ["h1", "h2"], "default": "h1" },
+    "text": { "type": "string", "maxLength": 600, "default": "" },
+    "image": {
+      "type": "object",
+      "nullable": true,
+      "default": null,
+      "properties": {
+        "assetId": { "type": "uuid" },
+        "alt": { "type": "string", "maxLength": 300 }
+      }
+    }
+  },
+  "defaultProps": { "heading": "Your headline", "headingLevel": "h1", "text": "", "image": null },
+  "inlineFields": { "heading": { "kind": "line" }, "text": { "kind": "multiline" } },
+  "mediaRefs": ["image.assetId"],
+  "publishChecks": [
+    { "rule": "notBlank", "prop": "heading", "message": "Hero heading is empty" },
+    { "rule": "notBlank", "prop": "image.alt", "when": "image", "message": "Hero image needs alternative text" }
+  ]
+}

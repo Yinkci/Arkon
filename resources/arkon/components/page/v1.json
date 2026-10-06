@@ -1,0 +1,8 @@
+{
+  "type": "page",
+  "version": 1,
+  "label": "Page",
+  "children": { "allow": ["hero"], "max": 50 },
+  "props": {},
+  "defaultProps": {}
+}

@@ -1,0 +1,45 @@
+# Secrets: never commit
+.env
+.env.*
+!.env.example
+.migrate.env
+!.migrate.env.example
+*.pem
+*.key
+auth.json
+
+# Dependencies and build output
+/vendor
+/node_modules
+/public/build
+/public/hot
+/public/storage
+/public/fonts-manifest.dev.json
+
+# Local data (uploaded media, sessions, caches, logs)
+/storage/*.key
+/storage/pail
+/storage/app/media
+/storage/e2e
+/storage/testing
+*.log
+
+# Test output
+.phpunit.result.cache
+/.phpunit.cache
+/test-results
+/playwright-report
+/blob-report
+/coverage
+
+# OS / editor
+.DS_Store
+Thumbs.db
+/.idea
+/.vscode
+/.zed
+/.cursor
+/.codex
+/.nova
+.phpactor.json
+_ide_helper.php

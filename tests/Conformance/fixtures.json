@@ -1,0 +1,798 @@
+{
+    "documents": [
+        {
+            "name": "valid",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "issues": [],
+            "publishIssues": [],
+            "mediaRefs": []
+        },
+        {
+            "name": "valid: defaults omitted",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hi\"}}},\"seo\":{}}",
+            "issues": [],
+            "publishIssues": [],
+            "mediaRefs": []
+        },
+        {
+            "name": "valid: image",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hi\",\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\",\"alt\":\"A phone\"}}}},\"seo\":{}}",
+            "issues": [],
+            "publishIssues": [],
+            "mediaRefs": [
+                "01890a5d-ac96-774b-bcce-b302099a8057"
+            ]
+        },
+        {
+            "name": "valid: numeric-looking node ids",
+            "document": "{\"schemaVersion\":1,\"root\":\"1000\",\"nodes\":{\"1000\":{\"id\":\"1000\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"2000\"]},\"2000\":{\"id\":\"2000\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\"}}},\"seo\":{}}",
+            "issues": [],
+            "publishIssues": [],
+            "mediaRefs": []
+        },
+        {
+            "name": "valid: schemaVersion written as 1.0",
+            "document": "{\"schemaVersion\":1.0,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "issues": [],
+            "publishIssues": [],
+            "mediaRefs": []
+        },
+        {
+            "name": "valid: 80 emoji is 160 UTF-16 units",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀\"}}},\"seo\":{}}",
+            "issues": [],
+            "publishIssues": [],
+            "mediaRefs": []
+        },
+        {
+            "name": "invalid: 81 emoji is 162 UTF-16 units",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀\"}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "hero0001",
+                    "path": "heading",
+                    "message": "Too long: at most 160 characters"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: heading 161 chars",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "hero0001",
+                    "path": "heading",
+                    "message": "Too long: at most 160 characters"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: not an object",
+            "document": "\"<h1>hi</h1>\"",
+            "issues": [
+                {
+                    "path": "",
+                    "message": "Expected an object"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: a list",
+            "document": "[]",
+            "issues": [
+                {
+                    "path": "",
+                    "message": "Expected an object"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: props is a list",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":[],\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "path": "nodes.root0001.props",
+                    "message": "Expected an object"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: seo is a list",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":[]}",
+            "issues": [
+                {
+                    "path": "seo",
+                    "message": "Expected an object"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: nodes is a list",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":[],\"seo\":{}}",
+            "issues": [
+                {
+                    "path": "nodes",
+                    "message": "Expected an object"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: unknown document key",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{},\"foo\":1}",
+            "issues": [
+                {
+                    "path": "foo",
+                    "message": "Unrecognized key \"foo\""
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: schema version 2",
+            "document": "{\"schemaVersion\":2,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "path": "schemaVersion",
+                    "message": "Unsupported schema version"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: node version 1.5",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1.5,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "path": "nodes.hero0001.version",
+                    "message": "Expected a positive integer"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: unknown prop",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\",\"onclick\":\"alert(1)\"}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "hero0001",
+                    "path": "onclick",
+                    "message": "Unrecognized key \"onclick\""
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: enum",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\",\"headingLevel\":\"h3\"}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "hero0001",
+                    "path": "headingLevel",
+                    "message": "Expected one of: h1, h2"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: image uuid",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\",\"image\":{\"assetId\":\"not-a-uuid\",\"alt\":\"\"}}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "hero0001",
+                    "path": "image.assetId",
+                    "message": "Invalid UUID"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: image without alt",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\",\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\"}}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "hero0001",
+                    "path": "image.alt",
+                    "message": "Required"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: image empty object",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":{}}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "hero0001",
+                    "path": "image.alt",
+                    "message": "Required"
+                },
+                {
+                    "nodeId": "hero0001",
+                    "path": "image.assetId",
+                    "message": "Required"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: image empty list",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":[]}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "hero0001",
+                    "path": "image",
+                    "message": "Expected an object"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: heading missing",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"text\":\"x\"}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "hero0001",
+                    "path": "heading",
+                    "message": "Required"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: heading number",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":5}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "hero0001",
+                    "path": "heading",
+                    "message": "Expected a string"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: hero with children",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null},\"children\":[]}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "hero0001",
+                    "message": "Hero cannot have children"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: page without children",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{}},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "root0001",
+                    "message": "Container is missing children"
+                },
+                {
+                    "nodeId": "hero0001",
+                    "message": "Node is not attached to the tree"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: unknown component",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"carousel\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "hero0001",
+                    "message": "Unknown component type \"carousel\""
+                },
+                {
+                    "nodeId": "hero0001",
+                    "message": "carousel is not allowed inside page"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: unsupported component version",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":2,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "hero0001",
+                    "message": "Unsupported hero version 2"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: root is not a page",
+            "document": "{\"schemaVersion\":1,\"root\":\"hero0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "root0001",
+                    "message": "Node is not attached to the tree"
+                },
+                {
+                    "message": "Root node must be a page"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: detached node",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "hero0001",
+                    "message": "Node is not attached to the tree"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: shared child",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\",\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "hero0001",
+                    "message": "Node appears more than once in the tree"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: missing child",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\",\"gone0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "gone0001",
+                    "message": "Referenced child does not exist"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: key does not match id",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"other001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "hero0001",
+                    "message": "Node key does not match id"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: bad node id key",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[]},\"a b\":{\"id\":\"a b\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\"}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "path": "nodes.a b",
+                    "message": "Invalid node id"
+                },
+                {
+                    "path": "nodes.a b.id",
+                    "message": "Invalid node id"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: seo types",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{\"title\":5,\"noindex\":\"yes\",\"keywords\":\"x\"}}",
+            "issues": [
+                {
+                    "path": "seo.noindex",
+                    "message": "Expected a boolean"
+                },
+                {
+                    "path": "seo.title",
+                    "message": "Expected a string"
+                },
+                {
+                    "path": "seo.keywords",
+                    "message": "Unrecognized key \"keywords\""
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: seo title too long",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{\"title\":\"ttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt\"}}",
+            "issues": [
+                {
+                    "path": "seo.title",
+                    "message": "Too long: at most 120 characters"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: page props not empty",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{\"x\":1},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "root0001",
+                    "path": "x",
+                    "message": "Unrecognized key \"x\""
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: editor metadata",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null},\"editor\":{\"name\":\"nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\",\"locked\":true}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "path": "nodes.hero0001.editor.name",
+                    "message": "Too long: at most 80 characters"
+                },
+                {
+                    "path": "nodes.hero0001.editor.locked",
+                    "message": "Unrecognized key \"locked\""
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: 51 children",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\",\"extra001\",\"extra002\",\"extra003\",\"extra004\",\"extra005\",\"extra006\",\"extra007\",\"extra008\",\"extra009\",\"extra010\",\"extra011\",\"extra012\",\"extra013\",\"extra014\",\"extra015\",\"extra016\",\"extra017\",\"extra018\",\"extra019\",\"extra020\",\"extra021\",\"extra022\",\"extra023\",\"extra024\",\"extra025\",\"extra026\",\"extra027\",\"extra028\",\"extra029\",\"extra030\",\"extra031\",\"extra032\",\"extra033\",\"extra034\",\"extra035\",\"extra036\",\"extra037\",\"extra038\",\"extra039\",\"extra040\",\"extra041\",\"extra042\",\"extra043\",\"extra044\",\"extra045\",\"extra046\",\"extra047\",\"extra048\",\"extra049\",\"extra050\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}},\"extra001\":{\"id\":\"extra001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H1\"}},\"extra002\":{\"id\":\"extra002\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H2\"}},\"extra003\":{\"id\":\"extra003\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H3\"}},\"extra004\":{\"id\":\"extra004\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H4\"}},\"extra005\":{\"id\":\"extra005\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H5\"}},\"extra006\":{\"id\":\"extra006\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H6\"}},\"extra007\":{\"id\":\"extra007\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H7\"}},\"extra008\":{\"id\":\"extra008\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H8\"}},\"extra009\":{\"id\":\"extra009\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H9\"}},\"extra010\":{\"id\":\"extra010\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H10\"}},\"extra011\":{\"id\":\"extra011\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H11\"}},\"extra012\":{\"id\":\"extra012\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H12\"}},\"extra013\":{\"id\":\"extra013\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H13\"}},\"extra014\":{\"id\":\"extra014\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H14\"}},\"extra015\":{\"id\":\"extra015\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H15\"}},\"extra016\":{\"id\":\"extra016\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H16\"}},\"extra017\":{\"id\":\"extra017\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H17\"}},\"extra018\":{\"id\":\"extra018\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H18\"}},\"extra019\":{\"id\":\"extra019\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H19\"}},\"extra020\":{\"id\":\"extra020\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H20\"}},\"extra021\":{\"id\":\"extra021\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H21\"}},\"extra022\":{\"id\":\"extra022\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H22\"}},\"extra023\":{\"id\":\"extra023\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H23\"}},\"extra024\":{\"id\":\"extra024\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H24\"}},\"extra025\":{\"id\":\"extra025\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H25\"}},\"extra026\":{\"id\":\"extra026\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H26\"}},\"extra027\":{\"id\":\"extra027\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H27\"}},\"extra028\":{\"id\":\"extra028\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H28\"}},\"extra029\":{\"id\":\"extra029\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H29\"}},\"extra030\":{\"id\":\"extra030\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H30\"}},\"extra031\":{\"id\":\"extra031\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H31\"}},\"extra032\":{\"id\":\"extra032\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H32\"}},\"extra033\":{\"id\":\"extra033\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H33\"}},\"extra034\":{\"id\":\"extra034\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H34\"}},\"extra035\":{\"id\":\"extra035\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H35\"}},\"extra036\":{\"id\":\"extra036\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H36\"}},\"extra037\":{\"id\":\"extra037\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H37\"}},\"extra038\":{\"id\":\"extra038\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H38\"}},\"extra039\":{\"id\":\"extra039\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H39\"}},\"extra040\":{\"id\":\"extra040\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H40\"}},\"extra041\":{\"id\":\"extra041\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H41\"}},\"extra042\":{\"id\":\"extra042\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H42\"}},\"extra043\":{\"id\":\"extra043\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H43\"}},\"extra044\":{\"id\":\"extra044\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H44\"}},\"extra045\":{\"id\":\"extra045\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H45\"}},\"extra046\":{\"id\":\"extra046\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H46\"}},\"extra047\":{\"id\":\"extra047\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H47\"}},\"extra048\":{\"id\":\"extra048\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H48\"}},\"extra049\":{\"id\":\"extra049\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H49\"}},\"extra050\":{\"id\":\"extra050\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"H50\"}}},\"seo\":{}}",
+            "issues": [
+                {
+                    "nodeId": "root0001",
+                    "message": "At most 50 children allowed"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "publish: blank heading (NBSP)",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"   \"}}},\"seo\":{}}",
+            "issues": [],
+            "publishIssues": [
+                {
+                    "nodeId": "hero0001",
+                    "message": "Hero heading is empty"
+                }
+            ],
+            "mediaRefs": []
+        },
+        {
+            "name": "publish: image without alt text",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\",\"image\":{\"assetId\":\"01890a5d-ac96-774b-bcce-b302099a8057\",\"alt\":\" \"}}}},\"seo\":{}}",
+            "issues": [],
+            "publishIssues": [
+                {
+                    "nodeId": "hero0001",
+                    "message": "Hero image needs alternative text"
+                }
+            ],
+            "mediaRefs": [
+                "01890a5d-ac96-774b-bcce-b302099a8057"
+            ]
+        },
+        {
+            "name": "valid: two heroes",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\",\"hero0002\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}},\"hero0002\":{\"id\":\"hero0002\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Second\"}}},\"seo\":{}}",
+            "issues": [],
+            "publishIssues": [],
+            "mediaRefs": []
+        }
+    ],
+    "operations": [
+        {
+            "name": "updateProps",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "operations": "[{\"op\":\"updateProps\",\"nodeId\":\"hero0001\",\"set\":{\"heading\":\"New\",\"text\":\"Added\"}}]",
+            "result": "{\"nodes\":{\"hero0001\":{\"id\":\"hero0001\",\"props\":{\"heading\":\"New\",\"headingLevel\":\"h1\",\"image\":null,\"text\":\"Added\"},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":1}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
+            "error": null,
+            "issues": []
+        },
+        {
+            "name": "updateProps unset",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "operations": "[{\"op\":\"updateProps\",\"nodeId\":\"hero0001\",\"set\":{},\"unset\":[\"text\"]}]",
+            "result": "{\"nodes\":{\"hero0001\":{\"id\":\"hero0001\",\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"image\":null},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":1}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
+            "error": null,
+            "issues": []
+        },
+        {
+            "name": "updateProps unset everything",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\"}}},\"seo\":{}}",
+            "operations": "[{\"op\":\"updateProps\",\"nodeId\":\"hero0001\",\"set\":{},\"unset\":[\"heading\"]}]",
+            "result": "{\"nodes\":{\"hero0001\":{\"id\":\"hero0001\",\"props\":{},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":1}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
+            "error": null,
+            "issues": [
+                {
+                    "nodeId": "hero0001",
+                    "path": "heading",
+                    "message": "Required"
+                }
+            ]
+        },
+        {
+            "name": "updateSeo",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{\"title\":\"Old\"}}",
+            "operations": "[{\"op\":\"updateSeo\",\"set\":{\"description\":\"Desc\"},\"unset\":[\"title\"]}]",
+            "result": "{\"nodes\":{\"hero0001\":{\"id\":\"hero0001\",\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"image\":null,\"text\":\"\"},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":1}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{\"description\":\"Desc\"}}",
+            "error": null,
+            "issues": []
+        },
+        {
+            "name": "updateSeo to empty",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{\"title\":\"Old\"}}",
+            "operations": "[{\"op\":\"updateSeo\",\"set\":{},\"unset\":[\"title\"]}]",
+            "result": "{\"nodes\":{\"hero0001\":{\"id\":\"hero0001\",\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"image\":null,\"text\":\"\"},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":1}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
+            "error": null,
+            "issues": []
+        },
+        {
+            "name": "insertNode",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "operations": "[{\"op\":\"insertNode\",\"parentId\":\"root0001\",\"index\":1,\"nodes\":[{\"id\":\"newh0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"N\"}}]}]",
+            "result": "{\"nodes\":{\"hero0001\":{\"id\":\"hero0001\",\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"image\":null,\"text\":\"\"},\"type\":\"hero\",\"version\":1},\"newh0001\":{\"id\":\"newh0001\",\"props\":{\"heading\":\"N\"},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0001\",\"newh0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":1}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
+            "error": null,
+            "issues": []
+        },
+        {
+            "name": "insertNode duplicate id",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "operations": "[{\"op\":\"insertNode\",\"parentId\":\"root0001\",\"index\":0,\"nodes\":[{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{}}]}]",
+            "result": null,
+            "error": "Node hero0001 already exists",
+            "issues": null
+        },
+        {
+            "name": "insertNode index out of range",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "operations": "[{\"op\":\"insertNode\",\"parentId\":\"root0001\",\"index\":5,\"nodes\":[{\"id\":\"newh0001\",\"type\":\"hero\",\"version\":1,\"props\":{}}]}]",
+            "result": null,
+            "error": "Insert index out of range",
+            "issues": null
+        },
+        {
+            "name": "insertNode into a component without children",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "operations": "[{\"op\":\"insertNode\",\"parentId\":\"hero0001\",\"index\":0,\"nodes\":[{\"id\":\"newh0001\",\"type\":\"hero\",\"version\":1,\"props\":{}}]}]",
+            "result": null,
+            "error": "Node hero0001 cannot have children",
+            "issues": null
+        },
+        {
+            "name": "removeNode",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\",\"hero0002\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}},\"hero0002\":{\"id\":\"hero0002\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Second\"}}},\"seo\":{}}",
+            "operations": "[{\"op\":\"removeNode\",\"nodeId\":\"hero0001\"}]",
+            "result": "{\"nodes\":{\"hero0002\":{\"id\":\"hero0002\",\"props\":{\"heading\":\"Second\"},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0002\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":1}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
+            "error": null,
+            "issues": []
+        },
+        {
+            "name": "removeNode root",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "operations": "[{\"op\":\"removeNode\",\"nodeId\":\"root0001\"}]",
+            "result": null,
+            "error": "The page root cannot be removed",
+            "issues": null
+        },
+        {
+            "name": "removeNode missing",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}}},\"seo\":{}}",
+            "operations": "[{\"op\":\"removeNode\",\"nodeId\":\"missing1\"}]",
+            "result": null,
+            "error": "Node missing1 does not exist",
+            "issues": null
+        },
+        {
+            "name": "moveNode within parent",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\",\"hero0002\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}},\"hero0002\":{\"id\":\"hero0002\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Second\"}}},\"seo\":{}}",
+            "operations": "[{\"op\":\"moveNode\",\"nodeId\":\"hero0001\",\"parentId\":\"root0001\",\"index\":1}]",
+            "result": "{\"nodes\":{\"hero0001\":{\"id\":\"hero0001\",\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"image\":null,\"text\":\"\"},\"type\":\"hero\",\"version\":1},\"hero0002\":{\"id\":\"hero0002\",\"props\":{\"heading\":\"Second\"},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0002\",\"hero0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":1}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{}}",
+            "error": null,
+            "issues": []
+        },
+        {
+            "name": "moveNode root",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\",\"hero0002\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}},\"hero0002\":{\"id\":\"hero0002\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Second\"}}},\"seo\":{}}",
+            "operations": "[{\"op\":\"moveNode\",\"nodeId\":\"root0001\",\"parentId\":\"root0001\",\"index\":0}]",
+            "result": null,
+            "error": "The page root cannot be moved",
+            "issues": null
+        },
+        {
+            "name": "moveNode out of range",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\",\"hero0002\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}},\"hero0002\":{\"id\":\"hero0002\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Second\"}}},\"seo\":{}}",
+            "operations": "[{\"op\":\"moveNode\",\"nodeId\":\"hero0001\",\"parentId\":\"root0001\",\"index\":2}]",
+            "result": null,
+            "error": "Move index out of range",
+            "issues": null
+        },
+        {
+            "name": "sequence",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"hero0001\",\"hero0002\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null}},\"hero0002\":{\"id\":\"hero0002\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"Second\"}}},\"seo\":{}}",
+            "operations": "[{\"op\":\"updateProps\",\"nodeId\":\"hero0002\",\"set\":{\"heading\":\"1\"}},{\"op\":\"moveNode\",\"nodeId\":\"hero0002\",\"parentId\":\"root0001\",\"index\":0},{\"op\":\"removeNode\",\"nodeId\":\"hero0001\"},{\"op\":\"updateSeo\",\"set\":{\"noindex\":true}}]",
+            "result": "{\"nodes\":{\"hero0002\":{\"id\":\"hero0002\",\"props\":{\"heading\":\"1\"},\"type\":\"hero\",\"version\":1},\"root0001\":{\"children\":[\"hero0002\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":1}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{\"noindex\":true}}",
+            "error": null,
+            "issues": []
+        },
+        {
+            "name": "numeric-looking ids",
+            "document": "{\"schemaVersion\":1,\"root\":\"1000\",\"nodes\":{\"1000\":{\"id\":\"1000\",\"type\":\"page\",\"version\":1,\"props\":{},\"children\":[\"2000\"]},\"2000\":{\"id\":\"2000\",\"type\":\"hero\",\"version\":1,\"props\":{\"heading\":\"x\"}}},\"seo\":{}}",
+            "operations": "[{\"op\":\"updateProps\",\"nodeId\":\"2000\",\"set\":{\"heading\":\"y\"}}]",
+            "result": "{\"nodes\":{\"1000\":{\"children\":[\"2000\"],\"id\":\"1000\",\"props\":{},\"type\":\"page\",\"version\":1},\"2000\":{\"id\":\"2000\",\"props\":{\"heading\":\"y\"},\"type\":\"hero\",\"version\":1}},\"root\":\"1000\",\"schemaVersion\":1,\"seo\":{}}",
+            "error": null,
+            "issues": []
+        }
+    ],
+    "paths": [
+        {
+            "path": "/",
+            "issues": []
+        },
+        {
+            "path": "/about",
+            "issues": []
+        },
+        {
+            "path": "/services/whatsapp-sales",
+            "issues": []
+        },
+        {
+            "path": "/site",
+            "issues": []
+        },
+        {
+            "path": "",
+            "issues": [
+                "Path must start with / and must not end with /",
+                "Path segments may contain only lowercase letters, digits and single hyphens"
+            ]
+        },
+        {
+            "path": "about",
+            "issues": [
+                "Path must start with / and must not end with /"
+            ]
+        },
+        {
+            "path": "/About",
+            "issues": [
+                "Path segments may contain only lowercase letters, digits and single hyphens"
+            ]
+        },
+        {
+            "path": "/a/",
+            "issues": [
+                "Path must start with / and must not end with /",
+                "Path segments may contain only lowercase letters, digits and single hyphens"
+            ]
+        },
+        {
+            "path": "/a--b",
+            "issues": [
+                "Path segments may contain only lowercase letters, digits and single hyphens"
+            ]
+        },
+        {
+            "path": "/admin",
+            "issues": [
+                "This path is reserved by Arkon"
+            ]
+        },
+        {
+            "path": "/admin/x",
+            "issues": [
+                "This path is reserved by Arkon"
+            ]
+        },
+        {
+            "path": "/media",
+            "issues": [
+                "This path is reserved by Arkon"
+            ]
+        },
+        {
+            "path": "/login",
+            "issues": [
+                "This path is reserved by Arkon"
+            ]
+        },
+        {
+            "path": "/logout",
+            "issues": [
+                "This path is reserved by Arkon"
+            ]
+        },
+        {
+            "path": "/api/v1",
+            "issues": [
+                "This path is reserved by Arkon"
+            ]
+        },
+        {
+            "path": "/preview",
+            "issues": [
+                "This path is reserved by Arkon"
+            ]
+        },
+        {
+            "path": "/build",
+            "issues": [
+                "This path is reserved by Arkon"
+            ]
+        },
+        {
+            "path": "/_next/x",
+            "issues": [
+                "Path segments may contain only lowercase letters, digits and single hyphens"
+            ]
+        },
+        {
+            "path": "/about us",
+            "issues": [
+                "Path segments may contain only lowercase letters, digits and single hyphens"
+            ]
+        },
+        {
+            "path": "/é",
+            "issues": [
+                "Path segments may contain only lowercase letters, digits and single hyphens"
+            ]
+        },
+        {
+            "path": "/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "issues": [
+                "Too long: at most 200 characters"
+            ]
+        },
+        {
+            "path": "//double",
+            "issues": [
+                "Path segments may contain only lowercase letters, digits and single hyphens"
+            ]
+        },
+        {
+            "path": "/a//b",
+            "issues": [
+                "Path segments may contain only lowercase letters, digits and single hyphens"
+            ]
+        }
+    ]
+}
