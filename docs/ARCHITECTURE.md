@@ -114,7 +114,7 @@ recorded once and safe to re-run. The test fails if the backfill is removed.
 
 ## 6. Drafts, saves, publishing, page management
 
-Ported from the reference (§9), with one stricter rule:
+Ported from the reference (§9), with three stricter rules:
 
 - **One write gate per page.** Every writer (save, restore, title/URL, publish, unpublish, delete) takes the draft
   row lock first and only then reads the page row (`PageStore::lockForWrite`). A writer that waited behind a delete
@@ -123,6 +123,19 @@ Ported from the reference (§9), with one stricter rule:
   draft → path claims and draft → site epoch. (The first port read the page before locking; a publish waiting
   behind a delete could make a deleted page live again.) Public page and media lookups and re-render commits also
   ignore deleted pages, as a second line of defence: deleting removes the live row in the same transaction.
+- **Coupled reads come from one snapshot.** What the editor is given together (title and URL, draft document and
+  version, live state, history, the first canvas paint) is read in one `REPEATABLE READ, READ ONLY` transaction
+  (`PageService::editorInit`, `editorStatus`, `editorState`, `listRevisions`, `renderPreview`, `renderCanvas`). A
+  writer that commits in between is entirely visible or not at all, so the editor can never hold old metadata
+  with a newer version, and a later title-only change cannot pass the version check while rolling back another
+  editor's URL: it gets `STALE_VERSION` instead. Reads take no row locks; writers keep their lock order.
+- **A create request key is one create intent.** Pages store an immutable fingerprint of the normalised create
+  inputs (`pages.request_fingerprint`). `create` checks the key, takes the path-claim lock, and checks the key
+  *again* before checking the URL, so an identical request that waited behind the first is a replay (same page,
+  `replayed: true`), not a URL conflict. A retry still means the original inputs after the page is renamed; reusing
+  the key with other inputs is a conflict; if the page was deleted since, the retry is refused with "has since been
+  deleted" and nothing is created. Pages created before the column existed are backfilled from their first
+  revision ("Created page") by a data upgrade; a keyed page without one stays unrecorded and refuses replays.
 
 - **Saves** carry `baseVersion` and a client `saveKey`; the draft row stores the key and a SHA-256 fingerprint of
   the canonical request. A replay with the same key returns the original result; a different request with that
@@ -167,7 +180,7 @@ Ported from the reference (§9), with one stricter rule:
 | Suite | Count | What it proves |
 |---|---|---|
 | PHPUnit `tests/Unit` | renderer, conformance, component versions | exact production markup, escaping, editor annotations; PHP side of the conformance fixtures; inverses restore documents; version migration |
-| PHPUnit `LifecycleRaceTest`, `ComponentHistoryTest` | 9 | forced interleavings of delete with waiting publish/save/restore/title/unpublish/delete (both orders) and rename with a waiting save; historical reproduction across component versions |
+| PHPUnit `LifecycleRaceTest`, `CreateIntentTest`, `ReadConsistencyTest`, `ComponentHistoryTest` | 19 | forced interleavings of delete with waiting publish/save/restore/title/unpublish/delete (both orders), rename with a waiting save, identical and conflicting creates waiting on the path lock; a rename committed in the middle of editor, page-load and preview reads; create-intent replay after rename/delete and its backfill; historical reproduction across component versions |
 | PHPUnit `tests/Feature` | pages, requests, page management, media, concurrency, upgrade, runtime safety, HTTP | everything in reference `pages`, `requests`, `page-management`, `media`, `media-access`, `consistency`, `upgrade` and `config` tests, plus the HTTP layer (sign-in, rate limit, no sign-up, JSON envelopes, `{}` fidelity, canvas endpoint, public headers, redirects, preview, media with a real session cookie) |
 | Vitest | editor state, operations, conformance, request keys | the reference editor-state tests; TypeScript matches PHP on all 82 fixtures; request keys without `crypto.randomUUID` |
 | Playwright `e2e/` | 14 | **write flows**, at an insecure origin like Herd's (`http://arkon-e2e.test:8100`, mapped to the PHP server inside Chromium only; asserts `isSecureContext === false` and no `randomUUID`) against `arkonlaravel_e2e`: editor flow with save/publish/upload/restore, typing/undo during slow saves, aborted and lost saves, exact publish retries, Ctrl+S during a slow restore, page create/rename/unpublish/delete, editor role limits |
@@ -175,19 +188,29 @@ Ported from the reference (§9), with one stricter rule:
 
 - Integration tests use `arkonlaravel_test` as the runtime role; the schema owner only truncates between tests.
   No test wraps work in a transaction, so commits and locks are real.
-- **Concurrency is real**: `Tests\Support\Parallel` starts separate PHP processes that call the services at the
-  same instant (concurrent saves, duplicate publishes, path races, renames, mixed saves and publishes) and the
-  epoch-consistency test holds the epoch lock from a separate connection while publishes queue behind it.
-- **Forced interleavings**: `PausingTransactions` runs the first operation in the test process and holds its locks
-  until it sees (via `pg_blocking_pids`) the worker process blocked behind it, then commits; the order is exact,
-  and the test fails if the interleaving did not happen.
+- **Concurrency is real**: `Tests\Support\Parallel` starts separate PHP processes that call the services at one
+  common instant (concurrent saves, duplicate publishes, path races, renames, mixed saves and publishes) and the
+  epoch-consistency test holds the epoch lock from a separate connection while publishes queue behind it. Workers
+  use a ready barrier, not a startup timer: each boots and connects, reports `READY`, and waits for a go-file
+  with the common start instant, so a slow machine (e.g. PHP and browser suites at once) cannot make them late.
+- **Forced interleavings** (`Tests\Support\Interleaves`): the worker boots and connects first; the first operation
+  then runs in the test process and takes its locks; only then is the worker released, and `PausingTransactions`
+  keeps the locks until it sees (via `pg_blocking_pids`) the worker blocked behind it, then commits. The order is
+  exact, and the test fails if the worker never waited.
+- **Mid-read changes** (`ReadConsistencyTest`): a query listener runs a competing change to completion in a worker
+  right after a read has loaded the page row, the worst moment for an inconsistent read.
+- **Browser history assertions** use the server's committed revision count as the baseline and wait for the
+  editor's asynchronously refreshed list to show it before relying on it.
 - **Uncertain outcomes**: `FailingCommitTransactions` runs a transaction completely and then fails to commit.
   In the browser, Playwright delays, aborts, or drops responses after the server committed.
 - **Mutation checks done during the port**: rendering before taking the epoch lock fails the consistency tests;
   removing the publication-media backfill fails the upgrade test; letting `save()` run during a restore fails the
   e2e restore test; changing TypeScript string length semantics fails the conformance suite; reading the page
   before the write lock fails the lifecycle race tests; rendering with current component definitions fails the
-  history tests; the old `randomUUID` key helper fails the request-key unit test and 12 of the 13 browser write tests.
+  history tests; the old `randomUUID` key helper fails the request-key unit test and 12 of the 13 browser write tests;
+  the previous read and create code (commit `6e1278c`) fails 8 of the 9 `ReadConsistencyTest`/`CreateIntentTest`
+  tests (the remaining one guards against read locks); a history baseline read from the editor's list fails when
+  the list's refresh is delayed, while the server-confirmed baseline passes.
 
 ## 9. Status
 

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { BASE_URL, createPage, interceptNext, isAction, publicationCount, typeIntoHeading } from './support';
+import { BASE_URL, createPage, interceptNext, isAction, publicationCount, revisionCount, typeIntoHeading } from './support';
 
 const status = (page: Page) => page.getByTestId('save-status');
 const notice = (page: Page) => page.getByTestId('notice');
@@ -84,10 +84,16 @@ test('a failed save keeps edits and recovers; a lost response is not applied twi
     await saveButton(page).click();
     await expect(status(page)).toHaveText('Draft saved');
 
+    // The aborted batch was resent once and the later edit saved once: exactly two revisions on the server.
+    const before = await revisionCount(id);
+    expect(before).toBe(2);
+
     // 2. The server commits but the response is lost.
+    // The history list refreshes asynchronously after a save: wait until it shows the server's confirmed
+    // history before relying on it.
     await page.getByRole('tab', { name: 'History' }).click();
     const revisions = page.getByTestId('revision');
-    const before = await revisions.count();
+    await expect(revisions).toHaveCount(before);
     await page.getByRole('tab', { name: 'Properties' }).click();
     intercept = await interceptNext(page, 'save', 'drop-response-after-commit');
     await typeIntoHeading(page, 'Committed', 'replace');
@@ -97,6 +103,8 @@ test('a failed save keeps edits and recovers; a lost response is not applied twi
     await intercept.stop();
     await saveButton(page).click(); // same key: the server recognises it
     await expect(status(page)).toHaveText('Draft saved');
+    // The lost-response save and its replay added exactly one revision, on the server and in the editor.
+    expect(await revisionCount(id)).toBe(before + 1);
     await page.getByRole('tab', { name: 'History' }).click();
     await expect(revisions).toHaveCount(before + 1);
 

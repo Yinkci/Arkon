@@ -16,18 +16,12 @@ class EditorController extends Controller
     public function show(Request $request, string $page, PageService $pages, MediaSigner $signer, ComponentRegistry $registry): Response
     {
         $admin = AdminContext::of($request);
-        $ctx = $admin->ctx();
-        $state = $pages->editorState($ctx, $page);
-        // The sandboxed canvas cannot send the session cookie, so it gets signed preview URLs.
-        $state['media'] = array_map(fn ($m) => [...$m, 'url' => $signer->signUrl($m['url'])], $state['media']);
 
         return Inertia::render('Admin/Editor', [
             'init' => [
-                ...$state,
-                'revisions' => $pages->listRevisions($ctx, $page),
+                // Page, draft, live state, history and the first canvas paint, all from one snapshot.
+                ...$pages->editorInit($admin->ctx(), $page, $signer),
                 'site' => ['name' => $admin->siteName],
-                // First paint of the canvas; later renders come from the canvas endpoint.
-                'canvas' => $pages->renderCanvas($ctx, $page, $state['draft']['document'], $signer),
                 'multiline' => $registry->multilineFields(),
             ],
         ]);

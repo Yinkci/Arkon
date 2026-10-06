@@ -54,10 +54,7 @@ class EditorApiController extends Controller
 
     public function status(Request $request, string $page): JsonResponse
     {
-        $ctx = AdminContext::of($request)->ctx();
-        $state = $this->pages->editorState($ctx, $page);
-
-        return self::ok(['live' => $state['live'], 'status' => $state['status'], 'revisions' => $this->pages->listRevisions($ctx, $page)]);
+        return self::ok($this->pages->editorStatus(AdminContext::of($request)->ctx(), $page));
     }
 
     /** Editor-mode HTML of the editor's local (unsaved) document, from the same renderer as production. */

@@ -41,27 +41,28 @@ class PageManagement
         $title = Input::title($input['title'] ?? null);
         $path = Input::path($input['path'] ?? null);
         $requestKey = Input::validate($input, ['requestKey' => Input::requestKeyRule()])['requestKey'];
+        $fingerprint = self::createFingerprint($title, $path);
 
         try {
-            return $this->transactions->run(function () use ($ctx, $title, $path, $requestKey) {
+            return $this->transactions->run(function () use ($ctx, $title, $path, $requestKey, $fingerprint) {
                 $this->authorizer->authorize($ctx, 'page.create');
-                $existing = DB::table('pages')->where('site_id', $ctx->siteId)->where('request_key', $requestKey)->first();
-                if ($existing !== null) {
-                    if ($existing->title !== $title || $existing->path !== $path || $existing->deleted_at !== null) {
-                        throw new ConflictException('This request key was already used for a different page');
-                    }
-
-                    return ['pageId' => $existing->id, 'replayed' => true];
+                if ($replay = $this->replayCreate($ctx, $requestKey, $fingerprint)) {
+                    return $replay;
                 }
 
                 $this->store->lockPathClaims($ctx->siteId);
+                // An identical request may have committed while this one waited for the lock: it is a
+                // retry of the same intent, not a URL conflict.
+                if ($replay = $this->replayCreate($ctx, $requestKey, $fingerprint)) {
+                    return $replay;
+                }
                 $this->store->assertPathAvailable($ctx->siteId, $path);
 
                 $pageId = Uuid::v7();
                 $document = Factories::pageDocument([Factories::heroNode(['heading' => $title])]);
                 DB::table('pages')->insert([
                     'id' => $pageId, 'site_id' => $ctx->siteId, 'path' => $path, 'title' => $title,
-                    'request_key' => $requestKey, 'created_by' => $ctx->userId,
+                    'request_key' => $requestKey, 'request_fingerprint' => $fingerprint, 'created_by' => $ctx->userId,
                 ]);
                 $revision = $this->store->insertRevision($ctx, $pageId, $document, $title, $path, 'Created page');
                 DB::table('page_drafts')->insert([
@@ -75,6 +76,37 @@ class PageManagement
         } catch (Throwable $error) {
             throw PageStore::asPathConflict($error, $path);
         }
+    }
+
+    /** What a create request asked for (normalised inputs). Stored once; never follows later renames. */
+    public static function createFingerprint(string $title, string $path): string
+    {
+        return Fingerprint::of(['kind' => 'create', 'title' => $title, 'path' => $path]);
+    }
+
+    /**
+     * The result of an earlier create with this key, or null if there is none.
+     *
+     * - Same key, same inputs: a retry; returns that page (`replayed`), even if it
+     *   was renamed since, because the intent is about the original inputs.
+     * - Same key, different inputs (or no recorded inputs): rejected.
+     * - The page was deleted since: rejected explicitly; the key never creates a
+     *   second page.
+     */
+    private function replayCreate(SiteContext $ctx, string $requestKey, string $fingerprint): ?array
+    {
+        $existing = DB::table('pages')->where('site_id', $ctx->siteId)->where('request_key', $requestKey)->first();
+        if ($existing === null) {
+            return null;
+        }
+        if ($existing->request_fingerprint === null || ! hash_equals($existing->request_fingerprint, $fingerprint)) {
+            throw new ConflictException('This request key was already used for a different page');
+        }
+        if ($existing->deleted_at !== null) {
+            throw new ConflictException('The page created with this request has since been deleted');
+        }
+
+        return ['pageId' => $existing->id, 'replayed' => true];
     }
 
     /**

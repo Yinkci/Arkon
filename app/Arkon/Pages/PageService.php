@@ -22,6 +22,7 @@ use App\Arkon\Support\Json;
 use App\Arkon\Support\Rules;
 use App\Arkon\Support\Time;
 use App\Arkon\Support\Uuid;
+use Closure;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -83,7 +84,57 @@ class PageService
         ])->all();
     }
 
+    /**
+     * Runs coupled reads in one snapshot (REPEATABLE READ, READ ONLY): the page's
+     * title and URL, its draft document and version, live state and history all
+     * come from the same moment, without taking any row locks. A writer that
+     * commits in between is either entirely visible or not at all, so the editor
+     * can never be handed old metadata with a newer version (and then pass a
+     * version check that would roll that metadata back). Inside an existing
+     * transaction it simply joins it.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $read
+     * @return T
+     */
+    private function readSnapshot(Closure $read): mixed
+    {
+        return DB::transactionLevel() > 0 ? $read() : $this->transactions->run($read, isolation: 'REPEATABLE READ', readOnly: true);
+    }
+
+    /** Everything the editor opens with, from one snapshot. */
+    public function editorInit(SiteContext $ctx, string $pageId, MediaSigner $signer): array
+    {
+        return $this->readSnapshot(function () use ($ctx, $pageId, $signer) {
+            $state = $this->editorState($ctx, $pageId);
+            // The sandboxed canvas cannot send the session cookie, so it gets signed preview URLs.
+            $state['media'] = array_map(fn ($m) => [...$m, 'url' => $signer->signUrl($m['url'])], $state['media']);
+
+            return [
+                ...$state,
+                'revisions' => $this->listRevisions($ctx, $pageId),
+                'canvas' => $this->renderCanvas($ctx, $pageId, $state['draft']['document'], $signer),
+            ];
+        });
+    }
+
+    /** The editor's status refresh (live state and history), from one snapshot. */
+    public function editorStatus(SiteContext $ctx, string $pageId): array
+    {
+        return $this->readSnapshot(function () use ($ctx, $pageId) {
+            $state = $this->editorState($ctx, $pageId);
+
+            return ['live' => $state['live'], 'status' => $state['status'], 'revisions' => $this->listRevisions($ctx, $pageId)];
+        });
+    }
+
     public function editorState(SiteContext $ctx, string $pageId): array
+    {
+        return $this->readSnapshot(fn () => $this->readEditorState($ctx, $pageId));
+    }
+
+    private function readEditorState(SiteContext $ctx, string $pageId): array
     {
         $role = $this->authorizer->authorize($ctx, 'page.view');
         $page = $this->store->loadPage($ctx->siteId, Input::id($pageId));
@@ -119,6 +170,11 @@ class PageService
 
     public function listRevisions(SiteContext $ctx, string $pageId): array
     {
+        return $this->readSnapshot(fn () => $this->readRevisions($ctx, $pageId));
+    }
+
+    private function readRevisions(SiteContext $ctx, string $pageId): array
+    {
         $this->authorizer->authorize($ctx, 'page.view');
         $page = $this->store->loadPage($ctx->siteId, Input::id($pageId));
         $live = $this->store->loadLive($ctx->siteId, $page->id);
@@ -144,11 +200,14 @@ class PageService
     /** Renders the current draft exactly as it would be published (production mode). */
     public function renderPreview(SiteContext $ctx, string $pageId): string
     {
-        $this->authorizer->authorize($ctx, 'page.view');
-        $page = $this->store->loadPage($ctx->siteId, Input::id($pageId));
-        $draft = $this->store->loadDraft($ctx->siteId, $page->id);
+        // Title and URL from the same moment as the document they are rendered with.
+        return $this->readSnapshot(function () use ($ctx, $pageId) {
+            $this->authorizer->authorize($ctx, 'page.view');
+            $page = $this->store->loadPage($ctx->siteId, Input::id($pageId));
+            $draft = $this->store->loadDraft($ctx->siteId, $page->id);
 
-        return $this->store->renderForSite($ctx->siteId, $page->title, $page->path, $this->store->document($draft->document), false)['html'];
+            return $this->store->renderForSite($ctx->siteId, $page->title, $page->path, $this->store->document($draft->document), false)['html'];
+        });
     }
 
     /**
@@ -159,6 +218,11 @@ class PageService
      * @return array{body: string, css: string}
      */
     public function renderCanvas(SiteContext $ctx, string $pageId, mixed $document, MediaSigner $signer): array
+    {
+        return $this->readSnapshot(fn () => $this->readCanvas($ctx, $pageId, $document, $signer));
+    }
+
+    private function readCanvas(SiteContext $ctx, string $pageId, mixed $document, MediaSigner $signer): array
     {
         $this->authorizer->authorize($ctx, 'page.view');
         $page = $this->store->loadPage($ctx->siteId, Input::id($pageId));

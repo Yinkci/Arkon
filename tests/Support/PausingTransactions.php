@@ -12,17 +12,24 @@ use RuntimeException;
  * another database session is blocked waiting on them. That forces an exact
  * interleaving: "B waits behind A, then A commits". Fails loudly instead of
  * passing by luck if no waiter ever shows up.
+ *
+ * `$whileHolding` runs once the locks are held and before waiting, e.g. to
+ * release worker processes that must queue behind this transaction. No timing
+ * assumption: the workers only start after the locks exist.
  */
 class PausingTransactions extends Transactions
 {
     public bool $sawWaiter = false;
 
-    public function __construct(private readonly float $timeoutSeconds = 30.0) {}
+    public function __construct(private readonly ?Closure $whileHolding = null, private readonly float $timeoutSeconds = 60.0) {}
 
     public function run(Closure $callback, ?string $isolation = null, bool $readOnly = false): mixed
     {
         return parent::run(function () use ($callback) {
             $result = $callback();
+            if ($this->whileHolding) {
+                ($this->whileHolding)();
+            }
             $deadline = microtime(true) + $this->timeoutSeconds;
             while (microtime(true) < $deadline) {
                 // Activity statistics are snapshotted once per transaction; take a fresh look each time.

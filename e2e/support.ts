@@ -36,6 +36,12 @@ export async function createPage(path: string, heading: string): Promise<string>
     return id;
 }
 
+/** Revisions the server has committed for a page (the source of truth, not the editor's list). */
+export async function revisionCount(pageId: string): Promise<number> {
+    const { rows } = await db.query<{ count: string }>('select count(*) from page_revisions where page_id = $1', [pageId]);
+    return Number(rows[0]!.count);
+}
+
 export async function publicationCount(pageId: string): Promise<number> {
     const { rows } = await db.query<{ count: string }>('select count(*) from publications where page_id = $1', [pageId]);
     return Number(rows[0]!.count);

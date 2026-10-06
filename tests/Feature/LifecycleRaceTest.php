@@ -2,15 +2,13 @@
 
 namespace Tests\Feature;
 
-use App\Arkon\Database\Transactions;
 use App\Arkon\Media\MediaService;
 use App\Arkon\Media\MediaSigner;
 use App\Arkon\Pages\PageManagement;
 use App\Arkon\Pages\PageService;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
-use Tests\Support\Parallel;
-use Tests\Support\PausingTransactions;
+use Tests\Support\Interleaves;
 
 /**
  * Writers that wait behind a delete (or a rename) must act on what that writer
@@ -20,6 +18,8 @@ use Tests\Support\PausingTransactions;
  */
 class LifecycleRaceTest extends DatabaseTestCase
 {
+    use Interleaves;
+
     private const HOST = 'race.test';
 
     private array $f;
@@ -43,17 +43,7 @@ class LifecycleRaceTest extends DatabaseTestCase
     /** Runs `$first` here, holding its lock until the worker's call is blocked behind it. */
     private function interleave(callable $first, string $call, array $input): array
     {
-        $pausing = new PausingTransactions;
-        $parallel = (new Parallel(leadSeconds: 1.5))->add($call, $this->f['ctx'], $input);
-        $this->app->instance(Transactions::class, $pausing);
-        try {
-            $firstResult = $first();
-        } finally {
-            $this->app->instance(Transactions::class, new Transactions);
-        }
-        $this->assertTrue($pausing->sawWaiter, 'the second operation really waited behind the first');
-
-        return [$firstResult, $parallel->wait()[0]];
+        return $this->interleaveWith($first, $call, $this->f['ctx'], $input);
     }
 
     private function deletePage(): array

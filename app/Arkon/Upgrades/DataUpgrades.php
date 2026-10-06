@@ -3,6 +3,7 @@
 namespace App\Arkon\Upgrades;
 
 use App\Arkon\Components\DocumentValidator;
+use App\Arkon\Pages\PageManagement;
 use App\Arkon\Support\Json;
 use Closure;
 use Illuminate\Support\Facades\DB;
@@ -22,7 +23,42 @@ class DataUpgrades
     {
         return [
             '2026-10-06-backfill-publication-media' => fn () => $this->backfillPublicationMedia(),
+            '2026-10-08-backfill-page-request-fingerprints' => fn () => $this->backfillPageRequestFingerprints(),
         ];
+    }
+
+    /**
+     * Records the create intent of pages created with a request key before
+     * `pages.request_fingerprint` existed. The inputs are taken from the page's
+     * first revision ("Created page"), which holds the title and path exactly as
+     * created, never from the page row, which may have been renamed since. Pages
+     * without a first revision stay NULL; a retry with their key is then refused
+     * rather than guessed. Retry-safe: only NULL fingerprints are written.
+     *
+     * @return array{pages: int, backfilled: int, withoutFirstRevision: int}
+     */
+    public function backfillPageRequestFingerprints(): array
+    {
+        $report = ['pages' => 0, 'backfilled' => 0, 'withoutFirstRevision' => 0];
+        DB::transaction(function () use (&$report) {
+            $rows = DB::table('pages as p')
+                ->leftJoin('page_revisions as r', fn ($j) => $j->on('r.site_id', '=', 'p.site_id')->on('r.page_id', '=', 'p.id')->where('r.number', 1))
+                ->whereNotNull('p.request_key')
+                ->whereNull('p.request_fingerprint')
+                ->get(['p.id', 'r.title', 'r.path']);
+            foreach ($rows as $row) {
+                $report['pages']++;
+                if ($row->title === null) {
+                    $report['withoutFirstRevision']++;
+
+                    continue;
+                }
+                $report['backfilled'] += DB::table('pages')->where('id', $row->id)->whereNull('request_fingerprint')
+                    ->update(['request_fingerprint' => PageManagement::createFingerprint($row->title, $row->path)]);
+            }
+        });
+
+        return $report;
     }
 
     /** @param Closure(string): void $log */

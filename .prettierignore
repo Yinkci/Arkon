@@ -8,3 +8,4 @@ bootstrap/cache
 package-lock.json
 composer.lock
 resources/arkon
+tests/Conformance/fixtures.json
