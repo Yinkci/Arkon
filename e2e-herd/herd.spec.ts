@@ -54,6 +54,11 @@ test('the admin works through Herd and public pages stay clean', async ({ page, 
     await expect(page.locator('iframe[data-testid="canvas"]')).toHaveAttribute('sandbox', 'allow-scripts');
     await page.getByRole('tab', { name: 'History' }).click();
     await expect(page.getByTestId('revision').first()).toBeVisible();
+    // The AI panel renders with the local helper's connection state (running or not). Never asks: nothing runs.
+    await page.getByRole('tab', { name: 'AI' }).click();
+    await expect(page.getByLabel('Ask AI to change this page')).toBeVisible();
+    await expect(page.getByTestId('ai-connection')).toBeVisible();
+    console.log(`AI panel through Herd: ${await page.getByTestId('ai-connection').innerText()}`);
 
     // Preview: the draft rendered for members only.
     const editorUrl = page.url();

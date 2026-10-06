@@ -21,6 +21,12 @@ final class PropSchema
     /** @param array<string, array> $fields */
     public function __construct(private readonly array $fields) {}
 
+    /** @return array<string, array> the manifest's field definitions */
+    public function fields(): array
+    {
+        return $this->fields;
+    }
+
     /**
      * Validates props and returns them with defaults applied. Raw form (decoded
      * request JSON) distinguishes `{}` from `[]`; internal form (stored documents)

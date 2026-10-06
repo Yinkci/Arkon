@@ -18,6 +18,7 @@ import {
     type EditorDocState,
     type PublishIntent,
 } from '@/arkon/editor/state';
+import { isActive, isReviewable, proposalBlocker, type AiConnection, type AiProposal, type AiRequestView } from '@/arkon/editor/proposals';
 import { api, newRequestKey, type ApiResult } from '@/lib/api';
 import type { EditorInit, LiveInfo, MediaInfo, PageStatus, RecoveryItem, Revision } from '@/types';
 import { Canvas, type Viewport } from './Canvas';
@@ -27,6 +28,7 @@ import { LayersPanel } from './LayersPanel';
 import { StructureBar } from './StructureBar';
 import { PageSettings } from './PageSettings';
 import { RecoveryPanel } from './RecoveryPanel';
+import { AiPanel } from './AiPanel';
 
 type Activity = 'idle' | 'saving' | 'publishing' | 'restoring' | 'settings';
 interface Notice {
@@ -76,7 +78,7 @@ export function Editor({ init }: { init: EditorInit }) {
     const rootChildren = init.draft.document.nodes[init.draft.document.root]?.children ?? [];
     const [selectedId, setSelectedId] = useState<string | null>(rootChildren[0] ?? null);
     const [viewport, setViewport] = useState<Viewport>('desktop');
-    const [tab, setTab] = useState<'inspect' | 'layers' | 'history'>('inspect');
+    const [tab, setTab] = useState<'inspect' | 'layers' | 'history' | 'ai'>('inspect');
     const [conflict, setConflictState] = useState(false);
     const conflictRef = useRef(false);
     const setConflict = useCallback(() => {
@@ -118,9 +120,25 @@ export function Editor({ init }: { init: EditorInit }) {
     const [recovery, setRecoveryState] = useState<RecoveryItem[] | null>(init.recovery ?? null);
     const recoveryRef = useRef(recovery);
 
+    // An AI proposal being previewed: the canvas shows it and editing waits for Apply or Discard.
+    const [proposal, setProposalState] = useState<AiProposal | null>(null);
+    const proposalRef = useRef<AiProposal | null>(null);
+    const [sending, setSending] = useState(false);
+    const [aiError, setAiError] = useState<{ message: string; issues?: Issue[] } | null>(null);
+    const [aiHistory, setAiHistory] = useState<{ prompt: string; outcome: 'applied' | 'discarded' }[]>([]);
+    // Requests run in the local helper; the panel polls them (no long web request).
+    const [aiRequests, setAiRequests] = useState<AiRequestView[]>([]);
+    const [aiConnection, setAiConnection] = useState<AiConnection>(init.ai.connection);
+    const [tracked, setTracked] = useState<AiRequestView | null>(null);
+    const trackedRef = useRef<AiRequestView | null>(null);
+    const polling = useRef(false);
+    const autoOpened = useRef(new Set<string>());
+    // Same prompt on the same version after an uncertain response → same key (never a second run).
+    const askAttempt = useRef<{ key: string; prompt: string; version: number } | null>(null);
+
     const { edit: canEdit, publish: canPublish, upload: canUpload } = init.permissions;
     const unsaved = hasUnsavedChanges(doc);
-    const locked = conflict || activity === 'restoring' || recovery !== null;
+    const locked = conflict || activity === 'restoring' || recovery !== null || proposal !== null;
 
     // ── Canvas: editor-mode HTML from the server's renderer (the one that publishes) ──
     const [canvas, setCanvas] = useState(init.canvas);
@@ -167,7 +185,8 @@ export function Editor({ init }: { init: EditorInit }) {
     const apply = useCallback(
         (ops: PageOperation[], options: { coalesceKey?: string; fromCanvas?: boolean } = {}): boolean => {
             // While restoring, the draft is about to be replaced: edits would be silently lost.
-            const blocked = !canEdit || conflictRef.current || activityRef.current === 'restoring' || recoveryRef.current !== null;
+            const blocked =
+                !canEdit || conflictRef.current || activityRef.current === 'restoring' || recoveryRef.current !== null || proposalRef.current !== null;
             const outcome = blocked || ops.length === 0 ? null : dispatch(docRef.current, ops, { coalesceKey: options.coalesceKey });
             if (!outcome?.ok) {
                 if (outcome) setNotice({ tone: 'error', message: "That change isn't valid.", issues: outcome.issues });
@@ -225,63 +244,78 @@ export function Editor({ init }: { init: EditorInit }) {
      * saved draft version, or null if it could not be confirmed. Concurrent calls
      * (shortcut pressed twice, Save then Publish) share one request.
      */
-    const save = useCallback((): Promise<number | null> => {
-        // Single entry point for every save trigger (button, parent and canvas shortcuts,
-        // Preview, Publish). A restore or a title/URL update is about to move the draft
-        // version: saving now would race it, so nothing is queued or sent.
-        if (activityRef.current === 'restoring' || activityRef.current === 'settings' || conflictRef.current || recoveryRef.current)
-            return Promise.resolve(null);
-        if (savePromise.current) return savePromise.current;
-        const run = async (): Promise<number | null> => {
-            const started = beginSave(docRef.current, newRequestKey);
-            if (!started) return docRef.current.version;
-            commit(started.state);
-            const { batch } = started;
-            // Only claim the activity when nothing else holds it (Ctrl+S during a publish
-            // request must not mark the editor idle when it finishes).
-            const ownsActivity = activityRef.current === 'idle';
-            if (ownsActivity) setActivity('saving');
-            let result: ApiResult<{ version: number }>;
-            try {
-                result = await api(`/pages/${pageId}/save`, { body: { baseVersion: batch.baseVersion, operations: batch.operations, saveKey: batch.key } });
-            } catch {
-                // The request may or may not have been applied. The batch stays in flight and the
-                // next save resends it with the same key, which the server recognises if it was applied.
-                setNotice({
-                    tone: 'error',
-                    message: "Couldn't confirm the save because of a network problem. Your changes are kept. Save again to retry safely.",
-                });
-                return null;
-            } finally {
-                if (ownsActivity && activityRef.current === 'saving') setActivity('idle');
-            }
-            if (!result.ok) {
-                if (result.code === 'STALE_VERSION') {
-                    setConflict();
+    const save = useCallback(
+        (options: { proposalId?: string } = {}): Promise<number | null> => {
+            // Single entry point for every save trigger (button, parent and canvas shortcuts,
+            // Preview, Publish). A restore or a title/URL update is about to move the draft
+            // version: saving now would race it, so nothing is queued or sent.
+            if (activityRef.current === 'restoring' || activityRef.current === 'settings' || conflictRef.current || recoveryRef.current)
+                return Promise.resolve(null);
+            if (savePromise.current) return savePromise.current;
+            const run = async (): Promise<number | null> => {
+                const started = beginSave(docRef.current, newRequestKey, options.proposalId);
+                if (!started) return docRef.current.version;
+                commit(started.state);
+                const { batch } = started;
+                // Only claim the activity when nothing else holds it (Ctrl+S during a publish
+                // request must not mark the editor idle when it finishes).
+                const ownsActivity = activityRef.current === 'idle';
+                if (ownsActivity) setActivity('saving');
+                let result: ApiResult<{ version: number }>;
+                try {
+                    result = await api(`/pages/${pageId}/save`, {
+                        body: {
+                            baseVersion: batch.baseVersion,
+                            operations: batch.operations,
+                            saveKey: batch.key,
+                            ...(batch.proposalId ? { proposalId: batch.proposalId } : {}),
+                        },
+                    });
+                } catch {
+                    // The request may or may not have been applied. The batch stays in flight and the
+                    // next save resends it with the same key, which the server recognises if it was applied.
                     setNotice({
                         tone: 'error',
-                        message: "This page was changed elsewhere since you opened it. Reload to continue. Your unsaved changes here can't be applied safely.",
+                        message: "Couldn't confirm the save because of a network problem. Your changes are kept. Save again to retry safely.",
                     });
-                } else if (result.code === 'INTERNAL' || result.code === 'UNAUTHENTICATED') {
-                    // Possibly applied (INTERNAL) or retryable after signing in: keep the batch for a safe retry.
-                    setNotice({ tone: 'error', message: result.message });
-                } else {
-                    commit(saveRejected(docRef.current, batch));
-                    setNotice({ tone: 'error', message: result.message, issues: result.issues });
+                    return null;
+                } finally {
+                    if (ownsActivity && activityRef.current === 'saving') setActivity('idle');
                 }
-                return null;
-            }
-            commit(saveSucceeded(docRef.current, batch, result.data.version));
-            setNotice((current) => (current?.tone === 'error' ? null : current));
-            void refreshStatus();
-            return result.data.version;
-        };
-        const promise = run().finally(() => {
-            savePromise.current = null;
-        });
-        savePromise.current = promise;
-        return promise;
-    }, [pageId, commit, setActivity, setConflict, refreshStatus]);
+                if (!result.ok) {
+                    if (result.code === 'STALE_PROPOSAL') {
+                        // The applied proposal was refused (stale or already used): never save it as a plain edit.
+                        setConflict();
+                        setNotice({ tone: 'error', message: `${result.message} Reload to continue; the proposal was not saved.` });
+                    } else if (result.code === 'STALE_VERSION') {
+                        setConflict();
+                        setNotice({
+                            tone: 'error',
+                            message:
+                                "This page was changed elsewhere since you opened it. Reload to continue. Your unsaved changes here can't be applied safely.",
+                        });
+                    } else if (result.code === 'INTERNAL' || result.code === 'UNAUTHENTICATED') {
+                        // Possibly applied (INTERNAL) or retryable after signing in: keep the batch for a safe retry.
+                        setNotice({ tone: 'error', message: result.message });
+                    } else {
+                        commit(saveRejected(docRef.current, batch));
+                        setNotice({ tone: 'error', message: result.message, issues: result.issues });
+                    }
+                    return null;
+                }
+                commit(saveSucceeded(docRef.current, batch, result.data.version));
+                setNotice((current) => (current?.tone === 'error' ? null : current));
+                void refreshStatus();
+                return result.data.version;
+            };
+            const promise = run().finally(() => {
+                savePromise.current = null;
+            });
+            savePromise.current = promise;
+            return promise;
+        },
+        [pageId, commit, setActivity, setConflict, refreshStatus],
+    );
 
     // A component removed (or undone away) takes its unresolved input with it.
     useEffect(() => {
@@ -291,7 +325,7 @@ export function Editor({ init }: { init: EditorInit }) {
     }, [doc.document, replaceUnresolved]);
 
     /** True (and shows the fields) when unresolved input must be fixed or reverted first. */
-    const blockedByUnresolved = useCallback((action: 'publishing' | 'previewing'): boolean => {
+    const blockedByUnresolved = useCallback((action: 'publishing' | 'previewing' | 'asking the AI'): boolean => {
         const fields = Object.values(unresolvedRef.current);
         if (fields.length === 0) return false;
         setSelectedId(fields[0]!.nodeId);
@@ -425,6 +459,189 @@ export function Editor({ init }: { init: EditorInit }) {
         [pageId, commit, setActivity, setConflict, refreshStatus],
     );
 
+    const showProposal = useCallback((next: AiProposal | null) => {
+        proposalRef.current = next;
+        setProposalState(next);
+        // The canvas switches between the proposal preview and the draft.
+        setCanvasToken((t) => t + 1);
+    }, []);
+
+    const track = useCallback((next: AiRequestView | null) => {
+        trackedRef.current = next;
+        setTracked(next);
+    }, []);
+
+    /** Opens a proposal for review: the server renders its preview (and says if the draft moved on). */
+    const reviewRequest = useCallback(
+        async (id: string) => {
+            if (proposalRef.current) return;
+            try {
+                const result = await api<AiRequestView>(`/pages/${pageId}/ai/requests/${id}`);
+                if (!result.ok) {
+                    setAiError({ message: result.message });
+                    return;
+                }
+                if (result.data.proposal && isReviewable(result.data)) {
+                    setAiError(null);
+                    setTab('ai');
+                    showProposal(result.data.proposal);
+                }
+            } catch {
+                setAiError({ message: "Couldn't reach the server. Try again." });
+            }
+        },
+        [pageId, showProposal],
+    );
+
+    /** Polls the user's requests on this page: helper readiness, progress, and proposals waiting for review. */
+    const refreshAi = useCallback(async () => {
+        // One poll at a time: overlapping polls could both see a request finish and open it twice.
+        if (polling.current) return;
+        polling.current = true;
+        try {
+            let result: ApiResult<{ requests: AiRequestView[]; connection: AiConnection }>;
+            try {
+                result = await api(`/pages/${pageId}/ai/requests`);
+            } catch {
+                return;
+            }
+            if (!result.ok) return;
+            setAiRequests(result.data.requests);
+            setAiConnection(result.data.connection);
+            const current = trackedRef.current;
+            if (!current || !isActive(current)) return;
+            const listed = result.data.requests.find((r) => r.id === current.id);
+            if (listed && isActive(listed)) {
+                track(listed);
+                return;
+            }
+            // It finished (or failed, or was cancelled): read its outcome, and open a proposal once.
+            try {
+                const done = await api<AiRequestView>(`/pages/${pageId}/ai/requests/${current.id}`);
+                if (!done.ok || trackedRef.current?.id !== current.id) return;
+                track(done.data);
+                if (isReviewable(done.data) && !proposalRef.current && !autoOpened.current.has(done.data.id)) {
+                    autoOpened.current.add(done.data.id);
+                    await reviewRequest(done.data.id);
+                }
+            } catch {
+                // Next poll tries again.
+            }
+        } finally {
+            polling.current = false;
+        }
+    }, [pageId, track, reviewRequest]);
+
+    useEffect(() => {
+        if (!init.ai.available) return;
+        void refreshAi();
+        const fast = tracked !== null && isActive(tracked);
+        const timer = setInterval(() => void refreshAi(), fast ? 1500 : 5000);
+        return () => clearInterval(timer);
+    }, [init.ai.available, refreshAi, tracked]);
+
+    /** Saves pending edits, then queues a request based on that saved version for the local helper. */
+    const askAi = useCallback(
+        async (prompt: string) => {
+            if (sending || proposalRef.current || recoveryRef.current || conflictRef.current) return;
+            if (blockedByUnresolved('asking the AI')) return;
+            setAiError(null);
+            setSending(true);
+            try {
+                let version = await save();
+                for (let i = 0; version !== null && hasUnsavedChanges(docRef.current) && i < 3; i++) version = await save();
+                if (version === null || hasUnsavedChanges(docRef.current)) {
+                    setAiError({ message: 'Your changes could not be saved, so the AI was not asked. Save, then try again.' });
+                    return;
+                }
+                if (blockedByUnresolved('asking the AI')) return;
+                const previous = askAttempt.current;
+                const attempt = previous && previous.prompt === prompt && previous.version === version ? previous : { key: newRequestKey(), prompt, version };
+                askAttempt.current = attempt;
+                let result: ApiResult<AiRequestView>;
+                try {
+                    result = await api<AiRequestView>(`/pages/${pageId}/ai/requests`, { body: { prompt, baseVersion: version, requestKey: attempt.key } });
+                } catch {
+                    setAiError({ message: "Couldn't confirm the request (network problem). Send it again: the same request is never run twice." });
+                    return;
+                }
+                if (!result.ok) {
+                    if (result.code !== 'INTERNAL') askAttempt.current = null;
+                    if (result.code === 'STALE_VERSION') {
+                        setConflict();
+                        setNotice({ tone: 'error', message: 'This page was changed elsewhere since you opened it. Reload to continue.' });
+                    }
+                    setAiError({ message: result.message, issues: result.issues });
+                    void refreshAi();
+                    return;
+                }
+                askAttempt.current = null;
+                setTab('ai');
+                track(result.data);
+                void refreshAi();
+            } finally {
+                setSending(false);
+            }
+        },
+        [sending, pageId, save, blockedByUnresolved, setConflict, track, refreshAi],
+    );
+
+    const cancelRequest = useCallback(
+        async (id: string) => {
+            try {
+                const result = await api<AiRequestView>(`/pages/${pageId}/ai/requests/${id}/cancel`, { body: {} });
+                if (result.ok) track(result.data);
+            } catch {
+                setAiError({ message: "Couldn't reach the server to cancel. Try again." });
+            }
+            void refreshAi();
+        },
+        [pageId, track, refreshAi],
+    );
+
+    /** One undoable edit with exactly the proposed operations, saved as that proposal. Never publishes. */
+    const applyProposal = useCallback(() => {
+        const current = proposalRef.current;
+        if (!current) return;
+        const blocker = proposalBlocker(docRef.current, current, Object.keys(unresolvedRef.current).length);
+        if (blocker) {
+            setAiError({ message: blocker });
+            return;
+        }
+        const outcome = dispatch(docRef.current, current.operations);
+        if (!outcome.ok) {
+            setAiError({ message: 'This proposal no longer fits the draft. Discard it and ask again.', issues: outcome.issues });
+            return;
+        }
+        commit(outcome.state);
+        showProposal(null);
+        if (current.canvas) setCanvas(current.canvas); // the preview is exactly the applied page
+        setAiHistory((list) => [...list, { prompt: current.prompt, outcome: 'applied' }]);
+        track(null);
+        void save({ proposalId: current.id }).then((version) => {
+            void refreshAi();
+            if (version !== null)
+                setNotice({
+                    tone: 'info',
+                    message:
+                        'Applied to the draft and saved. Nothing is published: review it, edit anything, then Publish when you are ready. Undo reverts it.',
+                });
+        });
+    }, [commit, save, showProposal, track, refreshAi]);
+
+    const discardProposal = useCallback(() => {
+        const current = proposalRef.current;
+        if (!current) return;
+        showProposal(null);
+        setAiError(null);
+        setAiHistory((list) => [...list, { prompt: current.prompt, outcome: 'discarded' }]);
+        track(null);
+        // Recorded on the server for the history of the request; the page never changed, so a failure here is harmless.
+        void api(`/pages/${pageId}/ai/requests/${current.id}/discard`, { body: {} })
+            .catch(() => undefined)
+            .then(() => refreshAi());
+    }, [pageId, showProposal, refreshAi]);
+
     const upload = useCallback(async (file: File): Promise<MediaInfo | null> => {
         const form = new FormData();
         form.set('file', file);
@@ -507,14 +724,16 @@ export function Editor({ init }: { init: EditorInit }) {
                     ? 'Out of date'
                     : recovery
                       ? 'Needs repair'
-                      : doc.inFlight
-                        ? 'Save not confirmed'
-                        : unresolvedCount > 0
-                          ? // Saving applies valid changes only: never claim that what is on screen is saved.
-                            `${unsaved ? 'Unsaved changes, ' : ''}${unresolvedCount} invalid field${unresolvedCount === 1 ? '' : 's'} not saved`
-                          : unsaved
-                            ? 'Unsaved changes'
-                            : 'Draft saved';
+                      : proposal
+                        ? 'Previewing AI proposal'
+                        : doc.inFlight
+                          ? 'Save not confirmed'
+                          : unresolvedCount > 0
+                            ? // Saving applies valid changes only: never claim that what is on screen is saved.
+                              `${unsaved ? 'Unsaved changes, ' : ''}${unresolvedCount} invalid field${unresolvedCount === 1 ? '' : 's'} not saved`
+                            : unsaved
+                              ? 'Unsaved changes'
+                              : 'Draft saved';
 
     return (
         <div className="flex h-screen flex-col">
@@ -643,21 +862,30 @@ export function Editor({ init }: { init: EditorInit }) {
             )}
 
             <div className="flex min-h-0 flex-1">
-                <section className="min-w-0 flex-1" aria-label="Canvas">
-                    <Canvas
-                        body={canvas.body}
-                        css={canvas.css}
-                        multiline={init.multiline}
-                        selectedId={selectedId}
-                        viewport={viewport}
-                        renderToken={canvasToken}
-                        onSelect={setSelectedId}
-                        onInlineEdit={(nodeId, prop, value) =>
-                            apply([{ op: 'updateProps', nodeId, set: { [prop]: value } }], { coalesceKey: `${nodeId}:${prop}`, fromCanvas: true })
-                        }
-                        onSaveShortcut={() => void save()}
-                        readOnly={recovery !== null}
-                    />
+                <section className="flex min-w-0 flex-1 flex-col" aria-label="Canvas">
+                    {proposal && (
+                        <p className="border-b border-indigo-200 bg-indigo-50 px-4 py-1.5 text-xs text-indigo-900" data-testid="proposal-banner">
+                            {proposal.canvas
+                                ? 'Preview of the AI proposal. Nothing has changed yet: Apply or Discard it in the AI panel.'
+                                : 'The AI proposed no changes.'}
+                        </p>
+                    )}
+                    <div className="min-h-0 flex-1">
+                        <Canvas
+                            body={proposal?.canvas?.body ?? canvas.body}
+                            css={proposal?.canvas?.css ?? canvas.css}
+                            multiline={init.multiline}
+                            selectedId={selectedId}
+                            viewport={viewport}
+                            renderToken={canvasToken}
+                            onSelect={setSelectedId}
+                            onInlineEdit={(nodeId, prop, value) =>
+                                apply([{ op: 'updateProps', nodeId, set: { [prop]: value } }], { coalesceKey: `${nodeId}:${prop}`, fromCanvas: true })
+                            }
+                            onSaveShortcut={() => void save()}
+                            readOnly={recovery !== null || proposal !== null}
+                        />
+                    </div>
                 </section>
                 <aside className="flex w-80 shrink-0 flex-col border-l border-zinc-200 bg-white" aria-label="Sidebar">
                     {recovery ? (
@@ -673,7 +901,7 @@ export function Editor({ init }: { init: EditorInit }) {
                     ) : (
                         <>
                             <div className="flex border-b border-zinc-200 text-sm" role="tablist">
-                                {(['inspect', 'layers', 'history'] as const).map((t) => (
+                                {(['inspect', 'layers', 'history', 'ai'] as const).map((t) => (
                                     <button
                                         key={t}
                                         type="button"
@@ -682,7 +910,7 @@ export function Editor({ init }: { init: EditorInit }) {
                                         onClick={() => setTab(t)}
                                         className={`flex-1 px-3 py-2 ${tab === t ? 'border-b-2 border-indigo-600 font-medium' : 'text-zinc-500'}`}
                                     >
-                                        {t === 'inspect' ? 'Properties' : t === 'layers' ? 'Layers' : 'History'}
+                                        {t === 'inspect' ? 'Properties' : t === 'layers' ? 'Layers' : t === 'history' ? 'History' : 'AI'}
                                     </button>
                                 ))}
                             </div>
@@ -744,8 +972,27 @@ export function Editor({ init }: { init: EditorInit }) {
                                             onUnresolved={setUnresolved}
                                         />
                                     </>
-                                ) : (
+                                ) : tab === 'history' ? (
                                     <HistoryPanel revisions={revisions} canRestore={canEdit && !locked && !busy} onRestore={(r) => void restore(r)} />
+                                ) : (
+                                    <AiPanel
+                                        available={init.ai.available && !conflict}
+                                        unavailableReason={conflict ? 'Reload the page to continue.' : init.ai.reason}
+                                        promptMax={init.ai.promptMax}
+                                        connection={aiConnection}
+                                        requests={aiRequests}
+                                        tracked={tracked}
+                                        sending={sending}
+                                        onCancel={(id) => void cancelRequest(id)}
+                                        onReview={(id) => void reviewRequest(id)}
+                                        proposal={proposal}
+                                        applyBlocker={proposal ? proposalBlocker(doc, proposal, unresolvedCount) : null}
+                                        error={aiError}
+                                        history={aiHistory}
+                                        onAsk={(prompt) => void askAi(prompt)}
+                                        onApply={applyProposal}
+                                        onDiscard={discardProposal}
+                                    />
                                 )}
                             </div>
                         </>

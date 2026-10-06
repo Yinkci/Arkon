@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Arkon\Ai\ClaudeCodeCli;
+use App\Arkon\Ai\ClaudeRunner;
 use App\Arkon\Components\ComponentRegistry;
 use App\Arkon\Components\DocumentValidator;
 use App\Arkon\Database\Transactions;
@@ -25,6 +27,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(PageRenderer::class);
         $this->app->singleton(Transactions::class);
         $this->app->singleton(MediaStorage::class, fn () => MediaStorage::fromConfig());
+        // AI runs through the Claude Code CLI under the user's own login (used by the local helper only).
+        $this->app->bind(ClaudeRunner::class, fn () => ClaudeCodeCli::fromConfig());
     }
 
     public function boot(): void

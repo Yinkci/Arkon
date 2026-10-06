@@ -88,6 +88,12 @@ final class ComponentRegistry
         return $versions === [] ? null : end($versions);
     }
 
+    /** @return array<string, ComponentDefinition> type → its current definition */
+    public function currentDefinitions(): array
+    {
+        return array_map(fn (array $versions) => end($versions), $this->definitions);
+    }
+
     /** @return array<string, int> type → current version */
     public function currentVersions(): array
     {

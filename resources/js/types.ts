@@ -63,6 +63,8 @@ export interface EditorInit {
     site: { name: string };
     canvas: { body: string; css: string };
     multiline: Record<string, string[]>;
+    /** Whether the AI panel can be used (never provider credentials). */
+    ai: { available: boolean; reason: string | null; promptMax: number; connection: import('@/arkon/editor/proposals').AiConnection };
 }
 
 export interface SharedProps {

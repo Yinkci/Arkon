@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 export const PORT = 8100;
 
@@ -13,6 +13,13 @@ export const PORT = 8100;
 export const E2E_HOST = 'arkon-e2e.test';
 export const APP_ORIGIN = `http://${E2E_HOST}:${PORT}`;
 export const SERVER_URL = `http://127.0.0.1:${PORT}`;
+
+/** The fake Claude Code CLI the e2e helper runs instead of claude.exe (no login, no network). */
+export const FAKE_CLAUDE = resolve('e2e/fake-claude.mjs');
+export const FAKE_CLAUDE_LOG = resolve('storage/e2e/fake-claude.log');
+/** Paired tokens written by global setup for the e2e owner (never real credentials). */
+export const E2E_HELPER_TOKEN_FILE = resolve('storage/e2e/ai-helper.token');
+export const E2E_MCP_TOKEN_FILE = resolve('storage/e2e/ai-mcp.token');
 
 /** PHP with pdo_pgsql (Herd's). Override with PHP_BINARY. */
 export const PHP = process.env.PHP_BINARY ?? [join(homedir(), '.config', 'herd', 'bin', 'php84', 'php.exe')].find((p) => existsSync(p)) ?? 'php';
@@ -27,6 +34,11 @@ export const E2E_ENV: Record<string, string> = {
     SESSION_DRIVER: 'database',
     CACHE_STORE: 'array',
     LOG_CHANNEL: 'stderr',
+    // AI: the helper runs the fake Claude Code CLI; tokens go to storage/e2e, never the dev helper's file.
+    ARKON_CLAUDE_COMMAND: JSON.stringify(['node', FAKE_CLAUDE]),
+    ARKON_HELPER_TOKEN_FILE: E2E_HELPER_TOKEN_FILE,
+    ARKON_AI_PER_USER_PER_MINUTE: '60',
+    ARKON_AI_MAX_ACTIVE_PER_SITE: '5',
 };
 
 /** Runtime database settings from .env (the restricted role), for test fixtures. */

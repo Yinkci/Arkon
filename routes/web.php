@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\EditorController;
 use App\Http\Controllers\Admin\PagesController;
+use App\Http\Controllers\Api\AiApiController;
 use App\Http\Controllers\Api\EditorApiController;
 use App\Http\Controllers\Api\MediaApiController;
 use App\Http\Controllers\Api\PageApiController;
@@ -34,6 +35,12 @@ Route::middleware(['auth', 'admin.site'])->group(function () {
         Route::post('/pages/{page}/restore', [EditorApiController::class, 'restore']);
         Route::post('/pages/{page}/settings', [EditorApiController::class, 'settings']);
         Route::post('/pages/{page}/canvas', [EditorApiController::class, 'canvas']);
+        // AI proposals (per-user and per-site limits are enforced by ProposalLedger).
+        Route::get('/pages/{page}/ai/requests', [AiApiController::class, 'index']);
+        Route::post('/pages/{page}/ai/requests', [AiApiController::class, 'store'])->middleware('throttle:20,1');
+        Route::get('/pages/{page}/ai/requests/{proposal}', [AiApiController::class, 'show']);
+        Route::post('/pages/{page}/ai/requests/{proposal}/cancel', [AiApiController::class, 'cancel']);
+        Route::post('/pages/{page}/ai/requests/{proposal}/discard', [AiApiController::class, 'discard']);
 
         Route::post('/media', [MediaApiController::class, 'store']);
     });

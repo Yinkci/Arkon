@@ -177,7 +177,7 @@ To change a rule: edit the JSON, run `php tests/Conformance/build.php`, review t
 
 Same tables as the reference, with Laravel's plural names: `sites`, `site_domains`, `site_members`, `pages`,
 `page_drafts`, `page_revisions`, `publications`, `live_pages`, `publication_media`, `redirects`, `media_assets`,
-`audit_logs`, `data_upgrades`, plus `users` and `sessions`. Every link between tenant tables is a composite foreign
+`audit_logs`, `data_upgrades`, plus `users` and `sessions`, and (Laravel only) `ai_proposals`. Every link between tenant tables is a composite foreign
 key including `site_id`. UUIDv7 ids (`Str::uuid7()`).
 
 The migrations follow the reference project's schema history (foundation → request keys and publication media →
@@ -225,6 +225,98 @@ Ported from the reference (§9), with three stricter rules:
   delete checked against the draft version. Re-render primitive (`prepareRerender` in a REPEATABLE READ, READ ONLY
   snapshot, `commitRerender` forward-only) is implemented and tested; no job runner calls it yet.
 
+### AI page proposals (ADR-L3): Claude Code on the user's subscription
+
+A prompt never edits the page. It produces a **proposal**: a list of the editor's own operations (`insertNode`,
+`updateProps`, `moveNode`, `removeNode`) based on one saved draft version, which the user previews in the editor and
+then applies or discards. Applying is a normal save; publishing stays the separate Publish action.
+
+Claude runs as **Claude Code under the user's own Claude subscription** on their computer. There is no API key, no
+paid API path and no Anthropic SDK; Arkon never reads, stores or exports Claude's login. Two entry points, one backend:
+
+```
+ VS Code (Claude Code chat)                         Arkon editor, AI tab
+          │ MCP over stdio                                  │ POST …/ai/requests (answers at once: queued)
+  php artisan arkon:mcp (token: user+site)                  ▼
+          │ arkon_submit_proposal                   ai_proposals (queued) ◄── poll GET …/ai/requests[/id]
+          ▼                                                 │ claimed with a lease
+  ProposalService::submit ──┐                php artisan arkon:ai-helper (token: site) ── claude -p (CLI)
+                            ▼                                 │
+             ProposalCompiler (registry schema, validation)  ◄┘ ProposalService::execute
+                            ▼
+             ai_proposals (proposed | empty) ── preview ── Apply (save with proposalId) | Discard
+```
+
+- **Requesting, executing, validating and reviewing are separate.** `ProposalService::request` only records a panel
+  request (`queued`); `claimNext`/`execute` run it in the helper; `submit` records an MCP proposal; `list`/`status`/
+  `cancel`/`discard` serve the editor. Both entry points go through `ProposalCompiler` against the draft version the
+  proposal claims, and produce the same rows, previews, change descriptions and apply path.
+- **The contract comes from the registry.** `ProposalSchema` builds the JSON schema and the catalogue text from the
+  current component manifests (types, versions, props, enums, limits, defaults, nesting); `ProposalPrompt` adds the
+  rules and the page context (site name, page title/path, blocks, ids/alt/size of images already on the page).
+- **Untrusted output.** Whatever Claude returns (CLI `structured_output` or an MCP argument) is compiled: new ids,
+  current versions and defaults, each change applied in order to the base draft, then the same validation as a save
+  (types, props, nesting, link policy), only images already on the page, plain text, at most 40 changes. A helper run
+  gets one repair run with the problems listed; an MCP submission returns the problems as a tool error and records
+  nothing. Publish checks become warnings. "What will change" is described by the server from the operations.
+- **Applying.** The editor dispatches the operations as one undo step and saves them as one batch with the proposal
+  id; inside the save transaction (after the version check) the proposal must be the user's own, `proposed`, based on
+  that version, with an identical operations fingerprint (`STALE_PROPOSAL` otherwise; the editor then stops instead of
+  saving them as a plain edit). The revision gets `source = 'ai'` and "AI: <summary>".
+- **Durable requests, no long web requests.** `ai_proposals` is the request record: `queued → running → proposed |
+  empty | failed | cancelled`, then `applied | discarded`. The panel polls (1.5 s while active, 5 s otherwise).
+- **Request keys and atomic creation.** A per-site advisory lock is taken *before* the request-key lookup, so identical
+  concurrent requests replay the same row (previously: lookup outside the lock → PostgreSQL 23505). A key is bound to
+  its page, prompt and base version (and for MCP the proposal itself) by `request_fingerprint`; the same key with a
+  changed payload is refused (`CONFLICT`). A retried request (lost acknowledgement) never queues a second run.
+  An MCP submission is first authorised and matched against an existing key, *before* any current-draft check: an
+  exact retry returns the original proposal id with its current status (proposed, applied, discarded…) even after
+  manual edits or after it was applied, without a new row or a second application. Only new submissions are
+  validated and compiled against the current draft; the lookup is repeated under the site lock when inserting.
+- **Leases and recovery.** A helper claims the oldest queued request of its site with one
+  `UPDATE … WHERE id = (SELECT … FOR UPDATE SKIP LOCKED)`, only while its connection is unrevoked and its user may
+  edit the site; it gets a fresh lease token and a 45 s lease that it renews while Claude works. Renewing and admitting
+  a result or failure are each one `UPDATE` that requires, against the database clock: this lease token, status
+  `running`, `lease_expires_at > now()`, an unrevoked connection whose user may still edit, and a requester who may
+  still edit. So a cancelled, superseded, expired (even before `recover()` has run), taken-over, revoked or
+  de-authorised run can neither revive its lease nor land a late result, even if the runner ignores the request to
+  stop; the runner itself stops at its next check (every 2 s) because the renewal fails. Revoking a connection
+  fences its running requests in the same transaction (lease cleared, back in the queue). An expired lease
+  (`lease_expires_at <= now()`) is recovered: back in the queue while attempts remain (the next claim gets a new
+  token), failing after 2 (`AI_INTERRUPTED`). Requests nobody picks up within 5 minutes fail (`AI_EXPIRED`). A newer
+  panel request for the same page supersedes the user's waiting one. Cancel stops the running CLI process. The
+  requester always stays the proposal's owner.
+- **Limits.** Requests per user per minute, per site per day, and queued+running per site; a run timeout (240 s); one
+  repair run; two attempts. These bound what Arkon starts. Claude Code enforces the subscription's own usage limits;
+  Arkon does not know the remaining allowance and makes no monetary claims. (The token budget of the removed API
+  path is gone; `input_tokens`/`output_tokens` columns stay for the old rows.)
+- **The helper and the CLI** (`AiHelper`, `ClaudeCodeCli`). Started by the user (`php artisan arkon:ai-helper`) under
+  their Windows account; it reports readiness (Claude Code version, auth mode, plan; never account details or tokens)
+  to `ai_connections.status`, which the panel shows. It refuses Claude Code older than 2.1.259 and any login other
+  than `authMethod: claude.ai` (`claude auth status --json`), so API-key/Console billing is never used. A run is
+  `claude -p --output-format json --json-schema <schema> --system-prompt-file <file> --tools "" --restricted
+  --strict-mcp-config --disallowedTools "mcp__*" --permission-mode dontAsk --permission-prompts none
+  --no-session-persistence --disable-slash-commands --max-turns 4` (verified against the CLI reference and
+  2.1.289/2.1.292; not `--bare`, which never reads the subscription login). The process is started directly with
+  `proc_open` and an argument array (no `cmd.exe`: Symfony Process's Windows quoting corrupted the JSON schema), with
+  the prompt on stdin from a file, an empty temporary working directory, and an allow-listed environment (PATH, user
+  profile and temp folders, `CLAUDE_CONFIG_DIR`; no `DB_*`, `APP_KEY`, `ANTHROPIC_*`, OAuth tokens or `ARKON_*`).
+  Claude Code's failure text is mapped to `CLAUDE_MISSING | _OUTDATED | _NOT_LOGGED_IN | _BILLING_MODE | _LIMIT |
+  _TIMEOUT | _FAILED`.
+- **The MCP server** (`Mcp\McpServer`, `php artisan arkon:mcp`): newline-delimited JSON-RPC 2.0 over stdio
+  (`initialize`, `ping`, `tools/list`, `tools/call`; protocol versions 2024-11-05 … 2025-11-25). Tools:
+  `arkon_list_pages`, `arkon_get_page`, `arkon_get_proposal_format`, `arkon_submit_proposal`,
+  `arkon_get_proposal_status`. No SQL, shell, file, apply or publish tools. Domain errors are tool errors the model
+  can act on.
+- **Connections** (`ai_connections`, `AiConnections`): revocable tokens of kind `helper` or `mcp`, each bound to one
+  user and one site, created by `php artisan arkon:ai-pair` (shown once; only a SHA-256 hash is stored), revoked with
+  `arkon:ai-revoke`. The token is the only identity: tools take no user or site ids, every call is authorised again
+  against the user's current role (`page.view` to read, `page.edit` to submit), and a revoked token or a removed
+  membership stops working immediately. Revoking a helper also fences the request it is running (back in the
+  queue for another helper; its late result is rejected). The helper serves only its own site's requests.
+- **Permissions:** `page.edit` (owners, admins, editors) to ask, submit, apply or discard; viewers get 403, other sites
+  404; a request can only be seen, applied or discarded by its creator.
+
 ## 7. Security
 
 - **Sign-in**: Laravel session guard, database sessions (`arkon_session`, HttpOnly, SameSite=Lax; set
@@ -248,6 +340,11 @@ Ported from the reference (§9), with three stricter rules:
   contexts, and Herd serves `http://arkonlaravel.test`, which is not one.
 - **Escaping**: components return IR; the serializer escapes text and attributes and refuses event handlers,
   `script`/`style`/`iframe`, and non-http(s)/relative URLs.
+- **AI**: there are no AI credentials in Arkon. Claude Code uses the user's own login, which Arkon never reads; Arkon's
+  helper and MCP tokens are revocable, stored as hashes, and grant one user on one site. The Claude Code child process
+  gets no database settings or keys and no tools. AI output is data, never code: it can only become the editor's
+  operations on registered components and passes the same validation as a human save, so it cannot add HTML, scripts,
+  unknown components or unsafe links, and it never applies or publishes on its own.
 
 ## 8. Tests
 
@@ -256,9 +353,10 @@ Ported from the reference (§9), with three stricter rules:
 | PHPUnit `tests/Unit` | renderer, conformance, component versions | exact production markup, escaping, editor annotations; PHP side of the conformance fixtures; inverses restore documents; version migration |
 | PHPUnit `LifecycleRaceTest`, `CreateIntentTest`, `ReadConsistencyTest`, `ComponentHistoryTest` | 19 | forced interleavings of delete with waiting publish/save/restore/title/unpublish/delete (both orders), rename with a waiting save, identical and conflicting creates waiting on the path lock; a rename committed in the middle of editor, page-load and preview reads; create-intent replay after rename/delete and its backfill; historical reproduction across component versions |
 | PHPUnit `tests/Feature` | pages, requests, page management, media, concurrency, upgrade, runtime safety, HTTP | everything in reference `pages`, `requests`, `page-management`, `media`, `media-access`, `consistency`, `upgrade` and `config` tests, plus the HTTP layer (sign-in, rate limit, no sign-up, JSON envelopes, `{}` fidelity, canvas endpoint, public headers, redirects, preview, media with a real session cookie) |
-| Vitest | editor state, operations, conformance, structure, recovery repair, request keys | the reference editor-state tests; TypeScript matches PHP on all 103 fixtures; structure helpers (placement, drop targets, undo/redo of structural changes); request keys without `crypto.randomUUID` |
+| Vitest | editor state, operations, conformance, structure, recovery repair, AI proposal guards (stale/unsaved/unfinished, one undo step, tagged save batch), request keys | the reference editor-state tests; TypeScript matches PHP on all 103 fixtures; structure helpers (placement, drop targets, undo/redo of structural changes); request keys without `crypto.randomUUID` |
 | PHPUnit `StructuralEditingTest`, `LinkRecoveryTest` | 16 | add/nest/reorder/remove through the save API, the server applying undo inverses, invalid nesting and unsafe links refused, backslash links refused while a publication recorded under the older link policy still reproduces, image v1 publications reproducing while republishing moves to image v2, drafts with one or several stored backslash links (and an image) opening in recovery over HTTP instead of 422, nothing saving or publishing until corrected or removed, the repaired draft saving and publishing normally while the old publication stays live until then and still reproduces, other invalid drafts not opened in recovery, publish of a nested layout as clean semantic HTML with recorded component versions, publish checks of the new components, editor/viewer/outsider permissions, foreign assets, a pre-milestone page v1 publication still reproducing |
-| Playwright `e2e/` | 24 | **builder**: palette, layers, move buttons, drag and drop (incl. refused invalid drops, a Columns block's last column, and palette drags), unsafe link refused in the inspector, unresolved link kept across selection, flagged in the status, blocking Preview/Publish and leaving until fixed or reverted (also when it becomes unresolved while the save before Publish or Preview is held: no publish request, no preview navigation), drafts stored with backslash links opening in recovery and returning to normal after an explicit correct/remove repair, image sizes in a column measured in canvas, preview and live page, structural undo/redo, mobile stacking, save/reload/publish clean HTML, structure toolbar, editor role builds but cannot publish; **write flows**, at an insecure origin like Herd's (`http://arkon-e2e.test:8100`, mapped to the PHP server inside Chromium only; asserts `isSecureContext === false` and no `randomUUID`) against `arkonlaravel_e2e`: editor flow with save/publish/upload/restore, typing/undo during slow saves, aborted and lost saves, exact publish retries, Ctrl+S during a slow restore, page create/rename/unpublish/delete, editor role limits |
+| PHPUnit `AiProposalTest`, `McpServerTest`, `AiCommandsTest`, `ClaudeCodeCliTest` | 42 + 8 + 4 + 7 | panel path with a scripted fake runner: queued → helper → validated proposal that changes nothing, apply as one AI revision, undo, explicit publish, follow-up, one repair run, 12 kinds of invalid output, empty answers, images on the page only; request keys (replay, changed prompt/version/page refused), **real concurrent identical requests replay (the old lookup-before-lock order fails with 23505)**, one helper per request, lease expiry recovery and the late result refused, retry limit, queue expiry, cancel while running (late result never lands), revocation while idle and while running (fenced, back in the queue; a runner that ignores the stop still cannot store its result; the requester stays the owner), the helper's or requester's edit rights lost mid-run, expired leases rejected before recovery, after takeover and exactly at the expiry instant (database clock), supersede, discard, stale drafts and proposals, helper readiness/offline/not-ready, Claude Code failure codes, frequency and concurrency limits, permissions and site isolation, HTTP; MCP protocol, the five tools only, site scoping, submission without draft change → review in the editor → apply, validation and stale/changed-key refusal, exact retries after a manual edit and after applying (original id and current status, no new row or application), token identity and immediate revocation, a real stdio process; pairing/revoke commands and `arkon:ai-helper --once` with the real CLI runner and a fake `claude`; the CLI runner against a fake executable: subscription-only readiness, the exact flags (no `--bare`), the prompt byte-for-byte on stdin, the real schema intact (failed through `cmd.exe`), no secrets in the child environment, empty working directory, limit/login/garbage/timeout/cancel |
+| Playwright `e2e/` | 29 | **AI** (global setup pairs and starts the real helper with a fake Claude Code CLI, `e2e/fake-claude.mjs`): connection shown, prompt → queued/running → preview → apply → undo/redo → follow-up → explicit publish, the CLI run with the locked-down flags and a clean environment, cancel while running, edits made meanwhile never replaced, discard, subscription limit, invalid output, unsupported request, editor role, and the VS Code path: `arkon:mcp` driven over stdio → proposal waits in the editor → review → apply; **builder**: palette, layers, move buttons, drag and drop (incl. refused invalid drops, a Columns block's last column, and palette drags), unsafe link refused in the inspector, unresolved link kept across selection, flagged in the status, blocking Preview/Publish and leaving until fixed or reverted (also when it becomes unresolved while the save before Publish or Preview is held: no publish request, no preview navigation), drafts stored with backslash links opening in recovery and returning to normal after an explicit correct/remove repair, image sizes in a column measured in canvas, preview and live page, structural undo/redo, mobile stacking, save/reload/publish clean HTML, structure toolbar, editor role builds but cannot publish; **write flows**, at an insecure origin like Herd's (`http://arkon-e2e.test:8100`, mapped to the PHP server inside Chromium only; asserts `isSecureContext === false` and no `randomUUID`) against `arkonlaravel_e2e`: editor flow with save/publish/upload/restore, typing/undo during slow saves, aborted and lost saves, exact publish retries, Ctrl+S during a slow restore, page create/rename/unpublish/delete, editor role limits |
 | Playwright `e2e-herd/` | 1 | **authenticated, non-persisting** smoke test through Herd itself (dev database): sign-in, dashboard, editor canvas, history, member-only preview, clean public responses, insecure-context conditions, and one write request (create with a reserved URL) that generates a request key and is refused before anything is written. It does not save or publish |
 
 - Integration tests use `arkonlaravel_test` as the runtime role; the schema owner only truncates between tests.
@@ -294,13 +392,22 @@ and roles, iframe editor with inline hero editing, inspector, upload, preview, u
 batch saves, safe retries, publish intents, epoch ordering, private media, page create/rename/redirect/unpublish/
 delete, clean public HTML), plus publication inputs and versioned component manifests, and the visual builder
 (Text, Image, Button, Columns/Column; add, select, edit, remove, reorder by buttons or drag and drop, nesting in
-Columns, responsive previews, structural undo/redo).
+Columns, responsive previews, structural undo/redo), and the first AI workflow: one-page generation and follow-up
+edits as validated proposals of native blocks, preview, apply/discard, undo, explicit publishing, through Claude
+Code on the user's subscription (VS Code via MCP, and the editor's AI panel via the local helper).
 
-Deferred: collections and content entries, AI, dependency tables beyond media and the outbox/workers,
+Deferred: multi-page AI orchestration, collections and content entries, dependency tables beyond media and the outbox/workers,
 design-token editing, editable site settings, autosave, site switcher, member management UI, row-level security.
 
 ### Known limitations
 
+- AI: the automated suites use fakes (a scripted runner, a fake `claude` executable, MCP over stdio); real
+  Claude Code (2.1.292, subscription login) was verified manually for both entry points during development; real output quality is not
+  tested automatically. One page per request. The panel needs the helper running on the same computer as Claude Code
+  (one helper per site). Claude can only use images already on the page, cannot set SEO fields, title/URL or site
+  settings, and leaves button links empty unless given a destination. Subscription usage limits are Claude Code's;
+  Arkon cannot show the remaining allowance. The page context goes through stdin, but the JSON schema must be a
+  command-line argument (about 12-15 KB); a run whose command line would exceed ~32 KB is refused.
 - Canvas updates after inspector edits, undo and restore need a request to the server (~tens of ms locally). If
   canvas typing coincides with an in-flight render, the canvas is re-rendered with the latest content and the
   caret may jump once.

@@ -23,6 +23,8 @@ export interface SaveBatch {
     key: string;
     baseVersion: number;
     operations: readonly PageOperation[];
+    /** Set when the batch applies an AI proposal; the server checks it is exactly that proposal. */
+    proposalId?: string;
 }
 
 export interface EditorDocState {
@@ -110,10 +112,10 @@ export function redo(state: EditorDocState): EditorDocState | null {
  * its original key before anything newer, so a lost response cannot cause a double
  * apply or reorder edits. Returns null when there is nothing to save.
  */
-export function beginSave(state: EditorDocState, newKey: () => string): { state: EditorDocState; batch: SaveBatch } | null {
+export function beginSave(state: EditorDocState, newKey: () => string, proposalId?: string): { state: EditorDocState; batch: SaveBatch } | null {
     if (state.inFlight) return { state, batch: state.inFlight };
     if (state.pending.length === 0) return null;
-    const batch: SaveBatch = { key: newKey(), baseVersion: state.version, operations: state.pending };
+    const batch: SaveBatch = { key: newKey(), baseVersion: state.version, operations: state.pending, ...(proposalId ? { proposalId } : {}) };
     return { state: { ...state, inFlight: batch, pending: [] }, batch };
 }
 

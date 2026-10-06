@@ -13,6 +13,7 @@ export default defineConfig({
     timeout: 60_000,
     expect: { timeout: 10_000 },
     reporter: [['list']],
+    // Also pairs and starts the local AI helper with the fake Claude Code CLI (stopped by its teardown).
     globalSetup: './e2e/global-setup.ts',
     use: {
         // An insecure origin, like Herd's http://arkonlaravel.test (see e2e/env.ts).
@@ -28,14 +29,16 @@ export default defineConfig({
             dependencies: ['setup'],
         },
     ],
-    webServer: {
-        // Laravel's router script expects to run from public/ (like `artisan serve`).
-        command: `"${PHP}" -S 127.0.0.1:${PORT} -t . ../vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php`,
-        cwd: 'public',
-        // A static file: the database is migrated by globalSetup, which runs after the server starts.
-        url: `${SERVER_URL}/robots.txt`,
-        reuseExistingServer: false,
-        timeout: 120_000,
-        env: E2E_ENV,
-    },
+    webServer: [
+        {
+            // Laravel's router script expects to run from public/ (like `artisan serve`).
+            command: `"${PHP}" -S 127.0.0.1:${PORT} -t . ../vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php`,
+            cwd: 'public',
+            // A static file: the database is migrated by globalSetup, which runs after the server starts.
+            url: `${SERVER_URL}/robots.txt`,
+            reuseExistingServer: false,
+            timeout: 120_000,
+            env: E2E_ENV,
+        },
+    ],
 });

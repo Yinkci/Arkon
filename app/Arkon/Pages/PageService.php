@@ -2,6 +2,7 @@
 
 namespace App\Arkon\Pages;
 
+use App\Arkon\Ai\ProposalLedger;
 use App\Arkon\Audit\AuditLog;
 use App\Arkon\Components\DocumentValidator;
 use App\Arkon\Database\Transactions;
@@ -41,6 +42,7 @@ class PageService
         private readonly PageRenderer $renderer,
         private readonly AuditLog $audit,
         private readonly DocumentValidator $validator,
+        private readonly ProposalLedger $proposals,
     ) {}
 
     // ── Reading ─────────────────────────────────────────────────────────────
@@ -343,9 +345,11 @@ class PageService
         $baseVersion = (int) $valid['baseVersion'];
         $saveKey = $valid['saveKey'];
         $message = trim((string) ($valid['message'] ?? '')) ?: 'Saved draft';
-        $fingerprint = Fingerprint::of(['kind' => 'save', 'pageId' => $pageId, 'baseVersion' => $baseVersion, 'operations' => $operations]);
+        // Applying an AI proposal: the save must be exactly that proposal (checked below).
+        $proposalId = isset($input['proposalId']) ? Input::id($input['proposalId'], 'AI proposal') : null;
+        $fingerprint = Fingerprint::of(['kind' => 'save', 'pageId' => $pageId, 'baseVersion' => $baseVersion, 'operations' => $operations, ...($proposalId ? ['proposalId' => $proposalId] : [])]);
 
-        return $this->transactions->run(function () use ($ctx, $pageId, $baseVersion, $operations, $saveKey, $message, $fingerprint) {
+        return $this->transactions->run(function () use ($ctx, $pageId, $baseVersion, $operations, $saveKey, $message, $fingerprint, $proposalId) {
             $this->authorizer->authorize($ctx, 'page.edit');
             [$page, $draft] = $this->store->lockForWrite($ctx->siteId, $pageId);
 
@@ -363,6 +367,7 @@ class PageService
                 ];
             }
             $this->store->assertVersion($draft, $baseVersion);
+            $proposal = $proposalId ? $this->proposals->claimForSave($ctx, $pageId, $proposalId, $baseVersion, $operations) : null;
 
             try {
                 $next = Operations::apply($this->store->document($draft->document), $operations)['doc'];
@@ -372,7 +377,10 @@ class PageService
             $this->store->validateForSave($ctx->siteId, $next);
 
             $version = (int) $draft->version + 1;
-            $revision = $this->store->insertRevision($ctx, $pageId, $next, $page->title, $page->path, $message);
+            $revision = $proposal
+                // Recorded as AI-sourced content, applied by this user.
+                ? $this->store->insertRevision(new SiteContext($ctx->siteId, $ctx->userId, 'ai'), $pageId, $next, $page->title, $page->path, mb_substr('AI: '.($proposal->summary ?: $proposal->prompt), 0, (int) Rules::get('limits.saveMessage')))
+                : $this->store->insertRevision($ctx, $pageId, $next, $page->title, $page->path, $message);
             DB::table('page_drafts')->where('page_id', $pageId)->update([
                 'document' => Json::encode($next),
                 'version' => $version,
@@ -387,6 +395,10 @@ class PageService
             $this->audit->forContext($ctx, 'page.draft.save', 'page', $pageId, [
                 'version' => $version, 'revision' => $revision['number'], 'operations' => count($operations),
             ]);
+            if ($proposal) {
+                $this->proposals->markApplied($proposal->id, $revision['id']);
+                $this->audit->forContext($ctx, 'page.ai.apply', 'page', $pageId, ['proposal' => $proposal->id, 'revision' => $revision['number']]);
+            }
 
             return ['version' => $version, 'revision' => $revision, 'document' => $next, 'replayed' => false];
         });

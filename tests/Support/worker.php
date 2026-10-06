@@ -10,6 +10,7 @@
  * line with the result.
  */
 
+use App\Arkon\Ai\ProposalService;
 use App\Arkon\Errors\ArkonException;
 use App\Arkon\Pages\PageManagement;
 use App\Arkon\Pages\PageService;
@@ -51,8 +52,12 @@ try {
         'restore' => app(PageService::class)->restoreRevision($ctx, $job['input']),
         'delete' => app(PageManagement::class)->delete($ctx, $job['input']),
         'unpublish' => app(PageManagement::class)->unpublish($ctx, $job['input']),
+        'aiRequest' => app(ProposalService::class)->request($ctx, $job['input']['pageId'], $job['input']),
     };
     echo json_encode(['ok' => true, 'result' => $result])."\n";
 } catch (ArkonException $error) {
     echo json_encode(['ok' => false, 'code' => $error->code(), 'class' => $error::class, 'message' => $error->getMessage()])."\n";
+} catch (Throwable $error) {
+    // Not a domain error (e.g. a unique violation): reported, so a test can show it happened.
+    echo json_encode(['ok' => false, 'code' => 'UNEXPECTED', 'class' => $error::class, 'message' => mb_substr($error->getMessage(), 0, 300)])."\n";
 }
