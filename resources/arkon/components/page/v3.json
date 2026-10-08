@@ -1,0 +1,36 @@
+{
+  "type": "page",
+  "version": 3,
+  "label": "Page",
+  "children": {
+    "allow": [
+      "section",
+      "hero",
+      "text",
+      "image",
+      "button",
+      "columns",
+      "group",
+      "instance"
+    ],
+    "max": 50
+  },
+  "props": {
+    "style": {
+      "type": "style",
+      "slots": {
+        "root": {
+          "label": "Page",
+          "groups": [
+            "background",
+            "typography"
+          ]
+        }
+      },
+      "default": {}
+    }
+  },
+  "defaultProps": {
+    "style": {}
+  }
+}

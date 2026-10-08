@@ -2,12 +2,17 @@
 
 namespace App\Arkon\Ai;
 
+use App\Arkon\Components\ColumnLayout;
 use App\Arkon\Components\ComponentRegistry;
 use App\Arkon\Components\DocumentValidator;
+use App\Arkon\Design\DesignResources;
 use App\Arkon\Schema\DocumentStructure;
 use App\Arkon\Schema\OperationException;
 use App\Arkon\Schema\Operations;
+use App\Arkon\Style\StyleSchema;
+use App\Arkon\Style\Tokens;
 use App\Arkon\Support\Json;
+use App\Arkon\Support\Rules;
 use App\Arkon\Support\Text;
 use stdClass;
 
@@ -17,10 +22,24 @@ use stdClass;
  * exactly as a save would: component types and versions, props, nesting, link
  * policy, media. Nothing in the reply is trusted: ids are generated here, every
  * referenced block must exist, and only images already on the page may be used.
+ *
+ * Style settings arrive as a flat list ({slot, screen, property, value}) and are
+ * merged into the block's defaults (new blocks) or its current style (updates),
+ * so a follow-up changes one setting without dropping the others. Token changes
+ * are validated here but never become page operations.
  */
 final class ProposalCompiler
 {
     private const TAG = '/<\s*\/?\s*[a-z!][^>]*>/i';
+
+    /** @var array<string, string> names given to new blocks in this reply ("ref") → their generated ids */
+    private array $refs = [];
+
+    /** @var array<string, list<string>> Columns blocks → screens whose widths the reply sets itself (taken as they are, then validated) */
+    private array $explicitWidths = [];
+
+    /** @var array<string, string> columns copied in this reply → the column they copy (a copy takes its width) */
+    private array $copies = [];
 
     public function __construct(private readonly ComponentRegistry $registry, private readonly DocumentValidator $validator) {}
 
@@ -28,11 +47,12 @@ final class ProposalCompiler
      * @param  array  $doc  the base draft (raw form, current component versions)
      * @param  mixed  $reply  the decoded JSON reply
      * @param  list<string>  $allowedAssets
-     * @return array{operations: list<array>, document: array, changes: list<string>, warnings: list<string>, summary: string, notes: list<string>}
+     * @param  list<string>  $allowedComponents  published reusable components (instances may only use these)
+     * @return array{operations: list<array>, document: array, changes: list<string>, warnings: list<string>, summary: string, notes: list<string>, tokenChanges: list<array{token: string, value: string}>}
      *
      * @throws AiException INVALID_OUTPUT with the problems as issues
      */
-    public function compile(array $doc, mixed $reply, array $allowedAssets, int $maxChanges): array
+    public function compile(array $doc, mixed $reply, array $allowedAssets, int $maxChanges, array $allowedComponents = [], ?array $allowedThemeTypes = null): array
     {
         $issues = [];
         if (! is_array($reply) || ! is_string($reply['summary'] ?? null) || ! Json::isList($reply['notes'] ?? null) || ! Json::isList($reply['changes'] ?? null)) {
@@ -43,7 +63,11 @@ final class ProposalCompiler
             throw self::invalid([['message' => 'Too many changes at once ('.count($changes)." > {$maxChanges}). Ask for less in one request."]]);
         }
         $notes = array_values(array_filter(array_map(fn ($note) => is_string($note) ? Text::trim($note) : '', array_slice($reply['notes'], 0, 8)), fn ($note) => $note !== ''));
+        $tokenChanges = $this->tokenChanges($reply['tokenChanges'] ?? [], $issues);
 
+        $this->refs = [];
+        $this->explicitWidths = [];
+        $this->copies = [];
         $working = $doc;
         $operations = [];
         $descriptions = [];
@@ -51,9 +75,17 @@ final class ProposalCompiler
             $at = 'Change '.($i + 1);
             try {
                 [$op, $description] = $this->operationFor($working, is_array($change) ? $change : []);
-                $working = Operations::apply($working, [$op])['doc'];
+                // A duplicated column also updates its Columns block's widths: two operations, one change.
+                $ops = isset($op['op']) ? [$op] : $op;
+                $working = Operations::apply($working, $ops)['doc'];
             } catch (OperationException|ProposalProblem $error) {
                 $issues[] = ['path' => "changes.{$i}", 'message' => "{$at}: {$error->getMessage()}"];
+
+                continue;
+            }
+            if (count($ops) > 1) {
+                array_push($operations, ...$ops);
+                $descriptions[] = $description;
 
                 continue;
             }
@@ -69,13 +101,31 @@ final class ProposalCompiler
         }
 
         if ($issues === []) {
+            // The whole reply, not each step: a Columns block whose columns changed gets its widths
+            // reconciled at the end (unless the reply sets them), as one more reviewed operation.
+            foreach (ColumnLayout::changes($doc, $working, $this->explicitWidths, $this->copies) as $change) {
+                $working = Operations::apply($working, [$change['op']])['doc'];
+                $operations[] = $change['op'];
+                $descriptions[] = $change['description'];
+            }
             foreach ($this->validator->validate($working) as $issue) {
                 $issues[] = ['message' => $this->describeIssue($working, $issue)];
+            }
+            foreach (Json::entries($working['nodes']) as $node) {
+                if (str_starts_with($node['type'], 'theme-') && $allowedThemeTypes !== null && ! in_array($node['type'], $allowedThemeTypes, true)) {
+                    $issues[] = ['message' => 'This component is not available in the site’s active theme.'];
+                }
             }
             $allowed = array_flip($allowedAssets);
             foreach ($issues === [] ? $this->validator->mediaRefs($working) : [] as $assetId) {
                 if (! isset($allowed[$assetId])) {
                     $issues[] = ['message' => "Image {$assetId} is not one of the images on this page"];
+                }
+            }
+            $known = array_flip($allowedComponents);
+            foreach (DesignResources::componentIds($working) as $componentId) {
+                if (! isset($known[$componentId])) {
+                    $issues[] = ['message' => "Reusable component {$componentId} is not one of the published components"];
                 }
             }
             foreach ($this->strings($working, $doc) as [$where, $value]) {
@@ -97,7 +147,86 @@ final class ProposalCompiler
             'warnings' => $warnings,
             'summary' => Text::trim($reply['summary']),
             'notes' => $notes,
+            'tokenChanges' => $tokenChanges,
         ];
+    }
+
+    /**
+     * Site-wide token changes: each a known token and a valid value. The last change
+     * of a token wins.
+     *
+     * @return list<array{token: string, value: string}>
+     */
+    private function tokenChanges(mixed $changes, array &$issues): array
+    {
+        if (! Json::isList($changes) && $changes !== []) {
+            $issues[] = ['path' => 'tokenChanges', 'message' => 'tokenChanges must be a list'];
+
+            return [];
+        }
+        $out = [];
+        foreach ($changes as $i => $change) {
+            $token = is_array($change) ? ($change['token'] ?? null) : null;
+            $value = is_array($change) ? ($change['value'] ?? null) : null;
+            if (! is_string($token) || ! in_array($token, ProposalSchema::tokenNames(), true)) {
+                $issues[] = ['path' => "tokenChanges.{$i}", 'message' => 'Token change '.($i + 1).': unknown token '.json_encode($token)];
+
+                continue;
+            }
+            [$group, $name] = explode('.', substr($token, 1), 2);
+            $problem = StyleSchema::valueProblem(Tokens::definition($group, $name), $value);
+            if ($problem !== null) {
+                $issues[] = ['path' => "tokenChanges.{$i}", 'message' => 'Token change '.($i + 1).": {$problem}"];
+
+                continue;
+            }
+            $out[$token] = ['token' => $token, 'value' => $value];
+        }
+
+        return array_values($out);
+    }
+
+    /**
+     * Props from a reply, with style setting lists turned into stored styles merged
+     * into `$current` (the block's defaults or its current props).
+     */
+    private function convertProps(array $fields, array $props, array $current): array
+    {
+        foreach ($props as $key => $value) {
+            if (($fields[$key]['type'] ?? null) === 'style' && Json::isList($value)) {
+                $props[$key] = $this->applyStyle(Json::toArray($current[$key] ?? []), $value);
+            }
+        }
+
+        return $props;
+    }
+
+    /** @param list<mixed> $settings {slot, screen, property, value}; value null removes */
+    private function applyStyle(array $style, array $settings): array|stdClass
+    {
+        foreach ($settings as $i => $setting) {
+            $slot = is_array($setting) ? ($setting['slot'] ?? null) : null;
+            $screen = is_array($setting) ? ($setting['screen'] ?? null) : null;
+            $property = is_array($setting) ? ($setting['property'] ?? null) : null;
+            $value = is_array($setting) ? ($setting['value'] ?? null) : null;
+            if (! is_string($slot) || ! is_string($screen) || ! is_string($property) || ! (is_string($value) || $value === null)) {
+                throw new ProposalProblem('design setting '.($i + 1).' needs a slot, screen, property and a text value (or null)');
+            }
+            if ($value === null) {
+                unset($style[$slot][$screen][$property]);
+                if (($style[$slot][$screen] ?? null) === []) {
+                    unset($style[$slot][$screen]);
+                }
+                if (($style[$slot] ?? null) === []) {
+                    unset($style[$slot]);
+                }
+
+                continue;
+            }
+            $style[$slot][$screen][$property] = $property === 'backgroundImage' ? ['assetId' => $value] : $value;
+        }
+
+        return $style === [] ? new stdClass : $style;
     }
 
     /** @return array{0: array, 1: string} */
@@ -110,6 +239,13 @@ final class ProposalCompiler
                 $children = $nodes[$parentId]['children'];
                 $index = $this->index($change['index'] ?? null, count($children));
                 $block = $this->flatten($change['block'] ?? null);
+                $ref = $change['ref'] ?? null;
+                if (is_string($ref) && $ref !== '') {
+                    if (isset($this->refs[$ref])) {
+                        throw new ProposalProblem('the name '.json_encode($ref).' is already used by another new block');
+                    }
+                    $this->refs[$ref] = $block[0]['id'];
+                }
 
                 return [
                     ['op' => 'insertNode', 'parentId' => $parentId, 'index' => $index, 'nodes' => $block],
@@ -123,13 +259,23 @@ final class ProposalCompiler
                     throw new ProposalProblem("block {$node['id']} is a {$node['type']}, not a ".json_encode($update['type'] ?? null));
                 }
                 $set = array_filter(is_array($update['props'] ?? null) ? $update['props'] : [], fn ($value) => $value !== null);
+                $set = $this->convertProps($this->registry->current($node['type'])?->props->fields() ?? [], $set, Json::entries($node['props'] ?? []));
+                // Only actual width settings count, per screen; gap, padding, background, animation … do not.
+                if ($node['type'] === 'columns' && Json::isList($update['props']['style'] ?? null)) {
+                    foreach ($update['props']['style'] as $setting) {
+                        if (is_array($setting) && ($setting['property'] ?? null) === 'columns' && is_string($setting['screen'] ?? null)) {
+                            $this->explicitWidths[$node['id']] = array_values(array_unique([...($this->explicitWidths[$node['id']] ?? []), $setting['screen']]));
+                        }
+                    }
+                }
                 if ($set === []) {
                     throw new ProposalProblem("the update of block {$node['id']} changes nothing");
                 }
 
                 return [
                     ['op' => 'updateProps', 'nodeId' => $node['id'], 'set' => $set, 'unset' => []],
-                    'Change '.$this->label($node).': '.implode(', ', array_keys($set)),
+                    // A block added or copied earlier in this proposal is "new" (a copy still has the original's text).
+                    'Change '.(in_array($node['id'], $this->refs, true) ? 'new ' : '').$this->label($node).': '.implode(', ', array_keys($set)),
                 ];
 
             case 'move':
@@ -147,6 +293,22 @@ final class ProposalCompiler
                 $node = $this->existing($doc, $change['id'] ?? null);
 
                 return [['op' => 'removeNode', 'nodeId' => $node['id']], 'Remove '.$this->label($node)];
+
+            case 'duplicate':
+                // A deep copy right after the original (the editor's Duplicate). Its ref names the copy.
+                $node = $this->existing($doc, $change['id'] ?? null);
+                $copy = Duplicates::of($doc, $node['id']);
+                $ref = $change['ref'] ?? null;
+                if (is_string($ref) && $ref !== '') {
+                    if (isset($this->refs[$ref])) {
+                        throw new ProposalProblem('the name '.json_encode($ref).' is already used by another new block');
+                    }
+                    $this->refs[$ref] = $copy['nodes'][0]['id'];
+                }
+                $ops = ['op' => 'insertNode', 'parentId' => $copy['parentId'], 'index' => $copy['index'], 'nodes' => $copy['nodes']];
+                $this->copies[$copy['nodes'][0]['id']] = $this->copies[$node['id']] ?? $node['id'];
+
+                return [$ops, 'Duplicate '.$this->label($node).(count($copy['nodes']) > 1 ? ' (with '.(count($copy['nodes']) - 1).' blocks inside)' : '').$this->where($doc, $copy['parentId'])];
         }
 
         throw new ProposalProblem('unknown action '.json_encode($change['action'] ?? null));
@@ -167,6 +329,10 @@ final class ProposalCompiler
 
     private function existing(array $doc, mixed $id): array
     {
+        if (is_string($id) && str_starts_with($id, ProposalSchema::NEW_PREFIX)) {
+            $name = substr($id, strlen(ProposalSchema::NEW_PREFIX));
+            $id = $this->refs[$name] ?? throw new ProposalProblem('no earlier change adds a block named '.json_encode($name));
+        }
         $node = is_string($id) ? (Json::entries($doc['nodes'])[$id] ?? null) : null;
         if ($node === null || $id === $doc['root']) {
             throw new ProposalProblem('there is no block '.json_encode($id).' on this page');
@@ -195,14 +361,15 @@ final class ProposalCompiler
      */
     private function flatten(mixed $block, int $depth = 0): array
     {
-        if (! is_array($block) || ! is_string($block['type'] ?? null) || $depth > 4) {
+        if (! is_array($block) || ! is_string($block['type'] ?? null) || $depth > (int) Rules::get('maxDepth')) {
             throw new ProposalProblem('a block needs a type');
         }
         $definition = $this->registry->current($block['type']);
         if ($definition === null || $block['type'] === 'page') {
             throw new ProposalProblem('there is no '.json_encode($block['type']).' block');
         }
-        $props = [...$definition->defaultProps, ...(is_array($block['props'] ?? null) ? $block['props'] : [])];
+        $given = is_array($block['props'] ?? null) ? $block['props'] : [];
+        $props = [...$definition->defaultProps, ...$this->convertProps($definition->props->fields(), $given, $definition->defaultProps)];
         $node = ['id' => Operations::newNodeId(), 'type' => $definition->type, 'version' => $definition->version, 'props' => $props === [] ? new stdClass : $props];
         $descendants = [];
         if ($definition->children !== false) {

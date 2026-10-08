@@ -58,13 +58,79 @@ Five wrong passwords lock the address for a minute.
 ## Using it
 
 - `http://arkonlaravel.test/admin`: dashboard. `http://arkonlaravel.test/`: the public home page (404 until published).
+- **Dashboard**: your pages with draft/live status, **Continue editing** (the page edited last), **Needs attention**
+  (AI proposals waiting for review, pages with unpublished changes, live pages not yet updated after a design change,
+  unpublished design drafts) and **Recent activity** (publishing, restores, design changes from the audit log). The
+  light/dark/system theme switch is at the bottom of the left menu and applies to the builder too.
 - **Pages → Home → Edit.** Click the heading or text in the canvas and type, or use **Properties**. Ctrl+S saves,
-  Ctrl+Z / Ctrl+Shift+Z undo and redo outside text fields.
-- **Layers** tab: **+ Text / Image / Button / Columns** adds a block after the selection (or inside a selected
-  column); drag palette items or layers into place, or use the ↑ ↓ ✕ buttons on each layer (the toolbar above
-  the canvas does the same for the selection). Columns hold text, images and buttons; the Columns inspector adds
-  or removes columns and sets gap and when they stack. Undo/redo covers structural changes. Use
-  **desktop / tablet / mobile** to preview breakpoints.
+  Ctrl+Z / Ctrl+Shift+Z undo and redo outside text fields. The toolbar shows the draft's state in words (Draft saved,
+  Unsaved changes, Saving…, Save not confirmed, invalid fields not saved, Out of date, Previewing AI proposal) and
+  whether the page is live; **Preview**, **Save draft** and **Publish** are separate buttons.
+- **Layers** tab: **+ Section / Group / Hero / Text / Image / Button / Columns** adds a block after the selection
+  (or inside a selected container); a published **reusable component** can be added the same way. Or use the ↑ ↓ ✕
+  buttons (the toolbar above the properties does the same, plus **Select parent** and **Make reusable**). Sections
+  are full-width bands, groups arrange blocks in a stack, row or grid, columns get widths such as 1fr 2fr.
+  Undo/redo covers everything.
+- **Duplicate** (page and component editor): **Duplicate** in the toolbar above the properties, the copy icon on a
+  Layers row or next to the selected block's Move handle on the canvas, or **Ctrl+D** (⌘D) when a block is selected and
+  you are not typing in a field. The copy (with everything inside it, its design and animation settings, images, and a
+  reusable component's link) goes right after the original and is selected; one Ctrl+Z removes it. If it can't be
+  copied there (a full container, Columns already at 6 columns, the page's size limit, or a link in it that isn't
+  valid yet) nothing changes and the editor says why.
+- **Delete**: select a block on the canvas and click the trash control next to Duplicate and Move. It says exactly
+  what goes ("Delete button", "Delete section and its contents"). With only a hero's image selected it says
+  "Remove image" and keeps the hero. **Delete** or **Backspace** does the same when the canvas (not while typing
+  text), a Layers row or the block's toolbar has focus. Blocks with content inside ask first (Cancel changes
+  nothing); everything else goes at once, with **Undo** in the message. One Ctrl+Z brings it back; nothing is saved
+  or published until you choose to. The page itself and the last column of a Columns block can't be deleted.
+- **Columns**: **+ Columns** first shows a layout picker (2–6 equal columns, one third/two thirds, sidebar, wide
+  middle …); one click creates the columns themselves with those widths. Selecting a Columns block shows
+  **Number of columns** (1–6: adding keeps all content; removing columns that hold blocks asks whether to move them
+  to the last remaining column or delete them, and Cancel changes nothing), **Widths** (equal or proportions, or your
+  own such as `1fr 2fr 1fr`) and **On smaller screens** (tablets and phones: stacked, side by side, or 2–5 per row;
+  phones stack by default). Proportions always give one width per column (typing `1fr 2fr 1fr` for two columns is
+  refused with a message). Widths follow their columns when you reorder, delete or duplicate a column; where they
+  can't (a column moved in from another block, new empty columns) they go back to equal, and the editor says so.
+  Empty columns show **Add block** on the canvas.
+- **Animation** (Properties of any block, at the bottom): **Entrance** None / Fade in / Fade up, down, left, right /
+  Subtle zoom in; **Plays** on page load or once when scrolled into view (a block already on screen when the page
+  opens plays then); **Duration**, **Delay**, **Easing**; **Don't animate on phones**. Next to the effect a status
+  says what visitors will really see: plays, off on this screen, reduced motion, or **protected content**. Choosing or
+  changing a setting previews it on the canvas as soon as the canvas has updated; **Preview animation** plays it again
+  (the canvas otherwise shows the final state; clicking, typing, selecting or dragging stops a preview). The whole
+  block animates as one. The page's main heading and the image that loads first (and any block around them) always
+  appear immediately: their status names the heading or image, the effect can't be chosen, and a section or column
+  that already had an entrance offers **Move this entrance to the other blocks inside** (only when some block inside can
+  play it: never the heading, the image or a block holding them; blocks with their own entrance keep it). Keyboard
+  focus inside an entrance shows it, and every animated block around it, at once. Visitors who prefer reduced
+  motion see the final state; without JavaScript entrances play with the page and end shown.
+- **Dragging** (the same in the page editor and the reusable-component editor):
+  - *What can be dragged:* the selected block by its **Move …** handle above it on the canvas (it names exactly what
+    moves, e.g. "Move Hero section": a hero's image moves with its hero), any block you point at by the small handle
+    on its outline, a row in **Layers** (anywhere on the row with a mouse; by its grip ⠿ with a finger or pen), and a
+    palette item (to add a block where you drop it). A press without movement is still a click.
+  - *Where it lands:* a line shows the gap it goes into (between two blocks, first or last in a container, also
+    in the space and padding between blocks), an outline shows an empty container it goes into, and a label near
+    the pointer says "After Text: Our services · in Section". Side-by-side and reversed layouts are followed as you
+    see them. In Layers, at the end of a group, moving the pointer left or right chooses the level. Places the
+    nesting rules don't allow say why ("Not allowed here: Section can’t go in a group") and dropping there does
+    nothing.
+  - *Long pages:* hold the pointer near the top or bottom of the canvas (or of the Layers list) and it keeps
+    scrolling, faster nearer the edge, until you move away; the place follows the scrolled content.
+  - *Cancel:* **Esc**, releasing outside the canvas and Layers, or switching to another window. A drop is one undo
+    step (Ctrl+Z); dragging changes only the draft (Save draft and Publish stay separate).
+  - Keyboard: the ↑ ↓ buttons in Layers and the toolbar move the selected block.
+- **What you are editing** is always named at the top of Properties: a path (Page › Section › Hero section), the
+  part being edited (for a hero: Hero section, Content area, Heading, Supporting text, Buttons, Image) and buttons to
+  switch parts. Clicking the image on the canvas opens the image's own controls; clicking the hero's background opens
+  the section's. The canvas outlines the component and highlights the active part with its name and size.
+- **Design controls** are named for the part they change ("Image height", "Section width"). Lengths are a number
+  plus a unit (px, %, rem, em, vh, vw, ch), a keyword such as Auto, or a site token. Each control says whether its
+  value is set here, inherited ("From all screens: 500px") or the default. **Desktop / Tablet / Mobile** above the
+  canvas (and **Design for** in Properties) choose the screen you edit: values on all screens apply everywhere;
+  tablet and mobile override only what you set there and are marked "Mobile override". **Reset** removes a value.
+  Common settings come first; **More design settings** holds the rest (layout, spacing, typography, background,
+  border, effects), each setting in one place only. Invalid values are shown and never applied.
 - Button links must start with `/`, `#`, `https://`, `http://`, `mailto:` or `tel:`, and contain no spaces,
   backslashes or accented characters (percent-encode them); anything else is refused. A link that isn't valid yet
   stays in the field and is not applied: the status says "invalid field not saved", and Preview and Publish ask
@@ -72,22 +138,38 @@ Five wrong passwords lock the address for a minute.
 - A draft saved before backslash links were refused opens with **This draft needs repair**: it lists each stored
   link exactly; correct it or remove its block, click **Apply repair**, then save. Until then nothing else can be
   edited, saved or published, and the live page stays as it is.
-- Image **Size** is a maximum width on the page and a share of the column inside Columns (whole, 2/3, 2/5).
-- **Upload image** in Properties, then add alternative text (publishing is blocked without it). Uploads stay private
+- Images: select the image (on the canvas, or **Edit image** on a hero) for **Image size** (width, height, aspect
+  ratio), **Fit and crop** (cover crops only when the box has a height or aspect ratio) and **Crop position**, next to
+  the image itself (library with names and thumbnails, Upload, alternative text). An image block's **Block size** is
+  separate. **Loading** chooses automatic (the first image near the top loads first), early, or when scrolled to. Uploads get
+  smaller WebP copies automatically (the original is kept); published pages pick the right size per screen.
+- **Design** page (left menu): the site's **design tokens** (colours, fonts, type scale, spacing, widths, radii,
+  shadows) and **reusable components**. Token and component changes are drafts until you **Publish** them there;
+  publishing updates every live page that uses them (re-rendered from what is published on each page, never its
+  draft), and pages that could not be updated are listed with **Retry now**. A component is edited on its own page
+  (same canvas and controls); on pages it shows the published version. **Detach** (in an instance's properties)
+  copies its blocks into the page instead.
+- **Upload** in the image's controls, then add alternative text (publishing is blocked without it). Uploads stay private
   (404 to visitors) until a published page uses them; the canvas shows them through short-lived signed URLs.
 - **Save draft** never changes the live page. **Preview** shows the saved draft exactly as it would be published.
   **Publish** makes it live. **History** lists every revision; **Restore** copies one into the draft.
 - **Pages → New page** creates an unpublished draft. Change title and URL in the editor under
-  **Properties → ← Page settings**; the live page keeps its old URL until you publish, then the old URL redirects (301).
+  **Properties → Page** (the first item of the path) **→ Title and URL**; the live page keeps its old URL until you publish, then the old URL redirects (301).
 - **Unpublish** and **Delete** (owners and admins) are on the Pages list and ask for confirmation. History is kept.
 - Network trouble while saving or publishing keeps your changes; saving or publishing again retries the same
   request safely and never applies it twice.
 
 ## AI page proposals (Claude Code, your subscription)
 
-Describe a page and Claude proposes changes built from Arkon's own blocks (Hero, Text, Image, Button, Columns).
-You preview the proposal in the editor, then **Apply to draft** or **Discard**. Applied content is ordinary, editable
-blocks. Nothing is ever published by the AI: publishing stays the **Publish** button.
+Describe a page and Claude proposes changes built from Arkon's own blocks and design settings: sections, groups,
+columns, heroes, text, images, buttons and reusable components, with sizes, spacing, colours, typography,
+per-screen layout and entrance animations, and it can duplicate existing blocks (for example "Put the hero image on
+the right, 500px tall with cover cropping, and stack it below the text on mobile", "Duplicate the Book now button
+and call the copy Call us", "Add five equal columns to the Our work section" or "Make the Our work section fade up
+when it scrolls into view"). You preview the proposal in the editor, then **Apply to draft** or **Discard**. Applied content
+is ordinary, editable blocks and settings. Nothing is ever published by the AI: publishing stays the **Publish**
+button. Site-wide colour or font changes are listed separately and only reach the token draft when you click
+**Apply to the token draft** (publish them on the Design page).
 
 Claude runs as **Claude Code under your own Claude subscription** (Pro/Max/Team) on this computer. There is no API key,
 no API billing, and Arkon never reads or stores your Claude login. Two ways to prompt, same proposals:
@@ -196,6 +278,11 @@ $env:HERD_EMAIL="..."; $env:HERD_PASSWORD="..."; npm run test:herd   # smoke tes
                                # looks around, sends one request the server refuses; never saves, publishes or asks the AI
 # Run the two Playwright suites one after the other, not in parallel (they share test-results/).
 php artisan arkon:reproduce-publication <id>   # re-render a publication from its recorded inputs and compare
+php artisan arkon:refresh-pages [--retry-failed]  # update live pages waiting for published tokens/components
+php artisan arkon:media-variants                # make responsive WebP sizes for images uploaded earlier
+npm run build; npm run perf                     # Lighthouse (mobile) ×3 on three fixture pages and their animated
+                                                # variants in the e2e database: see docs/PERFORMANCE.md (needs
+                                                # Playwright's Chromium; PERF_PAGES=/perf-hero,... for fewer)
 ```
 
 `package.json` overrides `shell-quote` to 1.11.0 for `concurrently` only (10.0.5 pins 1.9.0, affected by
@@ -222,13 +309,23 @@ change the schema (`php artisan arkon:check-runtime` shows why). `php artisan mi
 ```text
 app/Arkon/Schema        document shape, structure, operations + inverses, URL paths
 app/Arkon/Components    versioned component registry (manifests), prop validation, renderers per version
+app/Arkon/Style         the shared styling model: validation, CSS generation, design tokens
+app/Arkon/Design        published tokens and reusable components, dependencies and live-page refreshes
 app/Arkon/Renderer      escaped IR → HTML, production and editor modes (the only renderer)
 app/Arkon/Pages         drafts, revisions, publishing, page management
 app/Arkon/Media         uploads, delivery policy, signed URLs
 app/Arkon/Ai            proposal schema/compiler/ledger, Claude Code CLI runner, helper, connections, MCP server
 app/Arkon/Database      migration config, grants, runtime safety, test databases
+themes/mysite           site theme source; open only this folder in VS Code
 resources/arkon         shared rules + component manifests (read by PHP and TypeScript)
-resources/js            Inertia pages, editor (resources/js/editor), editor-side rules (resources/js/arkon)
+resources/js            Inertia pages, editor (resources/js/editor), editor-side rules and style twins (resources/js/arkon)
 routes/web.php          admin, editor API, preview, sign-in      routes/public.php   public pages and media
 tests/                  PHPUnit (Unit, Feature, Conformance)     e2e/, e2e-herd/     Playwright
 ```
+
+
+### Developer theme workspace
+
+Open only `C:\Herd\ArkonLaravel\themes\mysite` in VS Code to create editable components without opening core source. The example Testimonial declares its fields, managed photo and design parts. Run `.\arkon.cmd validate` from that folder, then open Appearance → Themes in the dashboard to preview and activate the local theme. Refresh from files installs validated updates. Restart your existing MCP/helper processes after installation to refresh their catalogue. Package installation never publishes a page.
+
+See [docs/THEMES.md](docs/THEMES.md) for the contract, immutable versions, deployment requirements and current limits (per-site activation is available; inheritance and global theme skins are still planned). The theme source is in `themes/mysite` and is included in the same Git repository as Arkon. Its wrappers locate the containing application automatically; PHP defaults to Herd and can be overridden with `ARKON_PHP_BINARY`.

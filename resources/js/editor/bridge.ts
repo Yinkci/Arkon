@@ -8,6 +8,7 @@ export const BRIDGE_SCRIPT = String.raw`(() => {
   "use strict";
   const send = (msg) => parent.postMessage(Object.assign({ source: "arkon-canvas" }, msg), "*");
   let selectedId = null;
+  let selectedPart = null;
   let hoverId = null;
   let editing = null;
   let readOnly = false; // set by the parent, e.g. while a draft needs repair
@@ -20,12 +21,62 @@ export const BRIDGE_SCRIPT = String.raw`(() => {
     return { top: r.top, left: r.left, width: r.width, height: r.height };
   };
   const labelOf = (id) => nodeEl(id)?.getAttribute("data-ak-type") ?? null;
+  // A part (style slot) of a component: the element marked data-ak-part inside that component (not a nested one).
+  const partEl = (id, part) => {
+    const node = nodeEl(id);
+    if (!node || !part || part === "root") return null;
+    for (const el of node.querySelectorAll('[data-ak-part="' + CSS.escape(part) + '"]')) {
+      if (el.closest("[data-ak-id]") === node) return el;
+    }
+    return null;
+  };
+  // Empty columns get an "Add block" target drawn by the editor over the canvas.
+  const emptyColumns = () => {
+    const out = [];
+    for (const el of document.querySelectorAll('[data-ak-type="column"]')) {
+      if (!el.querySelector("[data-ak-id]")) out.push({ id: el.getAttribute("data-ak-id"), rect: rectOf(el) });
+    }
+    return out;
+  };
   const reportRects = () =>
-    send({
+    measuring === null && send({
       type: "rects",
-      selected: selectedId ? { id: selectedId, label: labelOf(selectedId), rect: rectOf(nodeEl(selectedId)) } : null,
+      selected: selectedId ? { id: selectedId, label: labelOf(selectedId), rect: rectOf(nodeEl(selectedId)), part: selectedPart, partRect: rectOf(partEl(selectedId, selectedPart)) } : null,
       hover: hoverId && hoverId !== selectedId ? { id: hoverId, label: labelOf(hoverId), rect: rectOf(nodeEl(hoverId)) } : null,
+      empty: emptyColumns(),
     });
+
+  // ── Animation replay: an explicit preview only. The canvas otherwise always shows the final
+  // state (editor CSS: .ak-anim:not(.ak-replay) has no animation); any edit, click, key, drag or
+  // render stops it, so it never interferes with editing or drag geometry.
+  let replaying = [];
+  let replayTimer = null;
+  function stopReplay() {
+    for (const el of replaying) el.classList.remove("ak-replay");
+    replaying = [];
+    clearTimeout(replayTimer);
+  }
+  function replay(id) {
+    stopReplay();
+    const el = nodeEl(id);
+    if (!el) return;
+    const targets = [el, ...el.querySelectorAll(".ak-anim")].filter((t) => t.classList.contains("ak-anim"));
+    if (targets.length === 0) return;
+    el.scrollIntoView({ block: "nearest" });
+    void document.body.offsetWidth; // restart from the first frame
+    for (const t of targets) t.classList.add("ak-replay");
+    replaying = targets;
+    // Delay is bounded at 2 s and duration at 4 s; let the longest preview finish.
+    replayTimer = setTimeout(stopReplay, 6500);
+  }
+  document.addEventListener("animationend", (event) => {
+    const el = event.target;
+    if (el instanceof Element && replaying.includes(el)) {
+      el.classList.remove("ak-replay");
+      replaying = replaying.filter((t) => t !== el);
+    }
+  });
+  document.addEventListener("pointerdown", stopReplay, true);
 
   // The page root (<main>) is not a selectable section.
   const closestNode = (target) => {
@@ -51,8 +102,11 @@ export const BRIDGE_SCRIPT = String.raw`(() => {
     event.preventDefault(); // links and buttons inside the canvas never navigate
     const node = closestNode(event.target);
     const field = event.target instanceof Element ? event.target.closest("[data-ak-prop]") : null;
+    // The part clicked (an image, a heading, the content area), if it belongs to the selected component.
+    const partHit = event.target instanceof Element ? event.target.closest("[data-ak-part]") : null;
     selectedId = node ? node.getAttribute("data-ak-id") : null;
-    send({ type: "select", nodeId: selectedId });
+    selectedPart = node && partHit && partHit.closest("[data-ak-id]") === node ? partHit.getAttribute("data-ak-part") : null;
+    send({ type: "select", nodeId: selectedId, part: selectedPart });
     if (field && node && node.contains(field) && !readOnly) startEditing(field);
     else stopEditing();
     reportRects();
@@ -77,11 +131,26 @@ export const BRIDGE_SCRIPT = String.raw`(() => {
   });
 
   document.addEventListener("keydown", (event) => {
+    stopReplay();
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
       send({ type: "shortcut", action: "save" });
       return;
     }
+    // Delete/Backspace delete the selection, unless typing (then the keys edit text).
+    if ((event.key === "Delete" || event.key === "Backspace") && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && !editing && selectedId && !readOnly) {
+      event.preventDefault();
+      send({ type: "shortcut", action: "delete" });
+      return;
+    }
+    // Duplicate the selected block, unless typing (then the key is the browser's).
+    if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "d" && !editing && selectedId && !readOnly) {
+      event.preventDefault();
+      send({ type: "shortcut", action: "duplicate" });
+      return;
+    }
+    // Escape also ends a drag in progress in the editor (keys go here while the canvas has focus).
+    if (event.key === "Escape") send({ type: "shortcut", action: "escape" });
     if (!editing) return;
     if (event.key === "Escape") { stopEditing(); return; }
     if (event.key === "Enter" && editing.getAttribute("data-ak-multiline") !== "true") {
@@ -98,20 +167,113 @@ export const BRIDGE_SCRIPT = String.raw`(() => {
     if (msg.type === "ping") {
       send({ type: "ready" });
     } else if (msg.type === "render") {
+      stopReplay();
       stopEditing();
+      renderToken = msg.token ?? null;
       document.getElementById("ak-page-css").textContent = msg.css;
       document.body.innerHTML = msg.body;
+      observer.disconnect();
+      observed = new WeakSet();
       markMultiline(msg.multiline);
       reportRects();
+      if (measuring !== null) measure();
     } else if (msg.type === "mode") {
       readOnly = msg.readOnly === true;
       if (readOnly) stopEditing();
+    } else if (msg.type === "replay") {
+      if (!readOnly) replay(msg.nodeId);
+    } else if (msg.type === "stop-replay") {
+      stopReplay();
+    } else if (msg.type === "measure") {
+      stopReplay();
+      // A drag started (driven by the parent): report every block's geometry now, and again
+      // whenever layout changes, until "unmeasure". The parent resolves drops from it locally.
+      measuring = msg.session;
+      measure();
+    } else if (msg.type === "unmeasure") {
+      if (msg.session === measuring) { measuring = null; reportRects(); }
+    } else if (msg.type === "scroll-to") {
+      window.scrollTo(msg.x, msg.y);
+      scrollSeq = msg.seq;
+      scrolled();
     } else if (msg.type === "select") {
+      const moved = msg.nodeId !== selectedId;
+      if (moved) stopReplay();
       selectedId = msg.nodeId;
-      nodeEl(selectedId)?.scrollIntoView({ block: "nearest" });
+      selectedPart = msg.part ?? null;
+      if (moved) nodeEl(selectedId)?.scrollIntoView({ block: "nearest" });
+      else partEl(selectedId, selectedPart)?.scrollIntoView({ block: "nearest" });
       reportRects();
     }
   });
+
+  // ── Geometry for dragging ──
+  // One snapshot of every block (document coordinates, so scrolling never invalidates it) with
+  // the real layout of each container's children: axis, reversed order, wrapping, content box.
+  let measuring = null;
+  let renderToken = null;
+  let generation = 0;
+  let measureQueued = false;
+  let scrollQueued = false;
+  let scrollSeq = 0;
+  // Each element is observed once per render (observing fires the callback once by itself).
+  let observed = new WeakSet();
+  const observer = new ResizeObserver(() => queueMeasure());
+  function queueMeasure() {
+    if (measuring === null || measureQueued) return;
+    measureQueued = true;
+    requestAnimationFrame(() => { measureQueued = false; if (measuring !== null) measure(); });
+  }
+  function layoutOf(el) {
+    let holder = el;
+    for (const child of el.querySelectorAll("[data-ak-id]")) {
+      if (child.parentElement && child.parentElement.closest("[data-ak-id]") === el) { holder = child.parentElement; break; }
+    }
+    const cs = getComputedStyle(holder);
+    let axis = "y", reversed = false, wrap = false;
+    if (cs.display === "flex" || cs.display === "inline-flex") {
+      axis = cs.flexDirection.indexOf("row") === 0 ? "x" : "y";
+      reversed = cs.flexDirection.indexOf("reverse") > 0;
+      wrap = axis === "x" && cs.flexWrap !== "nowrap";
+    } else if (cs.display === "grid" || cs.display === "inline-grid") {
+      const tracks = cs.gridTemplateColumns.split(" ").filter(Boolean).length;
+      axis = tracks > 1 ? "x" : "y";
+      wrap = tracks > 1;
+    }
+    const r = holder.getBoundingClientRect();
+    const px = (v) => parseFloat(v) || 0;
+    const box = {
+      top: r.top + scrollY + px(cs.paddingTop) + px(cs.borderTopWidth),
+      left: r.left + scrollX + px(cs.paddingLeft) + px(cs.borderLeftWidth),
+      width: Math.max(0, r.width - px(cs.paddingLeft) - px(cs.paddingRight) - px(cs.borderLeftWidth) - px(cs.borderRightWidth)),
+      height: Math.max(0, r.height - px(cs.paddingTop) - px(cs.paddingBottom) - px(cs.borderTopWidth) - px(cs.borderBottomWidth)),
+    };
+    return { axis, reversed, wrap, box };
+  }
+  function measure() {
+    if (!observed.has(document.documentElement)) { observed.add(document.documentElement); observer.observe(document.documentElement); }
+    const nodes = [];
+    for (const el of document.querySelectorAll("[data-ak-id]")) {
+      if (!observed.has(el)) { observed.add(el); observer.observe(el); }
+      const r = el.getBoundingClientRect();
+      nodes.push({
+        id: el.getAttribute("data-ak-id"),
+        rect: { top: r.top + scrollY, left: r.left + scrollX, width: r.width, height: r.height },
+        layout: layoutOf(el),
+      });
+    }
+    const root = document.scrollingElement || document.documentElement;
+    send({
+      type: "geometry", session: measuring, generation: ++generation, renderToken, seq: scrollSeq, nodes,
+      scrollX, scrollY, maxScrollX: root.scrollWidth - innerWidth, maxScrollY: root.scrollHeight - innerHeight,
+    });
+  }
+  function scrolled() {
+    if (measuring === null || scrollQueued) return;
+    scrollQueued = true;
+    requestAnimationFrame(() => { scrollQueued = false; if (measuring !== null) send({ type: "scrolled", session: measuring, seq: scrollSeq, scrollX, scrollY }); });
+  }
+  addEventListener("scroll", scrolled, { passive: true });
 
   function markMultiline(fields) {
     for (const el of document.querySelectorAll("[data-ak-prop]")) {
@@ -120,6 +282,8 @@ export const BRIDGE_SCRIPT = String.raw`(() => {
     }
   }
 
+  // The window losing focus while the canvas has it (switching applications) ends a drag too.
+  window.addEventListener("blur", () => send({ type: "blur" }));
   window.addEventListener("scroll", reportRects, { passive: true });
   window.addEventListener("resize", reportRects);
   new ResizeObserver(reportRects).observe(document.documentElement);
@@ -132,8 +296,9 @@ export const CANVAS_CSS = `
 [data-ak-prop]:empty::before{content:attr(data-ak-placeholder);opacity:.45}
 [contenteditable]{outline:none}
 [data-ak-type]:not([data-ak-type="page"]){cursor:default}
-[data-ak-type="column"]{outline:1px dashed rgba(79,70,229,.25);outline-offset:4px;min-height:3rem}
-[data-ak-type="column"]:empty::before{content:"Empty column: select it, then add text, an image or a button";display:block;padding:1rem;font-size:.875rem;opacity:.5}
+[data-ak-type="column"]{outline:1px dashed rgba(48,71,209,.3);outline-offset:4px;min-height:3rem}
+[data-ak-type="column"]:empty{min-height:5.5rem;background:repeating-linear-gradient(-45deg,rgba(48,71,209,.04) 0 8px,transparent 8px 16px);border-radius:.375rem}
+[data-ak-type="column"]:empty::before{content:"Empty column";display:block;padding:.5rem .75rem;font-size:.75rem;opacity:.55}
 .ak-image__empty{display:block;padding:2rem 1rem;border:2px dashed #d4d4d8;border-radius:1rem;text-align:center}
 .ak-image__empty::before{content:attr(data-ak-placeholder);opacity:.6}
 `;

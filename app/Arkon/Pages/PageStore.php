@@ -4,6 +4,7 @@ namespace App\Arkon\Pages;
 
 use App\Arkon\Components\ComponentRegistry;
 use App\Arkon\Components\DocumentValidator;
+use App\Arkon\Design\DesignResources;
 use App\Arkon\Errors\ConflictException;
 use App\Arkon\Errors\NotFoundException;
 use App\Arkon\Errors\StaleVersionException;
@@ -32,6 +33,7 @@ class PageStore
         private readonly DocumentValidator $validator,
         private readonly PageRenderer $renderer,
         private readonly MediaService $media,
+        private readonly DesignResources $resources,
     ) {}
 
     /** A page that is not deleted, scoped to one site. */
@@ -116,6 +118,13 @@ class PageStore
         if ($missing !== []) {
             throw new ValidationException('An image on this page does not exist', array_map(fn ($id) => ['message' => "Image {$id} not found"], $missing));
         }
+        // Reusable components must be this site's (published or not: an unpublished one only blocks publishing).
+        $components = DesignResources::componentIds($doc);
+        $known = $components === [] ? [] : DB::table('reusable_components')->where('site_id', $siteId)->whereIn('id', $components)->pluck('id')->all();
+        $unknown = array_values(array_diff($components, $known));
+        if ($unknown !== []) {
+            throw new ValidationException('A reusable component on this page does not exist', array_map(fn ($id) => ['message' => "Reusable component {$id} not found"], $unknown));
+        }
     }
 
     /**
@@ -144,22 +153,47 @@ class PageStore
     }
 
     /**
-     * Production rendering against the site's current (published) state.
+     * Production rendering against the site's current (published) state: its published
+     * design tokens and the published versions of the reusable components the page uses.
      *
-     * @return array{html: string, body: string, css: string, title: string, inputs: array, report: array}
+     * @return array{html: string, body: string, css: string, title: string, inputs: array, report: array, mediaIds: list<string>}
      */
     public function renderForSite(string $siteId, string $title, string $path, mixed $doc, bool $strict, bool $pinned = false): array
     {
         $site = DB::table('sites')->where('id', $siteId)->first() ?? throw new NotFoundException('Site');
         $settings = Json::entries(Json::decode($site->settings));
-        $media = $this->media->mediaMap($siteId, $this->validator->safeMediaRefs($doc, $pinned));
+        $resources = $this->resources->published($siteId, $doc);
+        $mediaIds = $this->mediaIdsFor($doc, $resources['components'], $pinned);
+        $media = $this->media->mediaMap($siteId, $mediaIds);
         try {
-            return $this->renderer->render($doc, 'production', ['title' => $title, 'path' => $path], [
+            $rendered = $this->renderer->render($doc, 'production', ['title' => $title, 'path' => $path], [
                 'name' => $site->name,
                 'lang' => is_string($settings['lang'] ?? null) ? $settings['lang'] : 'en',
-            ], $media, $strict, $pinned);
+            ], $media, $strict, $pinned, resources: $resources);
+            $themeVersion = DB::table('site_theme_sets')->where('site_id', $siteId)->value('published_version');
+            $rendered['inputs']['themeSelection'] = $themeVersion === null ? null : (int) $themeVersion;
+
+            return [...$rendered, 'mediaIds' => $mediaIds];
         } catch (RenderException $error) {
             throw new ValidationException($strict ? 'Fix these problems before publishing' : 'The page could not be rendered', $error->issues);
+        }
+    }
+
+    /** Media a rendering uses: the document's own, plus that of the reusable components it shows. */
+    public function mediaIdsFor(mixed $doc, array $components, bool $pinned = false): array
+    {
+        return array_values(array_unique([...$this->validator->safeMediaRefs($doc, $pinned), ...$this->resources->componentMediaRefs($components)]));
+    }
+
+    /** Records which token version and component versions a publication was rendered with. */
+    public function recordDependencies(string $siteId, string $pageId, string $publicationId, array $inputs): void
+    {
+        $rows = DesignResources::dependencies($siteId, $inputs);
+        if ($rows !== []) {
+            DB::table('publication_dependencies')->insert(array_map(
+                fn ($row) => ['publication_id' => $publicationId, 'site_id' => $siteId, 'page_id' => $pageId, ...$row],
+                $rows,
+            ));
         }
     }
 

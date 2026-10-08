@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Arkon\Components\ComponentRegistry;
+use App\Arkon\Themes\ThemeService;
 use App\Http\AdminContext;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -21,6 +23,8 @@ class HandleInertiaRequests extends Middleware
                 ? ['user' => ['id' => $request->user()->id, 'name' => $request->user()->name, 'email' => $request->user()->email]]
                 : ['user' => null],
             'site' => fn () => $admin() ? ['id' => $admin()->siteId, 'name' => $admin()->siteName, 'role' => $admin()->role] : null,
+            'themeAddableTypes' => fn () => $admin() ? ThemeService::availableTypes($admin()->siteId) : [],
+            'themeComponents' => fn () => $request->user() ? app(ComponentRegistry::class)->themeManifests() : [],
             'can' => fn () => $admin()?->permissions() ?? [],
         ];
     }

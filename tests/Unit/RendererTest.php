@@ -28,15 +28,16 @@ class RendererTest extends TestCase
     public function test_production_output_is_semantic_and_minimal(): void
     {
         $out = $this->render();
-        $this->assertSame(
-            '<main><section class="ak-hero ak-hero--media">'
-            .'<h1 class="ak-hero__heading">Turn conversations into sales</h1>'
-            .'<p class="ak-hero__text">Reply faster.</p>'
-            .'<img class="ak-hero__image" src="/media/01890a5d-ac96-774b-bcce-b302099a8057.png" alt="A phone" width="1200" height="800" decoding="async" fetchpriority="high">'
-            .'</section></main>',
+        // The hero's default style (stack below the tablet breakpoint) is one generated class.
+        $this->assertMatchesRegularExpression(
+            '#^<main class="ak-main"><section class="ak-hero3 ak-s[0-9a-f]{10}"><div class="ak-hero3__content">'
+            .'<h1 class="ak-hero3__heading">Turn conversations into sales</h1>'
+            .'<p class="ak-hero3__text">Reply faster.</p></div>'
+            .'<img class="ak-hero3__media" src="/media/01890a5d-ac96-774b-bcce-b302099a8057.png" alt="A phone" width="1200" height="800" decoding="async" fetchpriority="high">'
+            .'</section></main>$#',
             $out['body'],
         );
-        $this->assertSame(5, $out['report']['elements']);
+        $this->assertSame(6, $out['report']['elements']);
     }
 
     public function test_production_output_contains_no_editor_attributes_scripts_or_assets(): void
@@ -54,7 +55,7 @@ class RendererTest extends TestCase
         $out = $this->render();
         $this->assertStringStartsWith('<!doctype html><html lang="en"><head>', $out['html']);
         $this->assertStringContainsString('<title>Home · Demo</title>', $out['html']);
-        $this->assertStringContainsString('.ak-hero{', $out['css']);
+        $this->assertStringContainsString('.ak-hero3{', $out['css']);
     }
 
     public function test_seo_fields_reach_the_head(): void
@@ -67,12 +68,13 @@ class RendererTest extends TestCase
         $this->assertStringContainsString('<meta name="robots" content="noindex">', $html);
     }
 
-    public function test_omits_an_empty_text_paragraph_and_lazy_loads_images_below_the_first_section(): void
+    public function test_omits_an_empty_text_paragraph_and_lazy_loads_images_below_the_first_two_blocks(): void
     {
         $this->assertStringNotContainsString('<p', $this->render(Factories::pageDocument([Factories::heroNode(['heading' => 'Only heading', 'text' => ''])]))['body']);
         $body = $this->render(Factories::pageDocument([
             Factories::heroNode(['heading' => 'First']),
-            Factories::heroNode(['heading' => 'Second', 'image' => ['assetId' => self::ASSET, 'alt' => 'x']]),
+            Factories::heroNode(['heading' => 'Second']),
+            Factories::heroNode(['heading' => 'Third', 'image' => ['assetId' => self::ASSET, 'alt' => 'x']]),
         ]))['body'];
         $this->assertStringContainsString('loading="lazy"', $body);
         $this->assertStringNotContainsString('fetchpriority', $body);
@@ -81,7 +83,7 @@ class RendererTest extends TestCase
     public function test_adds_node_annotations_and_inline_edit_markers_only_in_editor_mode(): void
     {
         $body = $this->render(mode: 'editor')['body'];
-        $this->assertMatchesRegularExpression('/<main data-ak-id="[^"]+" data-ak-type="page">/', $body);
+        $this->assertMatchesRegularExpression('/<main class="ak-main" data-ak-id="[^"]+" data-ak-type="page">/', $body);
         $this->assertStringContainsString('data-ak-type="hero"', $body);
         $this->assertStringContainsString('data-ak-prop="heading"', $body);
         // The editor shows an empty text field so it can be typed into.
@@ -91,18 +93,18 @@ class RendererTest extends TestCase
     public function test_new_components_keep_editor_affordances_out_of_production(): void
     {
         $doc = Json::decode('{"schemaVersion":1,"root":"root0001","nodes":{'
-            .'"root0001":{"id":"root0001","type":"page","version":2,"props":{},"children":["imag0001","cols0001"]},'
-            .'"imag0001":{"id":"imag0001","type":"image","version":2,"props":{}},'
-            .'"cols0001":{"id":"cols0001","type":"columns","version":1,"props":{},"children":["colu0001"]},'
-            .'"colu0001":{"id":"colu0001","type":"column","version":1,"props":{},"children":["butn0001"]},'
-            .'"butn0001":{"id":"butn0001","type":"button","version":1,"props":{"label":"<b>Go</b>","href":"/a?x=1&y=\"2\""}}'
+            .'"root0001":{"id":"root0001","type":"page","version":3,"props":{},"children":["imag0001","cols0001"]},'
+            .'"imag0001":{"id":"imag0001","type":"image","version":4,"props":{}},'
+            .'"cols0001":{"id":"cols0001","type":"columns","version":3,"props":{"style":{}},"children":["colu0001"]},'
+            .'"colu0001":{"id":"colu0001","type":"column","version":3,"props":{},"children":["butn0001"]},'
+            .'"butn0001":{"id":"butn0001","type":"button","version":3,"props":{"label":"<b>Go</b>","href":"/a?x=1&y=\"2\""}}'
             .'},"seo":{}}');
         $render = fn (string $mode) => app(PageRenderer::class)->render($doc, $mode, ['title' => 'T', 'path' => '/'], ['name' => 'S'], [])['body'];
 
         $production = $render('production');
         $this->assertSame(
-            '<main><figure class="ak-image ak-image--full"></figure><div class="ak-columns ak-columns--stack-mobile"><div class="ak-column">'
-            .'<p class="ak-action"><a class="ak-button ak-button--primary" href="/a?x=1&amp;y=&quot;2&quot;">&lt;b&gt;Go&lt;/b&gt;</a></p></div></div></main>',
+            '<main class="ak-main"><figure class="ak-img2 ak-flow"></figure><div class="ak-cols ak-flow"><div class="ak-col">'
+            .'<p class="ak-action2 ak-flow"><a class="ak-btn2 ak-btn2--primary" href="/a?x=1&amp;y=&quot;2&quot;">&lt;b&gt;Go&lt;/b&gt;</a></p></div></div></main>',
             $production,
         );
         $editor = $render('editor');

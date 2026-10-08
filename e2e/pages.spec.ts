@@ -26,7 +26,7 @@ async function createViaForm(page: Page, title: string, path?: string) {
 }
 
 async function openPageSettings(page: Page) {
-    await page.getByRole('button', { name: '← Page settings' }).click();
+    await page.getByRole('button', { name: 'Page settings' }).click();
     return page.getByRole('form', { name: 'Title and URL' });
 }
 

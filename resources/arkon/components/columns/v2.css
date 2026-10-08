@@ -1,0 +1,6 @@
+.ak-cols{display:grid;gap:var(--ak-t-space-lg);align-items:start;min-width:0}
+.ak-cols--n2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.ak-cols--n3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.ak-cols--n4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.ak-cols--n5{grid-template-columns:repeat(5,minmax(0,1fr))}
+.ak-cols--n6{grid-template-columns:repeat(6,minmax(0,1fr))}

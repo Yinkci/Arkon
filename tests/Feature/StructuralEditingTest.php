@@ -76,20 +76,22 @@ class StructuralEditingTest extends DatabaseTestCase
     }
 
     /** Adds: text and button after the hero; columns (col A: text, col B: image + button) at the end. */
-    private function buildLayout(?string $assetId = null): void
+    private function buildLayout(?string $assetId = null, bool $legacy = false): void
     {
+        $stack = $legacy ? ['stackOn' => 'tablet'] : ['style' => ['root' => ['tablet' => ['columns' => '1']]]];
+        $secondary = $legacy ? ['style' => 'secondary'] : ['variant' => 'secondary'];
         $root = Json::entries(Json::decode(DB::table('page_drafts')->where('page_id', $this->f['pageId'])->value('document')))['root'];
         $this->save([
             ['op' => 'insertNode', 'parentId' => $root, 'index' => 1, 'nodes' => [$this->node('text0001', 'text', ['text' => 'Intro paragraph'])]],
             ['op' => 'insertNode', 'parentId' => $root, 'index' => 2, 'nodes' => [$this->node('butn0001', 'button', ['label' => 'Contact us', 'href' => '/contact'])]],
             ['op' => 'insertNode', 'parentId' => $root, 'index' => 3, 'nodes' => [
-                $this->node('cols0001', 'columns', ['stackOn' => 'tablet'], ['colu0001', 'colu0002']),
+                $this->node('cols0001', 'columns', $stack, ['colu0001', 'colu0002']),
                 $this->node('colu0001', 'column', [], []),
                 $this->node('colu0002', 'column', [], []),
             ]],
             ['op' => 'insertNode', 'parentId' => 'colu0001', 'index' => 0, 'nodes' => [$this->node('text0002', 'text', ['text' => 'Left', 'element' => 'h2'])]],
             ['op' => 'insertNode', 'parentId' => 'colu0002', 'index' => 0, 'nodes' => [$this->node('imag0001', 'image', ['image' => $assetId ? ['assetId' => $assetId, 'alt' => 'A dot'] : null, 'caption' => 'Dot'])]],
-            ['op' => 'insertNode', 'parentId' => 'colu0002', 'index' => 1, 'nodes' => [$this->node('butn0002', 'button', ['label' => 'External', 'href' => 'https://example.com/', 'newTab' => true, 'style' => 'secondary'])]],
+            ['op' => 'insertNode', 'parentId' => 'colu0002', 'index' => 1, 'nodes' => [$this->node('butn0002', 'button', ['label' => 'External', 'href' => 'https://example.com/', 'newTab' => true, ...$secondary])]],
         ]);
     }
 
@@ -117,7 +119,7 @@ class StructuralEditingTest extends DatabaseTestCase
         $doc = $this->draft();
         $root = $doc['nodes'][$doc['root']];
         $this->assertSame([$this->f['heroId'], 'text0001', 'butn0001', 'cols0001'], $root['children']);
-        $this->assertSame(2, $root['version'], 'a page is upgraded to the version that allows the new sections');
+        $this->assertSame(3, $root['version'], 'a page is upgraded to the version that allows the new sections');
         $this->assertSame(['imag0001', 'butn0002'], $doc['nodes']['colu0002']['children']);
 
         // Reorder at the top level, move a block between columns, swap the columns, remove one.
@@ -162,18 +164,16 @@ class StructuralEditingTest extends DatabaseTestCase
         $root = $this->draft()['root'];
         $this->assertRejected([['op' => 'insertNode', 'parentId' => $root, 'index' => 0, 'nodes' => [$this->node('colu0009', 'column', [], [])]]], 'column is not allowed inside page');
         $this->assertRejected([['op' => 'insertNode', 'parentId' => 'colu0001', 'index' => 0, 'nodes' => [$this->node('hero0009', 'hero', ['heading' => 'x'])]]], 'hero is not allowed inside column');
-        $this->assertRejected([['op' => 'insertNode', 'parentId' => 'colu0001', 'index' => 0, 'nodes' => [
-            $this->node('cols0009', 'columns', [], ['colu0009']), $this->node('colu0009', 'column', [], []),
-        ]]], 'columns is not allowed inside column');
+        $this->assertRejected([['op' => 'insertNode', 'parentId' => 'colu0001', 'index' => 0, 'nodes' => [$this->node('sect0009', 'section', [], [])]]], 'section is not allowed inside column');
         $this->assertRejected([['op' => 'moveNode', 'nodeId' => 'text0001', 'parentId' => 'cols0001', 'index' => 0]], 'text is not allowed inside columns');
         $this->assertRejected([['op' => 'moveNode', 'nodeId' => 'cols0001', 'parentId' => 'colu0001', 'index' => 0]], 'cannot be moved into itself');
         $this->assertRejected([['op' => 'insertNode', 'parentId' => 'text0001', 'index' => 0, 'nodes' => [$this->node('text0009', 'text')]]], 'cannot have children');
         $this->assertRejected([['op' => 'removeNode', 'nodeId' => 'colu0001'], ['op' => 'removeNode', 'nodeId' => 'colu0002']], 'At least 1 children required');
         $five = [];
-        foreach (['colu0005', 'colu0006', 'colu0007'] as $i => $id) {
+        foreach (['colu0005', 'colu0006', 'colu0007', 'colu0008', 'colu0009'] as $i => $id) {
             $five[] = ['op' => 'insertNode', 'parentId' => 'cols0001', 'index' => 2 + $i, 'nodes' => [$this->node($id, 'column', [], [])]];
         }
-        $this->assertRejected($five, 'At most 4 children allowed');
+        $this->assertRejected($five, 'At most 6 children allowed');
     }
 
     public function test_unsafe_links_are_rejected_by_the_server_and_safe_ones_accepted(): void
@@ -227,15 +227,18 @@ class StructuralEditingTest extends DatabaseTestCase
         $this->publish();
         $html = $this->pages()->livePage($this->f['siteId'], '/')->html;
 
-        $this->assertStringContainsString('<p class="ak-text">Intro paragraph</p>', $html);
-        $this->assertStringContainsString('<p class="ak-action"><a class="ak-button ak-button--primary" href="/contact">Contact us</a></p>', $html);
-        $this->assertStringContainsString('<div class="ak-columns ak-columns--stack-tablet ak-columns--n2"><div class="ak-column"><h2 class="ak-text">Left</h2></div>', $html);
-        $this->assertMatchesRegularExpression('#<figure class="ak-image ak-image--full"><img src="/media/[0-9a-f-]+\.png" alt="A dot" width="1" height="1" decoding="async" loading="lazy"><figcaption>Dot</figcaption></figure>#', $html);
-        $this->assertStringContainsString('<a class="ak-button ak-button--secondary" href="https://example.com/" target="_blank" rel="noopener noreferrer">External</a>', $html);
+        $this->assertStringContainsString('<p class="ak-text2 ak-flow">Intro paragraph</p>', $html);
+        $this->assertStringContainsString('<p class="ak-action2 ak-flow"><a class="ak-btn2 ak-btn2--primary" href="/contact">Contact us</a></p>', $html);
+        // Columns stack on tablets (and therefore phones): a generated class with the override in a media query.
+        $this->assertMatchesRegularExpression('#<div class="ak-cols ak-flow ak-cols--n2 (ak-s[0-9a-f]{10})"><div class="ak-col"><h2 class="ak-text2 ak-flow">Left</h2></div>#', $html);
+        preg_match('#ak-cols--n2 (ak-s[0-9a-f]{10})#', $html, $m);
+        $this->assertMatchesRegularExpression('#@media \(max-width:899px\)\{[^@]*\.'.$m[1].'\{grid-template-columns:repeat\(1,minmax\(0,1fr\)\)\}#', $html);
+        $this->assertMatchesRegularExpression('#<figure class="ak-img2 ak-flow"><img class="ak-img2__media" src="/media/[0-9a-f-]+\.png" alt="A dot" width="1" height="1" decoding="async" loading="lazy"><figcaption class="ak-img2__caption">Dot</figcaption></figure>#', $html);
+        $this->assertStringContainsString('<a class="ak-btn2 ak-btn2--secondary" href="https://example.com/" target="_blank" rel="noopener noreferrer">External</a>', $html);
         foreach (['data-ak-', '<script', 'contenteditable', 'ak-image__empty', 'Empty column', 'draggable', '/build/'] as $forbidden) {
             $this->assertStringNotContainsStringIgnoringCase($forbidden, $html);
         }
-        $this->assertSame(['button@1', 'column@1', 'columns@1', 'hero@1', 'image@2', 'page@2', 'text@1'], json_decode(DB::table('publications')->value('render_inputs'), true)['components']);
+        $this->assertSame(['button@3', 'column@3', 'columns@3', 'hero@4', 'image@4', 'page@3', 'text@3'], json_decode(DB::table('publications')->value('render_inputs'), true)['components']);
         // The image nested two levels deep is linked to the publication and therefore public on the site's host.
         $access = app(MediaService::class)->resolveAccess(substr($asset['url'], 7), self::HOST, null, null, new MediaSigner);
         $this->assertSame('public', $access['access'] ?? null);
@@ -281,18 +284,20 @@ class StructuralEditingTest extends DatabaseTestCase
     public function test_image_v1_publications_reproduce_and_republishing_moves_to_v2_where_sizes_apply_in_columns(): void
     {
         // The registry before image v2: inside a column every size rendered at the column's full width.
-        $dir = storage_path('testing/components-'.uniqid());
-        File::copyDirectory(resource_path('arkon/components'), $dir);
+        $dir = self::registryBeforeFoundation();
         File::delete(["{$dir}/image/v2.json", "{$dir}/image/v2.css"]);
-        $this->useRegistry(new ComponentRegistry($dir, ComponentRegistry::RENDERERS));
-        $this->buildLayout(app(MediaService::class)->upload($this->f['ctx'], self::png(), 'dot.png')['id']);
+        $this->useRegistry(new ComponentRegistry($dir, ComponentRegistry::RENDERERS, ComponentRegistry::migrations()));
+        // The fixture's draft as that registry would have created it.
+        $hero = [...Factories::heroNode(['heading' => 'Original heading', 'text' => 'Original text']), 'id' => $this->f['heroId']];
+        DB::table('page_drafts')->where('page_id', $this->f['pageId'])->update(['document' => Json::encode(Factories::pageDocument([$hero]))]);
+        $this->buildLayout(app(MediaService::class)->upload($this->f['ctx'], self::png(), 'dot.png')['id'], legacy: true);
         $this->save([['op' => 'updateProps', 'nodeId' => 'imag0001', 'set' => ['size' => 'small']]]);
         $old = $this->publish();
         $oldHtml = $this->pages()->livePage($this->f['siteId'], '/')->html;
         $this->assertStringContainsString('.ak-column>.ak-image{margin:0;padding:0;max-width:none}', $oldHtml);
         $this->assertStringNotContainsString('.ak-column>.ak-image--small', $oldHtml);
 
-        // Deploy image v2.
+        // Deploy image v2 (and, here, everything after it).
         $this->useRegistry(ComponentRegistry::default());
         File::deleteDirectory($dir);
         $result = $this->pages()->reproducePublication($this->f['siteId'], $old['publicationId']);
@@ -300,17 +305,34 @@ class StructuralEditingTest extends DatabaseTestCase
         $this->assertTrue($result['matches']);
         $this->assertContains('image@1', json_decode(DB::table('publications')->where('id', $old['publicationId'])->value('render_inputs'), true)['components']);
 
-        // The draft opens at v2 (same props) and the next publication uses v2's stylesheet; the markup is unchanged.
+        // The draft opens at the current version: v1 → v2 (same props) → v3, where the size became a
+        // max-width design setting. The next publication renders that; the old one keeps its markup.
         $doc = $this->pages()->editorState($this->f['ctx'], $this->f['pageId'])['draft']['document'];
-        $this->assertSame(2, $doc['nodes']['imag0001']['version']);
-        $this->assertSame('small', $doc['nodes']['imag0001']['props']['size']);
+        $this->assertSame(4, $doc['nodes']['imag0001']['version']);
+        $this->assertSame(['root' => ['base' => ['maxWidth' => '28rem']]], $doc['nodes']['imag0001']['props']['style']);
+        $this->assertArrayNotHasKey('size', $doc['nodes']['imag0001']['props']);
         $this->publish();
         $newHtml = $this->pages()->livePage($this->f['siteId'], '/')->html;
-        $this->assertStringContainsString('.ak-column>.ak-image--small{width:40%}', $newHtml);
-        $figure = '#<figure class="ak-image ak-image--small"><img src="/media/[0-9a-f-]+\.png" alt="A dot" width="1" height="1" decoding="async" loading="lazy"><figcaption>Dot</figcaption></figure>#';
-        $this->assertMatchesRegularExpression($figure, $oldHtml);
-        $this->assertMatchesRegularExpression($figure, $newHtml);
+        $this->assertMatchesRegularExpression('#<figure class="ak-image ak-image--small"><img src="/media/[0-9a-f-]+\.png" alt="A dot" width="1" height="1" decoding="async" loading="lazy"><figcaption>Dot</figcaption></figure>#', $oldHtml);
+        $this->assertMatchesRegularExpression('#<figure class="ak-img2 ak-flow (ak-s[0-9a-f]{10})"><img class="ak-img2__media" src="/media/[0-9a-f-]+\.png" alt="A dot"#', $newHtml);
+        preg_match('#ak-img2 ak-flow (ak-s[0-9a-f]{10})#', $newHtml, $m);
+        $this->assertStringContainsString(".{$m[1]}{max-width:28rem}", $newHtml);
         $this->assertTrue($this->pages()->reproducePublication($this->f['siteId'], $old['publicationId'])['matches'], 'the v1 publication still reproduces');
+    }
+
+    /** A copy of the component directory without the versions added by the visual-builder foundation. */
+    private static function registryBeforeFoundation(): string
+    {
+        $dir = storage_path('testing/components-'.uniqid());
+        File::copyDirectory(resource_path('arkon/components'), $dir);
+        foreach (['page/v3', 'hero/v2', 'hero/v3', 'hero/v4', 'text/v2', 'text/v3', 'image/v3', 'image/v4', 'button/v2', 'button/v3', 'columns/v2', 'columns/v3', 'column/v2', 'column/v3'] as $version) {
+            File::delete(["{$dir}/{$version}.json", "{$dir}/{$version}.css"]);
+        }
+        foreach (['section', 'group', 'instance', 'fragment'] as $type) {
+            File::deleteDirectory("{$dir}/{$type}");
+        }
+
+        return $dir;
     }
 
     private function useRegistry(ComponentRegistry $registry): void
@@ -323,8 +345,7 @@ class StructuralEditingTest extends DatabaseTestCase
     public function test_pages_published_before_this_milestone_still_reproduce_and_then_migrate_forward(): void
     {
         // The registry as it was before page v2 and the new components.
-        $dir = storage_path('testing/components-'.uniqid());
-        File::copyDirectory(resource_path('arkon/components'), $dir);
+        $dir = self::registryBeforeFoundation();
         File::delete(["{$dir}/page/v2.json", "{$dir}/page/v2.css"]);
         File::deleteDirectory("{$dir}/text");
         $this->app->instance(ComponentRegistry::class, new ComponentRegistry($dir, ComponentRegistry::RENDERERS));
@@ -345,10 +366,10 @@ class StructuralEditingTest extends DatabaseTestCase
         $this->assertTrue($result['matches']);
         $this->assertContains('page@1', json_decode(DB::table('publications')->where('id', $old['publicationId'])->value('render_inputs'), true)['components']);
 
-        // Editing moves it to page v2, so the new components can be added.
+        // Editing moves it to the current page version, so the new components can be added.
         $state = $this->pages()->editorState($this->f['ctx'], $pageId);
         $doc = $state['draft']['document'];
-        $this->assertSame(2, $doc['nodes'][$doc['root']]['version']);
+        $this->assertSame(3, $doc['nodes'][$doc['root']]['version']);
         $this->pages()->saveDraft($this->f['ctx'], ['pageId' => $pageId, 'baseVersion' => 1, 'saveKey' => self::key(), 'operations' => Json::decode(Json::encode([
             ['op' => 'insertNode', 'parentId' => $doc['root'], 'index' => 1, 'nodes' => [$this->node('text0001', 'text', ['text' => 'New block'])]],
         ]))]);

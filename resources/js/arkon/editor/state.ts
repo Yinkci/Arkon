@@ -7,6 +7,8 @@ import type { PageDocument } from '../schema/document';
 import { OperationError, applyOperations, type PageOperation } from '../schema/operations';
 
 export interface HistoryEntry {
+    /** Stable for the life of the edit (kept by coalescing, undo and redo): what "Undo delete" refers to. */
+    id: number;
     ops: PageOperation[];
     inverse: PageOperation[];
     /** Consecutive edits with the same key (e.g. typing in one field) undo as one step. */
@@ -25,6 +27,11 @@ export interface SaveBatch {
     operations: readonly PageOperation[];
     /** Set when the batch applies an AI proposal; the server checks it is exactly that proposal. */
     proposalId?: string;
+    /**
+     * A rename sent with the batch (reusable components). Part of the immutable request: a
+     * retry resends exactly this name, and later name edits wait for the next batch.
+     */
+    name?: string;
 }
 
 export interface EditorDocState {
@@ -51,16 +58,24 @@ const COALESCE_MS = 1500;
 
 export type ApplyOutcome = { ok: true; state: EditorDocState } | { ok: false; issues: Issue[] };
 
-/** Applies and validates locally with the same rules the server uses. */
+/** Applies and validates locally with the same rules the server uses (a page, or a reusable component's fragment). */
 function tryApply(doc: PageDocument, ops: readonly PageOperation[]) {
     try {
         const result = applyOperations(doc, ops);
-        const issues = validatePageDocument(result.doc);
+        // Operations can never replace the root, so the document keeps its kind.
+        const issues = validatePageDocument(result.doc, doc.nodes[doc.root]?.type === 'fragment' ? 'fragment' : 'page');
         return issues.length > 0 ? { ok: false as const, issues } : { ok: true as const, ...result };
     } catch (error) {
         if (error instanceof OperationError) return { ok: false as const, issues: [{ message: error.message }] };
         throw error;
     }
+}
+
+let lastEntryId = 0;
+
+/** Whether undoing now would undo exactly entry `id` (and nothing else). */
+export function canUndoEntry(state: EditorDocState, id: number): boolean {
+    return state.undo.at(-1)?.id === id;
 }
 
 export function dispatch(state: EditorDocState, ops: PageOperation[], options: { coalesceKey?: string; now?: number } = {}): ApplyOutcome {
@@ -71,7 +86,7 @@ export function dispatch(state: EditorDocState, ops: PageOperation[], options: {
     const merge = options.coalesceKey && top?.coalesceKey === options.coalesceKey && now - top.at < COALESCE_MS;
     const undo = merge
         ? [...state.undo.slice(0, -1), { ...top!, ops: [...top!.ops, ...ops], inverse: [...result.inverse, ...top!.inverse], at: now }]
-        : [...state.undo, { ops, inverse: result.inverse, coalesceKey: options.coalesceKey, at: now }];
+        : [...state.undo, { id: ++lastEntryId, ops, inverse: result.inverse, coalesceKey: options.coalesceKey, at: now }];
     return {
         ok: true,
         state: { ...state, document: result.doc, pending: appendPending(state.pending, ops), undo: undo.slice(-200), redo: [] },
@@ -110,12 +125,23 @@ export function redo(state: EditorDocState): EditorDocState | null {
 /**
  * Starts (or resumes) a save. An unconfirmed batch is always resent unchanged with
  * its original key before anything newer, so a lost response cannot cause a double
- * apply or reorder edits. Returns null when there is nothing to save.
+ * apply or reorder edits. Returns null when there is nothing to save. `name` (a rename
+ * to send) makes a batch even without document edits.
  */
-export function beginSave(state: EditorDocState, newKey: () => string, proposalId?: string): { state: EditorDocState; batch: SaveBatch } | null {
+export function beginSave(
+    state: EditorDocState,
+    newKey: () => string,
+    extra: { proposalId?: string; name?: string } = {},
+): { state: EditorDocState; batch: SaveBatch } | null {
     if (state.inFlight) return { state, batch: state.inFlight };
-    if (state.pending.length === 0) return null;
-    const batch: SaveBatch = { key: newKey(), baseVersion: state.version, operations: state.pending, ...(proposalId ? { proposalId } : {}) };
+    if (state.pending.length === 0 && extra.name === undefined) return null;
+    const batch: SaveBatch = {
+        key: newKey(),
+        baseVersion: state.version,
+        operations: state.pending,
+        ...(extra.proposalId ? { proposalId: extra.proposalId } : {}),
+        ...(extra.name !== undefined ? { name: extra.name } : {}),
+    };
     return { state: { ...state, inFlight: batch, pending: [] }, batch };
 }
 

@@ -5,6 +5,8 @@ namespace App\Arkon\Ai;
 use App\Arkon\Audit\AuditLog;
 use App\Arkon\Components\DocumentValidator;
 use App\Arkon\Database\Transactions;
+use App\Arkon\Design\TokenService;
+use App\Arkon\Errors\ConflictException;
 use App\Arkon\Errors\ForbiddenException;
 use App\Arkon\Errors\NotFoundException;
 use App\Arkon\Errors\StaleVersionException;
@@ -19,6 +21,7 @@ use App\Arkon\Sites\SiteContext;
 use App\Arkon\Support\Input;
 use App\Arkon\Support\Json;
 use App\Arkon\Support\Text;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -129,7 +132,7 @@ final class ProposalService
 
             return $context;
         }, isolation: 'REPEATABLE READ', readOnly: true);
-        $compiled = $this->compiler->compile($context['doc'], Json::toArray($proposal), array_keys($context['assets']), (int) config('arkon.ai.max_changes'));
+        $compiled = $this->compiler->compile($context['doc'], Json::toArray($proposal), array_keys($context['assets']), (int) config('arkon.ai.max_changes'), array_keys($context['components']), $context['themeTypes']);
 
         $id = $this->transactions->run(function () use ($ctx, $pageId, $prompt, $baseVersion, $key, $fingerprint, $compiled, $connectionId) {
             $this->authorizer->authorize($ctx, 'page.edit');
@@ -142,7 +145,7 @@ final class ProposalService
             $id = $this->ledger->insert([
                 'site_id' => $ctx->siteId, 'page_id' => $pageId, 'created_by' => $ctx->userId, 'source' => 'mcp', 'connection_id' => $connectionId,
                 'request_key' => $key, 'request_fingerprint' => $fingerprint, 'prompt' => $prompt, 'base_version' => $baseVersion,
-                'provider' => 'claude-code', 'model' => 'vscode', ...$this->ledger->proposalColumns($compiled),
+                'provider' => 'claude-code', 'model' => 'vscode', ...$this->ledger->proposalColumns($compiled, $ctx->siteId),
             ]);
             $this->audit->forContext($ctx, 'page.ai.propose', 'page', $pageId, ['proposal' => $id, 'via' => 'mcp', 'operations' => count($compiled['operations'])]);
 
@@ -199,8 +202,8 @@ final class ProposalService
         $repairs = (int) config('arkon.ai.repair_attempts');
         for ($attempt = 0; ; $attempt++) {
             try {
-                $completion = $runner->run(new AiRequest($this->prompts->instructions(), $prompt, $this->prompts->schema($context)), $keepGoing);
-                $compiled = $this->compiler->compile($context['doc'], $completion->output, array_keys($context['assets']), (int) config('arkon.ai.max_changes'));
+                $completion = $runner->run(new AiRequest($this->prompts->instructions($context), $prompt, $this->prompts->schema($context)), $keepGoing);
+                $compiled = $this->compiler->compile($context['doc'], $completion->output, array_keys($context['assets']), (int) config('arkon.ai.max_changes'), array_keys($context['components']), $context['themeTypes']);
             } catch (AiException $error) {
                 if ($error->code() === AiException::CANCELLED) {
                     return 'cancelled';
@@ -346,6 +349,42 @@ final class ProposalService
         return $document === null ? null : $this->pages->renderCanvas($ctx, $pageId, $document, $signer);
     }
 
+    /**
+     * Applies a proposal's site-wide token changes to the token draft (never publishes them).
+     * Separate from applying the page changes; once per proposal.
+     *
+     * @return array{tokenDraftVersion: int}
+     */
+    public function applyTokenChanges(SiteContext $ctx, string $pageId, string $proposalId, TokenService $tokens): array
+    {
+        $pageId = Input::id($pageId);
+        $proposalId = Input::id($proposalId, 'AI proposal');
+
+        // One transaction: the token draft write and the proposal's applied marker commit together or not
+        // at all. The proposal row lock serializes duplicates; the second one finds the marker.
+        return $this->transactions->run(function () use ($ctx, $pageId, $proposalId, $tokens) {
+            $this->authorizer->authorize($ctx, 'page.edit');
+            $row = $this->ledger->lockOwn($ctx, $pageId, $proposalId) ?? throw new NotFoundException('AI proposal');
+            $details = Json::toArray(Json::decode((string) ($row->details ?? '{}'))) ?: [];
+            if (! in_array($row->status, ['proposed', 'applied'], true) || ($details['tokenChanges'] ?? []) === []) {
+                throw new ConflictException('This proposal has no design token changes to apply');
+            }
+            // An exact retry (lost response, second click, another tab): the original result, even after later token edits.
+            if (isset($details['tokenChangesApplied'])) {
+                return ['tokenDraftVersion' => (int) $details['tokenChangesApplied']];
+            }
+            try {
+                $version = $tokens->applyChangesLocked($ctx, $details['tokenChanges'], isset($details['tokenBaseVersion']) ? (int) $details['tokenBaseVersion'] : null, 'ai-tokens-'.str_replace('-', '', $row->id));
+            } catch (StaleVersionException) {
+                throw new AiException(AiException::STALE_PROPOSAL, 'The design tokens were changed after this proposal was made, so its token changes were not applied. Ask again to get changes based on the current tokens.');
+            }
+            DB::table('ai_proposals')->where('id', $row->id)->update(['details' => Json::encode([...$details, 'tokenChangesApplied' => $version])]);
+            $this->audit->forContext($ctx, 'tokens.ai.apply', 'site', $ctx->siteId, ['proposal' => $row->id, 'tokens' => count($details['tokenChanges']), 'version' => $version]);
+
+            return ['tokenDraftVersion' => $version];
+        });
+    }
+
     /** The request as the editor and the MCP tools see it. */
     private function view(object $row): array
     {
@@ -372,6 +411,9 @@ final class ProposalService
                 'notes' => $details['notes'] ?? [],
                 'changes' => $details['changes'] ?? [],
                 'warnings' => $details['warnings'] ?? [],
+                // Separate from the page changes: applied only on request, to the site's token draft.
+                'tokenChanges' => $details['tokenChanges'] ?? [],
+                'tokenChangesApplied' => $details['tokenChangesApplied'] ?? null,
                 // Raw form: empty objects stay objects, exactly as a save will send them back.
                 'operations' => Json::decode((string) $row->operations),
                 'canvas' => null,

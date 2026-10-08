@@ -9,6 +9,7 @@ export interface ComponentManifest {
     children: false | { allow: string[]; min?: number; max?: number };
     props: Record<string, Field>;
     defaultProps: Record<string, unknown>;
+    editor?: { fields?: Record<string, { label?: string; multiline?: boolean }> };
     inlineFields?: Record<string, { kind: 'line' | 'multiline' }>;
     mediaRefs?: string[];
     publishChecks?: { rule: 'notBlank' | 'present'; prop: string; when?: string; message: string }[];
@@ -21,6 +22,31 @@ for (const manifest of Object.values(modules)) {
     const versions = byType.get(manifest.type) ?? new Map<number, ComponentManifest>();
     versions.set(manifest.version, manifest);
     byType.set(manifest.type, versions);
+}
+
+let activeThemeTypes: Set<string> | null = null;
+export function themeIsAddable(type: string): boolean {
+    return activeThemeTypes === null || activeThemeTypes.has(type);
+}
+
+/** Immutable snapshots supplied by the server on a full page load; no theme JS or rebuild. */
+export function installThemeDefinitions(manifests: ComponentManifest[], addableTypes?: string[]): void {
+    activeThemeTypes = addableTypes === undefined ? null : new Set(addableTypes);
+    byType.clear();
+    for (const manifest of [...Object.values(modules), ...manifests]) {
+        const versions = byType.get(manifest.type) ?? new Map<number, ComponentManifest>();
+        versions.set(manifest.version, manifest);
+        byType.set(manifest.type, versions);
+    }
+    const types = manifests.map((m) => m.type);
+    for (const [type, versions] of byType) {
+        for (const [version, definition] of versions) {
+            if (definition.children !== false && definition.children.allow.includes('text')) {
+                versions.set(version, { ...definition, children: { ...definition.children, allow: [...new Set([...definition.children.allow, ...types])] } });
+            }
+        }
+        byType.set(type, versions);
+    }
 }
 
 export function getDefinition(type: string, version: number): ComponentManifest | undefined {

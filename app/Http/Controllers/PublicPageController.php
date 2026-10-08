@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Arkon\Pages\PageService;
+use App\Arkon\Renderer\Motion;
 use App\Arkon\Sites\Membership;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -15,7 +16,14 @@ class PublicPageController extends Controller
 {
     private const NOT_FOUND_HTML = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Page not found</title></head><body><main><h1>Page not found</h1></main></body></html>';
 
-    private const CSP = "default-src 'self'; script-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'self'";
+    /**
+     * No scripts, except on a page with "when scrolled into view" animations: exactly the one
+     * versioned animation runtime file of this origin (Motion), never inline or other scripts.
+     */
+    public static function csp(?string $runtime, string $origin): string
+    {
+        return "default-src 'self'; script-src ".Motion::scriptSrc($runtime, $origin)."; style-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'self'";
+    }
 
     public function __invoke(Request $request, PageService $pages, Membership $membership, ?string $path = null): Response
     {
@@ -41,7 +49,7 @@ class PublicPageController extends Controller
             'ETag' => $etag,
             // Revalidate every request for now; cheap 304s. CDN caching with purge is planned.
             'Cache-Control' => 'public, max-age=0, must-revalidate',
-            'Content-Security-Policy' => self::CSP,
+            'Content-Security-Policy' => self::csp(Motion::loadedBy($page->motion_runtime, $page->html), $request->getSchemeAndHttpHost()),
             'X-Content-Type-Options' => 'nosniff',
         ];
         if ($request->headers->get('If-None-Match') === $etag) {

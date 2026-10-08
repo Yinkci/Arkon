@@ -35,11 +35,21 @@ async function publicHtml(page: Page, path: string) {
     }
 }
 
-/** Drops `source` onto `target`: "inside" the middle of a container row, or just before/after a row. */
-async function drop(source: Locator, target: Locator, where: 'inside' | 'before' | 'after') {
-    const box = (await target.boundingBox())!;
-    const y = where === 'inside' ? box.height / 2 : where === 'before' ? box.height * 0.2 : box.height * 0.8;
-    await source.dragTo(target, { targetPosition: { x: box.width / 3, y } });
+/** Drags the source (a Layers row or palette item) onto the target: into the middle of a container row, or just before/after a row. A quick, ordinary drag: released on arrival. */
+async function drop(page: Page, source: Locator, target: Locator, where: 'inside' | 'before' | 'after') {
+    const s = (await source.boundingBox())!;
+    const t = (await target.boundingBox())!;
+    const y = where === 'inside' ? t.height / 2 : where === 'before' ? t.height * 0.15 : t.height * 0.85;
+    await page.mouse.move(s.x + Math.min(40, s.width / 2), s.y + s.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(t.x + t.width / 3, t.y + y, { steps: 6 });
+    await page.mouse.up();
+}
+
+/** + Columns opens the layout picker; two equal columns are the classic choice. */
+async function addColumns(page: Page) {
+    await page.getByRole('button', { name: 'Add Columns', exact: true }).click();
+    await page.getByRole('button', { name: 'Add Columns: 2 equal' }).click();
 }
 
 test('build a layout with the palette, layers, drag and drop and undo/redo, then publish clean HTML', async ({ page }) => {
@@ -51,7 +61,7 @@ test('build a layout with the palette, layers, drag and drop and undo/redo, then
     // Add: after the selected hero, a text block; then columns after it.
     await page.getByRole('button', { name: 'Add Text' }).click();
     await expect(canvas(page).getByText('Write something here.')).toBeVisible();
-    await page.getByRole('button', { name: 'Add Columns' }).click();
+    await addColumns(page);
     expect(await outline(page)).toEqual(['hero<page', 'text<page', 'columns<page', 'column<columns', 'column<columns']);
 
     // Selecting a column and adding puts the new block inside it; the next one goes after it.
@@ -60,18 +70,18 @@ test('build a layout with the palette, layers, drag and drop and undo/redo, then
     await page.getByRole('button', { name: 'Add Button' }).click();
     expect(await outline(page)).toEqual(['hero<page', 'text<page', 'columns<page', 'column<columns', 'text<column', 'button<column', 'column<columns']);
     // Things that may not go into a column land after the Columns block instead.
-    await expect(page.getByRole('button', { name: 'Add Columns' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Add Columns', exact: true })).toBeEnabled();
 
     // Inspector for the selected button: an unsafe link is refused and never applied; a safe one is.
     await page.getByRole('tab', { name: 'Properties' }).click();
     const link = page.getByLabel('Link');
     await link.fill('javascript:alert(1)');
     await expect(page.getByRole('alert').filter({ hasText: 'Use a link starting with' })).toBeVisible();
-    await expect(canvas(page).locator('a.ak-button')).toHaveAttribute('href', '/');
+    await expect(canvas(page).locator('a.ak-btn2')).toHaveAttribute('href', '/');
     await link.fill('/contact');
-    await expect(canvas(page).locator('a.ak-button')).toHaveAttribute('href', '/contact');
+    await expect(canvas(page).locator('a.ak-btn2')).toHaveAttribute('href', '/contact');
     await page.getByLabel('Label').fill('Contact us');
-    await expect(canvas(page).locator('a.ak-button')).toHaveText('Contact us');
+    await expect(canvas(page).locator('a.ak-btn2')).toHaveText('Contact us');
 
     // Accessible reordering: move the button above the text inside its column.
     await page.getByRole('button', { name: 'Move Button up' }).click();
@@ -79,13 +89,13 @@ test('build a layout with the palette, layers, drag and drop and undo/redo, then
     expect(await outline(page)).toEqual(['hero<page', 'text<page', 'columns<page', 'column<columns', 'button<column', 'text<column', 'column<columns']);
 
     // Drag and drop: the top-level text into the empty second column.
-    await drop(layer(page, 'text', 0), layer(page, 'column', 1), 'inside');
+    await drop(page, layer(page, 'text', 0), layer(page, 'column', 1), 'inside');
     expect(await outline(page)).toEqual(['hero<page', 'columns<page', 'column<columns', 'button<column', 'text<column', 'column<columns', 'text<column']);
-    // Invalid nesting is not offered: Columns dropped onto a column changes nothing.
-    await drop(layer(page, 'columns'), layer(page, 'column', 0), 'inside');
+    // Invalid nesting is not offered: a hero dropped onto a column changes nothing.
+    await drop(page, layer(page, 'hero'), layer(page, 'column', 0), 'inside');
     expect(await outline(page)).toEqual(['hero<page', 'columns<page', 'column<columns', 'button<column', 'text<column', 'column<columns', 'text<column']);
     // A new component can be dragged from the palette straight into place.
-    await drop(page.getByRole('button', { name: 'Add Image' }), layer(page, 'hero'), 'after');
+    await drop(page, page.getByRole('button', { name: 'Add Image' }), layer(page, 'hero'), 'after');
     expect(await outline(page)).toEqual([
         'hero<page',
         'image<page',
@@ -98,17 +108,17 @@ test('build a layout with the palette, layers, drag and drop and undo/redo, then
     ]);
 
     // Undo and redo cover structural changes, one step each.
-    await page.getByRole('button', { name: 'Undo' }).click(); // the dragged-in image
-    await page.getByRole('button', { name: 'Undo' }).click(); // the drag into column 2
+    await page.getByRole('button', { name: 'Undo', exact: true }).click(); // the dragged-in image
+    await page.getByRole('button', { name: 'Undo', exact: true }).click(); // the drag into column 2
     expect(await outline(page)).toEqual(['hero<page', 'text<page', 'columns<page', 'column<columns', 'button<column', 'text<column', 'column<columns']);
     await page.getByRole('button', { name: 'Redo' }).click();
     expect(await outline(page)).toEqual(['hero<page', 'columns<page', 'column<columns', 'button<column', 'text<column', 'column<columns', 'text<column']);
-    await expect(canvas(page).locator('.ak-image')).toHaveCount(0);
+    await expect(canvas(page).locator('.ak-img2')).toHaveCount(0);
 
     // Responsive previews use real media queries: two columns side by side, stacked on mobile.
     const columnBoxes = async () =>
         canvas(page)
-            .locator('.ak-column')
+            .locator('.ak-col')
             .evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().left)));
     await expect.poll(async () => new Set(await columnBoxes()).size).toBe(2);
     await page.getByRole('button', { name: 'mobile' }).click();
@@ -126,8 +136,8 @@ test('build a layout with the palette, layers, drag and drop and undo/redo, then
 
     const live = await publicHtml(page, '/builder');
     expect(live.status).toBe(200);
-    expect(live.html).toContain(
-        '<div class="ak-columns ak-columns--stack-mobile ak-columns--n2"><div class="ak-column"><p class="ak-action"><a class="ak-button ak-button--primary" href="/contact">Contact us</a></p>',
+    expect(live.html).toMatch(
+        /<div class="ak-cols ak-flow ak-cols--n2 ak-s[0-9a-f]{10}"><div class="ak-col"><p class="ak-action2 ak-flow"><a class="ak-btn2 ak-btn2--primary" href="\/contact">Contact us<\/a><\/p>/,
     );
     for (const forbidden of ['data-ak-', '<script', 'contenteditable', 'draggable', 'Empty column', 'ak-image__empty', '/build/']) {
         expect(live.html).not.toContain(forbidden);
@@ -138,13 +148,16 @@ test('removing and reordering with the structure toolbar, and the last column ca
     const id = await createPage('/builder-toolbar', 'Toolbar');
     await page.goto(`/admin/editor/${id}`);
     await openLayers(page);
-    await page.getByRole('button', { name: 'Add Columns' }).click();
+    await addColumns(page);
     await page.getByRole('tab', { name: 'Properties' }).click();
     // Columns inspector: remove one column; the last one stays.
     await page.getByRole('button', { name: 'Remove last column' }).click();
     await expect(page.getByRole('button', { name: 'Remove last column' })).toBeDisabled();
-    await page.getByRole('button', { name: 'Add column' }).click();
-    await expect(page.getByText('2 columns')).toBeVisible();
+    await page.getByRole('button', { name: 'Add a column' }).click();
+    await expect(page.getByRole('group', { name: 'Number of columns' }).getByRole('button', { name: '2', exact: true })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+    );
 
     // Toolbar: move Columns above the hero, then remove it (undo brings it back).
     await page.getByRole('toolbar').getByRole('button', { name: 'Move Columns up' }).click();
@@ -152,7 +165,7 @@ test('removing and reordering with the structure toolbar, and the last column ca
     expect(await outline(page)).toEqual(['columns<page', 'column<columns', 'column<columns', 'hero<page']);
     await page.getByRole('button', { name: 'Remove Columns' }).click();
     expect(await outline(page)).toEqual(['hero<page']);
-    await page.getByRole('button', { name: 'Undo' }).click();
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
     expect(await outline(page)).toEqual(['columns<page', 'column<columns', 'column<columns', 'hero<page']);
     await expect(layers(page)).toHaveCount(4);
 });
@@ -178,7 +191,7 @@ test('an unfinished link is kept and flagged, and blocks Preview and Publish unt
     await expect(status(page)).toHaveText('Unsaved changes, 1 invalid field not saved');
     await page.getByRole('button', { name: 'Save draft' }).click();
     await expect(status(page)).toHaveText('1 invalid field not saved');
-    await expect(canvas(page).locator('a.ak-button')).toHaveAttribute('href', '/contact');
+    await expect(canvas(page).locator('a.ak-btn2')).toHaveAttribute('href', '/contact');
 
     // Selecting something else and coming back keeps what was typed.
     await openLayers(page);
@@ -267,7 +280,7 @@ test('a link made invalid while Publish waits for its save blocks the publicatio
     await expect(notice(page)).toContainText('Published');
     expect(await publicationCount(id)).toBe(1);
     const live = await publicHtml(page, '/held-publish');
-    expect(live.html).toContain('<a class="ak-button ak-button--primary" href="https://example.com/">Get in touch</a>');
+    expect(live.html).toContain('<a class="ak-btn2 ak-btn2--primary" href="https://example.com/">Get in touch</a>');
 });
 
 test('a link made invalid while Preview waits for its save closes the preview instead of showing it', async ({ page }) => {
@@ -297,48 +310,48 @@ test('a link made invalid while Preview waits for its save closes the preview in
     await page.getByRole('button', { name: 'Preview' }).click();
     const preview = await next;
     await expect(preview).toHaveURL(new RegExp(`/preview/${id}$`));
-    await expect(preview.locator('a.ak-button')).toHaveText('Get in touch');
-    await expect(preview.locator('a.ak-button')).toHaveAttribute('href', '/contact');
+    await expect(preview.locator('a.ak-btn2')).toHaveText('Get in touch');
+    await expect(preview.locator('a.ak-btn2')).toHaveAttribute('href', '/contact');
     await preview.close();
 });
 
-test('image sizes inside a column match the inspector in the canvas, preview and live page', async ({ page }) => {
+test('image widths set with the design controls match in the canvas, preview and live page', async ({ page }) => {
     const id = await createPage('/image-sizes', 'Image sizes');
     await page.goto(`/admin/editor/${id}`);
     await openLayers(page);
-    await page.getByRole('button', { name: 'Add Columns' }).click();
+    await addColumns(page);
     await page.getByRole('tab', { name: 'Properties' }).click();
     await page.getByRole('button', { name: 'Remove last column' }).click(); // one full-width column
     await openLayers(page);
     await layer(page, 'column').getByRole('button').first().click();
     for (let i = 0; i < 3; i++) await page.getByRole('button', { name: 'Add Image' }).click();
 
-    const sizes = ['full', 'medium', 'small'];
-    for (const [i, size] of sizes.entries()) {
+    const widths = ['', '66%', '40%'];
+    for (const [i, width] of widths.entries()) {
         await openLayers(page);
         await layer(page, 'image', i).getByRole('button').first().click();
         await page.getByRole('tab', { name: 'Properties' }).click();
         if (i === 0) await page.getByLabel('Upload image').setInputFiles({ name: 'dot.png', mimeType: 'image/png', buffer: PNG_1X1 });
-        else await page.getByLabel('Choose from library').selectOption({ index: 1 });
-        await page.getByLabel(/Alternative text/).fill(`Dot ${size}`);
-        await page.getByLabel('Size').selectOption(size);
+        else {
+            await page.getByRole('button', { name: 'Choose from library' }).click();
+            await page.getByTestId('media-library').getByRole('button').first().click();
+        }
+        await page.getByLabel(/Alternative text/).fill(`Dot ${i}`);
+        if (width) {
+            // The block's width (not the image's): the Image block part has its own size controls.
+            await page.getByTestId('part-root').click();
+            await page.getByTestId('block-sizing').getByLabel('Block width', { exact: true }).fill(width);
+        }
     }
 
-    // Width of each image as a percentage of its column.
+    // Width of each image block as a percentage of its column.
     const percentages = (root: Page | FrameLocator) =>
         root
-            .locator('.ak-column > .ak-image')
+            .locator('.ak-col > .ak-img2')
             .evaluateAll((els) => els.map((el) => Math.round((el.getBoundingClientRect().width / el.parentElement!.getBoundingClientRect().width) * 100)));
     const expectSizes = async (root: Page | FrameLocator) => {
-        await expect.poll(() => percentages(root)).toHaveLength(3);
-        const [full, medium, small] = await percentages(root);
-        expect(full).toBe(100);
-        expect(medium).toBeGreaterThanOrEqual(60);
-        expect(medium).toBeLessThanOrEqual(70);
-        expect(small).toBeGreaterThanOrEqual(35);
-        expect(small).toBeLessThanOrEqual(45);
+        await expect.poll(async () => (await percentages(root)).join(',')).toBe('100,66,40');
     };
-    await expect.poll(async () => (await percentages(canvas(page))).join(',')).toMatch(/^100,6\d,(3[5-9]|4[0-5])$/);
     await expectSizes(canvas(page));
 
     await page.getByRole('button', { name: 'Save draft' }).click();
@@ -352,7 +365,7 @@ test('image sizes inside a column match the inspector in the canvas, preview and
     await preview.goto('/image-sizes');
     await expectSizes(preview);
     const live = await publicHtml(page, '/image-sizes');
-    expect(live.html).toContain('<figure class="ak-image ak-image--small">');
+    expect(live.html).toMatch(/\.ak-s[0-9a-f]{10}\{width:40%\}/);
     await preview.close();
 });
 
@@ -360,21 +373,21 @@ test('a Columns block never gives away its last column, but columns move between
     const id = await createPage('/columns-transfer', 'Columns transfer');
     await page.goto(`/admin/editor/${id}`);
     await openLayers(page);
-    await page.getByRole('button', { name: 'Add Columns' }).click(); // block 1, selected
+    await addColumns(page); // block 1, selected
     await page.getByRole('tab', { name: 'Properties' }).click();
     await page.getByRole('button', { name: 'Remove last column' }).click(); // block 1 has one column
     await openLayers(page);
-    await page.getByRole('button', { name: 'Add Columns' }).click(); // block 2, two columns
+    await addColumns(page); // block 2, two columns
     const start = ['hero<page', 'columns<page', 'column<columns', 'columns<page', 'column<columns', 'column<columns'];
     expect(await outline(page)).toEqual(start);
 
     // Block 1's only column is not offered as a drop into block 2: nothing changes, no error.
-    await drop(layer(page, 'column', 0), layer(page, 'column', 1), 'after');
+    await drop(page, layer(page, 'column', 0), layer(page, 'column', 1), 'after');
     expect(await outline(page)).toEqual(start);
     await expect(notice(page)).toHaveCount(0);
 
     // Block 2 has two: one of them may move into block 1.
-    await drop(layer(page, 'column', 2), layer(page, 'column', 0), 'after');
+    await drop(page, layer(page, 'column', 2), layer(page, 'column', 0), 'after');
     expect(await outline(page)).toEqual(['hero<page', 'columns<page', 'column<columns', 'column<columns', 'columns<page', 'column<columns']);
     await expect(notice(page)).toHaveCount(0);
     await page.getByRole('button', { name: 'Save draft' }).click();
@@ -394,7 +407,7 @@ test.describe('as an editor', () => {
 
         await page.goto(`/admin/editor/${id}`);
         await openLayers(page);
-        await page.getByRole('button', { name: 'Add Columns' }).click();
+        await addColumns(page);
         await page.getByRole('button', { name: 'Save draft' }).click();
         await expect(status(page)).toHaveText('Draft saved');
         await expect(page.getByRole('button', { name: 'Publish' })).toBeDisabled();

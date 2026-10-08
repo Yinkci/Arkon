@@ -7,6 +7,7 @@ import type { Issue } from '@/arkon/rules';
 import type { PageDocument } from '@/arkon/schema/document';
 import { OperationError, applyOperations, type PageOperation } from '@/arkon/schema/operations';
 import { pathIssues } from '@/arkon/schema/paths';
+import { parseTokens } from '@/arkon/style/tokens';
 import fixtures from './fixtures.json';
 
 /** JSON with object keys sorted (twin of PHP Json::canonical). */
@@ -59,5 +60,11 @@ describe('operations', () => {
 describe('paths', () => {
     it.each(fixtures.paths.map((c) => [JSON.stringify(c.path).slice(0, 40), c] as const))('%s', (_name, c) => {
         expect(pathIssues(c.path)).toEqual(c.issues);
+    });
+});
+
+describe('design tokens', () => {
+    it.each(fixtures.tokens.map((c) => [c.tokens.slice(0, 60), c] as const))('%s', (_name, c) => {
+        expect(sortIssues(parseTokens(JSON.parse(c.tokens)).issues)).toEqual(c.issues);
     });
 });

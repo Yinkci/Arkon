@@ -18,6 +18,7 @@ final class Factories
             'type' => $hero->type,
             'version' => $hero->version,
             'props' => [...$hero->defaultProps, ...$props],
+            ...($hero->children === false ? [] : ['children' => []]),
         ];
     }
 

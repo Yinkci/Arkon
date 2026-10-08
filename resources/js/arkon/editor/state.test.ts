@@ -12,6 +12,8 @@ import {
     saveRejected,
     saveSucceeded,
     undo,
+    redo,
+    canUndoEntry,
     withServerVersion,
     type EditorDocState,
 } from './state';
@@ -123,5 +125,45 @@ describe('publish intent', () => {
         expect(isDefinitiveOutcome({ ok: false, code: 'INTERNAL' })).toBe(false);
         expect(isDefinitiveOutcome({ ok: true })).toBe(true);
         expect(isDefinitiveOutcome({ ok: false, code: 'STALE_VERSION' })).toBe(true);
+    });
+});
+
+describe('a history entry keeps its identity (an "Undo delete" notice can only undo its own edit)', () => {
+    const latest = (state: EditorDocState) => state.undo.at(-1)?.id;
+
+    it('another edit, a coalesced run of typing, or undo then a new edit (a branch) is never the deletion', () => {
+        let s = edit(initialState(doc, 1), heading('A'));
+        const deletion = latest(s)!;
+        expect(canUndoEntry(s, deletion)).toBe(true);
+        // Typing coalesces into its own entry, never into the deletion's.
+        s = edit(s, heading('B'), 'typing', 1);
+        s = edit(s, heading('C'), 'typing', 2);
+        expect(canUndoEntry(s, deletion)).toBe(false);
+        expect(s.undo).toHaveLength(2);
+        // Undo the typing: the deletion is the latest again. Redo: it isn't.
+        s = undo(s)!;
+        expect(canUndoEntry(s, deletion)).toBe(true);
+        s = redo(s)!;
+        expect(canUndoEntry(s, deletion)).toBe(false);
+        // Undo the deletion itself, then edit (a branch): it is gone for good.
+        s = undo(undo(s)!)!;
+        expect(canUndoEntry(s, deletion)).toBe(false);
+        s = edit(s, heading('D'));
+        expect(canUndoEntry(s, deletion)).toBe(false);
+    });
+
+    it('undo then redo of the deletion keeps it undoable as the same step; the 200-entry cap drops it', () => {
+        let s = edit(initialState(doc, 1), heading('A'));
+        const deletion = latest(s)!;
+        s = redo(undo(s)!)!;
+        expect(canUndoEntry(s, deletion)).toBe(true);
+        for (let i = 0; i < 200; i++) s = edit(s, heading(`x${i}`));
+        expect(s.undo).toHaveLength(200);
+        expect(s.undo.some((entry) => entry.id === deletion)).toBe(false);
+        // Undo all the way down: never back to the dropped deletion.
+        for (let i = 0; i < 200; i++) s = undo(s)!;
+        expect(canUndoEntry(s, deletion)).toBe(false);
+        // A restore (a fresh state) has nothing to undo.
+        expect(canUndoEntry(initialState(doc, 2), deletion)).toBe(false);
     });
 });

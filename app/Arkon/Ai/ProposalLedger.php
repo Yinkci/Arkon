@@ -2,6 +2,7 @@
 
 namespace App\Arkon\Ai;
 
+use App\Arkon\Design\TokenService;
 use App\Arkon\Errors\ConflictException;
 use App\Arkon\Schema\Operations;
 use App\Arkon\Sites\SiteContext;
@@ -194,7 +195,7 @@ final class ProposalLedger
     public function finish(string $id, string $lease, array $compiled): bool
     {
         return DB::table('ai_proposals')->where('id', $id)->whereRaw(self::HOLDS_LEASE, [$lease])
-            ->update([...$this->proposalColumns($compiled), 'lease_token' => null, 'lease_expires_at' => null]) === 1;
+            ->update([...$this->proposalColumns($compiled, (string) DB::table('ai_proposals')->where('id', $id)->value('site_id')), 'lease_token' => null, 'lease_expires_at' => null]) === 1;
     }
 
     public function failRun(string $id, string $lease, string $code, string $message): bool
@@ -237,12 +238,20 @@ final class ProposalLedger
     }
 
     /** Columns for a validated proposal (from a run or an MCP submission). */
-    public function proposalColumns(array $compiled): array
+    public function proposalColumns(array $compiled, string $siteId): array
     {
+        $tokenChanges = $compiled['tokenChanges'] ?? [];
+        $details = ['notes' => $compiled['notes'], 'changes' => $compiled['changes'], 'warnings' => $compiled['warnings'], 'tokenChanges' => $tokenChanges];
+        if ($tokenChanges !== []) {
+            // The token draft these changes were made against: applying them later checks it is still current.
+            $details['tokenBaseVersion'] = TokenService::draftVersion($siteId);
+        }
+
         return [
-            'status' => $compiled['operations'] === [] ? 'empty' : 'proposed',
+            // Site-wide token changes are reviewable on their own, even without page changes.
+            'status' => $compiled['operations'] === [] && $tokenChanges === [] ? 'empty' : 'proposed',
             'summary' => $compiled['summary'],
-            'details' => Json::encode(['notes' => $compiled['notes'], 'changes' => $compiled['changes'], 'warnings' => $compiled['warnings']]),
+            'details' => Json::encode($details),
             'operations' => Json::encode($compiled['operations']),
             'operations_fingerprint' => self::operationsFingerprint($compiled['operations']),
         ];

@@ -106,7 +106,7 @@ final class McpServer
             ],
             [
                 'name' => 'arkon_get_proposal_format',
-                'description' => 'The rules, the component catalogue (registered blocks, props, nesting) and the JSON schema a proposal for this page must match. Read it before writing a proposal.',
+                'description' => 'The rules, the component catalogue (registered blocks, props, nesting, design settings and tokens) and the JSON schema a proposal for this page must match. Read it before writing a proposal.',
                 'inputSchema' => ['type' => 'object', 'properties' => $page, 'required' => ['pageId'], 'additionalProperties' => false],
                 'annotations' => ['readOnlyHint' => true],
             ],
@@ -120,7 +120,7 @@ final class McpServer
                         'baseVersion' => ['type' => 'integer', 'description' => 'draftVersion from arkon_get_page'],
                         'request' => ['type' => 'string', 'description' => 'What the user asked for, in their words (shown with the proposal)'],
                         'requestKey' => ['type' => 'string', 'description' => '16–100 characters [A-Za-z0-9_-], unique per submission; resend the same key only to retry the same submission'],
-                        'proposal' => ['type' => 'object', 'description' => 'The proposal: {summary, notes, changes} matching the schema from arkon_get_proposal_format'],
+                        'proposal' => ['type' => 'object', 'description' => 'The proposal: {summary, notes, tokenChanges, changes} matching the schema from arkon_get_proposal_format'],
                     ],
                     'required' => ['pageId', 'baseVersion', 'request', 'requestKey', 'proposal'],
                     'additionalProperties' => false,
@@ -191,6 +191,9 @@ final class McpServer
                 'draftVersion' => $context['version'],
                 'imagesOnPage' => array_map(fn ($id, $a) => ['assetId' => $id, ...$a], array_keys($context['assets']), $context['assets']),
                 'blocks' => $this->prompts->blocks($context['doc']),
+                // Published shared resources only (instances render published versions; drafts are never shown).
+                'reusableComponents' => array_map(fn ($id, $c) => ['componentId' => $id, ...$c], array_keys($context['components']), $context['components']),
+                'designTokens' => $context['tokens'],
                 'editorUrl' => $this->editorUrl($pageId),
             ];
         }, isolation: 'REPEATABLE READ', readOnly: true);
@@ -204,7 +207,7 @@ final class McpServer
             $this->authorizer->authorize($ctx, 'page.view');
             $context = $this->prompts->context($ctx, $pageId);
 
-            return ['instructions' => $this->prompts->instructions(), 'schema' => $this->prompts->schema($context), 'draftVersion' => $context['version']];
+            return ['instructions' => $this->prompts->instructions($context), 'schema' => $this->prompts->schema($context), 'draftVersion' => $context['version']];
         }, isolation: 'REPEATABLE READ', readOnly: true);
     }
 

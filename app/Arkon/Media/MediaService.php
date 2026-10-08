@@ -33,6 +33,7 @@ class MediaService
         private readonly Transactions $transactions,
         private readonly MediaStorage $storage,
         private readonly AuditLog $audit,
+        private readonly MediaVariants $variants,
     ) {}
 
     public static function url(string $storageKey): string
@@ -82,6 +83,12 @@ class MediaService
             ]);
             $this->audit->forContext($ctx, 'media.upload', 'media', $id, ['bytes' => $bytes, 'mime' => $type['mime']]);
         });
+        // Responsive sizes. Best effort: without them the original is served (`arkon:media-variants` retries).
+        try {
+            $this->variants->generate((object) ['id' => $id, 'site_id' => $ctx->siteId, 'storage_key' => $storageKey, 'mime' => $type['mime'], 'bytes' => $bytes, 'width' => $width, 'height' => $height]);
+        } catch (\Throwable $error) {
+            report($error);
+        }
 
         return [
             'id' => $id, 'url' => self::url($storageKey), 'width' => $width, 'height' => $height,
@@ -106,7 +113,7 @@ class MediaService
      * Media for rendering, restricted to one site. Missing ids are simply absent.
      *
      * @param  list<string>  $ids
-     * @return array<string, array{id: string, url: string, width: int, height: int, mime: string}>
+     * @return array<string, array{id: string, url: string, width: int, height: int, mime: string, variants?: list<array{url: string, width: int}>}>
      */
     public function mediaMap(string $siteId, array $ids): array
     {
@@ -114,9 +121,45 @@ class MediaService
         if ($ids === []) {
             return [];
         }
+        $variants = [];
+        foreach (DB::table('media_variants')->where('site_id', $siteId)->whereIn('asset_id', $ids)->orderBy('width')->get(['asset_id', 'width', 'storage_key']) as $v) {
+            $variants[$v->asset_id][] = ['url' => self::url($v->storage_key), 'width' => (int) $v->width];
+        }
         $map = [];
         foreach (DB::table('media_assets')->where('site_id', $siteId)->whereIn('id', $ids)->orderBy('id')->get() as $r) {
             $map[$r->id] = ['id' => $r->id, 'url' => self::url($r->storage_key), 'width' => (int) $r->width, 'height' => (int) $r->height, 'mime' => $r->mime];
+            if (isset($variants[$r->id])) {
+                $map[$r->id]['variants'] = $variants[$r->id];
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * Adds each image's original file name, for the editor's library (never part of render
+     * inputs: names do not affect output, so they stay out of what publications record).
+     *
+     * @param  list<array{id: string}>  $list
+     * @return list<array>
+     */
+    public function withNames(string $siteId, array $list): array
+    {
+        $names = DB::table('media_assets')->where('site_id', $siteId)->whereIn('id', array_column($list, 'id'))->pluck('original_name', 'id');
+
+        return array_map(fn (array $m) => [...$m, 'name' => $names[$m['id']] ?? null], $list);
+    }
+
+    /** mediaMap with signed URLs (original and variants), for the sandboxed canvas. */
+    public function signedMediaMap(string $siteId, array $ids, MediaSigner $signer): array
+    {
+        $map = [];
+        foreach ($this->mediaMap($siteId, $ids) as $id => $info) {
+            $info['url'] = $signer->signUrl($info['url']);
+            if (isset($info['variants'])) {
+                $info['variants'] = array_map(fn ($v) => [...$v, 'url' => $signer->signUrl($v['url'])], $info['variants']);
+            }
+            $map[$id] = $info;
         }
 
         return $map;
@@ -130,7 +173,13 @@ class MediaService
         }
         $asset = DB::table('media_assets')->where('storage_key', $storageKey)->first(['id', 'site_id', 'mime']);
         if ($asset === null) {
-            return null;
+            // A resized variant is delivered exactly when its original would be.
+            $variant = DB::table('media_variants as v')->join('media_assets as a', 'a.id', '=', 'v.asset_id')
+                ->where('v.storage_key', $storageKey)->first(['a.id', 'a.site_id']);
+            if ($variant === null) {
+                return null;
+            }
+            $asset = (object) ['id' => $variant->id, 'site_id' => $variant->site_id, 'mime' => 'image/webp'];
         }
 
         if ($host !== null && $host !== '') {

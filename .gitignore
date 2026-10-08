@@ -21,6 +21,9 @@ auth.json
 /storage/pail
 /storage/app/media
 /storage/e2e
+/storage/perf
+/storage/perf-*
+/storage/screenshots
 /storage/testing
 *.log
 
@@ -43,3 +46,7 @@ Thumbs.db
 /.nova
 .phpactor.json
 _ide_helper.php
+
+# Immutable developer component snapshots: deploy and back up separately
+/storage/app/theme-components
+/storage/framework/testing/theme-components

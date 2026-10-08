@@ -1,19 +1,20 @@
 // Twin of app/Arkon/Components/DocumentValidator.php. The editor runs it on every
 // change; the server runs the PHP version on every save. tests/conformance runs
 // the same fixtures through both.
-import { isBlank, message, type Issue } from '../rules';
+import { isBlank, isPlainObject, message, rules, type Issue } from '../rules';
 import { validateStructure, type PageDocument } from '../schema/document';
 import { documentIssues } from '../schema/shape';
+import { styleAssetIds, styleRules, styleValueProblem } from '../style/schema';
 import { parseProps } from './props';
 import { currentDefinition, getDefinition, valueAt } from './registry';
 
 /** Full validation: shape, structure, known component types and versions, props, parent/child rules. */
-export function validatePageDocument(input: unknown): Issue[] {
+export function validatePageDocument(input: unknown, rootType: 'page' | 'fragment' = 'page'): Issue[] {
     const shape = documentIssues(input);
     if (shape.length > 0) return shape;
     const doc = input as PageDocument;
     const issues: Issue[] = validateStructure(doc);
-    if (doc.nodes[doc.root]?.type !== 'page') issues.push({ message: message('rootNotPage') });
+    if (doc.nodes[doc.root]?.type !== rootType) issues.push({ message: message(rootType === 'page' ? 'rootNotPage' : 'rootNotFragment') });
 
     for (const node of Object.values(doc.nodes)) {
         const current = currentDefinition(node.type);
@@ -46,6 +47,33 @@ export function validatePageDocument(input: unknown): Issue[] {
                     issues.push({ nodeId: childId, message: message('childNotAllowed', { child: child.type, parent: node.type }) });
                 }
             }
+            issues.push(...widthIssues(node, definition.label, children.length));
+        }
+    }
+    return issues;
+}
+
+/**
+ * A Columns block's fraction widths give one width per column on every screen; counts ("1" to
+ * stack, "2" per row …) are free, and Group grids are not concerned (rules.json
+ * style.oneWidthPerChild). Twin of DocumentValidator::widthIssues.
+ */
+export function widthIssues(node: { id: string; type: string; props: Record<string, unknown> }, label: string, children: number): Issue[] {
+    if (!(rules.style.oneWidthPerChild.types as string[]).includes(node.type)) return [];
+    const style = isPlainObject(node.props.style) ? node.props.style : {};
+    const root = isPlainObject(style.root) ? style.root : {};
+    const issues: Issue[] = [];
+    for (const screen of ['base', 'tablet', 'mobile']) {
+        const declarations = root[screen];
+        const value = isPlainObject(declarations) ? declarations.columns : undefined;
+        if (typeof value !== 'string' || /^[1-6]$/.test(value) || styleValueProblem(styleRules.properties.columns!, value) !== null) continue;
+        const widths = value.split(' ').length;
+        if (widths !== children) {
+            issues.push({
+                nodeId: node.id,
+                path: `style.root.${screen}.columns`,
+                message: message('columnWidths', { label, widths: `${widths} widths`, columns: children === 1 ? '1 column' : `${children} columns` }),
+            });
         }
     }
     return issues;
@@ -77,6 +105,10 @@ export function mediaRefs(doc: PageDocument): string[] {
         for (const path of definition?.mediaRefs ?? []) {
             const id = valueAt(props, path);
             if (typeof id === 'string') ids.add(id);
+        }
+        // Background images of style props.
+        for (const [key, field] of Object.entries(definition?.props ?? {})) {
+            if (field.type === 'style') for (const id of styleAssetIds(props?.[key])) ids.add(id);
         }
     }
     return [...ids];

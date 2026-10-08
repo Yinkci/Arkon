@@ -1,7 +1,7 @@
 {
   "$comment": "Shared validation rules. Read by PHP (app/Arkon/Support/Rules.php) and TypeScript (resources/js/arkon/rules.ts). Changing a rule changes both; tests/Conformance pins the behaviour of both implementations.",
   "schemaVersion": 1,
-  "maxDepth": 6,
+  "maxDepth": 8,
   "maxNodes": 2000,
   "patterns": {
     "nodeId": "^[A-Za-z0-9_-]{4,32}$",
@@ -11,7 +11,14 @@
     "uuid": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
     "pathSegment": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
     "link": "^(?:|/(?!/)[!-\\[\\]-~]*|#[!-\\[\\]-~]*|\\?[!-\\[\\]-~]*|https?://(?![/?#])[!-\\[\\]-~]+|mailto:[!-?A-\\[\\]-~]+@[!-\\[\\]-~]+|tel:[0-9+().\\-]+)$",
-    "linkRecorded": "^(?:|/(?!/)[!-~]*|#[!-~]*|\\?[!-~]*|https?://(?![/?#])[!-~]+|mailto:[!-?A-~]+@[!-~]+|tel:[0-9+().\\-]+)$"
+    "linkRecorded": "^(?:|/(?!/)[!-~]*|#[!-~]*|\\?[!-~]*|https?://(?![/?#])[!-~]+|mailto:[!-?A-~]+@[!-~]+|tel:[0-9+().\\-]+)$",
+    "styleLength": "^(-?(?:[0-9]{1,5}(?:[.][0-9]{1,3})?|[.][0-9]{1,3}))(px|rem|em|%|vw|vh|ch)$",
+    "styleNumber": "^[0-9]{1,2}(?:[.][0-9]{1,3})?$",
+    "styleColor": "^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+    "styleRatio": "^[1-9][0-9]{0,2}/[1-9][0-9]{0,2}$",
+    "styleTrack": "^[0-9]{1,2}(?:[.][0-9]{1,2})?fr$",
+    "styleToken": "^@([A-Za-z]+)[.]([A-Za-z0-9]+)$",
+    "styleTime": "^[0-9]{1,4}ms$"
   },
   "limits": {
     "variant": 40,
@@ -78,6 +85,730 @@
     "pathReserved": "This path is reserved by Arkon",
     "titleRequired": "A title is required",
     "unsafeLink": "Use a link starting with /, #, https://, http://, mailto: or tel:, without spaces, backslashes or accented characters (percent-encode them)",
-    "tooFewChildren": "At least {min} children required"
+    "tooFewChildren": "At least {min} children required",
+    "styleNotAllowed": "{label} cannot be set here",
+    "styleInvalid": "{label}: expected {expected}",
+    "styleOutOfRange": "{label}: use {min} to {max}{unit}",
+    "styleBaseOnly": "{label} can only be set for all screen sizes",
+    "unknownToken": "Unknown design token {token}",
+    "expectedAsset": "Expected an image reference",
+    "rootNotFragment": "Root node must be a reusable component fragment",
+    "columnWidths": "{label}: {widths} for {columns}; give one width per column"
+  },
+  "style": {
+    "$comment": "The one styling model. A style prop is {slot: {base?, tablet?, mobile?}}; each breakpoint maps property → value. Values are strings validated here (or {assetId} for backgroundImage) and turned into CSS by the PHP renderer only. tablet applies at max-width tablet px, mobile at max-width mobile px; smaller screens inherit larger ones.",
+    "breakpoints": {
+      "tablet": 899,
+      "mobile": 599
+    },
+    "maxSlots": 8,
+    "lengths": {
+      "dimension": {
+        "px": [
+          0,
+          4000
+        ],
+        "rem": [
+          0,
+          250
+        ],
+        "em": [
+          0,
+          250
+        ],
+        "%": [
+          0,
+          100
+        ],
+        "vw": [
+          0,
+          100
+        ],
+        "vh": [
+          0,
+          100
+        ],
+        "ch": [
+          0,
+          200
+        ]
+      },
+      "spacing": {
+        "px": [
+          0,
+          600
+        ],
+        "rem": [
+          0,
+          40
+        ],
+        "em": [
+          0,
+          40
+        ],
+        "%": [
+          0,
+          50
+        ]
+      },
+      "fontSize": {
+        "px": [
+          8,
+          240
+        ],
+        "rem": [
+          0.5,
+          15
+        ],
+        "em": [
+          0.5,
+          15
+        ]
+      },
+      "letterSpacing": {
+        "px": [
+          -10,
+          40
+        ],
+        "em": [
+          -0.5,
+          2
+        ]
+      },
+      "borderWidth": {
+        "px": [
+          0,
+          24
+        ]
+      },
+      "radius": {
+        "px": [
+          0,
+          999
+        ],
+        "rem": [
+          0,
+          60
+        ],
+        "%": [
+          0,
+          50
+        ]
+      }
+    },
+    "fonts": {
+      "sans": "ui-sans-serif,system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif",
+      "serif": "ui-serif,Georgia,Cambria,\"Times New Roman\",serif",
+      "mono": "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",
+      "rounded": "ui-rounded,\"SF Pro Rounded\",\"Segoe UI\",system-ui,sans-serif"
+    },
+    "shadows": {
+      "none": "none",
+      "soft": "0 1px 3px rgba(15,23,42,.08),0 1px 2px rgba(15,23,42,.06)",
+      "medium": "0 6px 16px rgba(15,23,42,.12)",
+      "strong": "0 18px 40px rgba(15,23,42,.18)"
+    },
+    "groups": {
+      "layout": "Layout",
+      "size": "Size",
+      "spacing": "Spacing",
+      "placement": "Placement",
+      "typography": "Typography",
+      "background": "Background",
+      "border": "Border",
+      "effects": "Effects",
+      "image": "Image fit",
+      "motion": "Animation"
+    },
+    "properties": {
+      "display": {
+        "group": "layout",
+        "label": "Display",
+        "css": "display",
+        "kind": "enum",
+        "values": {
+          "flex": "flex",
+          "grid": "grid",
+          "block": "block",
+          "none": "none"
+        }
+      },
+      "direction": {
+        "group": "layout",
+        "label": "Direction",
+        "css": "flex-direction",
+        "kind": "enum",
+        "values": {
+          "row": "row",
+          "row-reverse": "row-reverse",
+          "column": "column",
+          "column-reverse": "column-reverse"
+        }
+      },
+      "wrap": {
+        "group": "layout",
+        "label": "Wrap",
+        "css": "flex-wrap",
+        "kind": "enum",
+        "values": {
+          "wrap": "wrap",
+          "nowrap": "nowrap"
+        }
+      },
+      "columns": {
+        "group": "layout",
+        "label": "Columns",
+        "css": "grid-template-columns",
+        "kind": "columns"
+      },
+      "justify": {
+        "group": "layout",
+        "label": "Distribute",
+        "css": "justify-content",
+        "kind": "enum",
+        "values": {
+          "start": "flex-start",
+          "center": "center",
+          "end": "flex-end",
+          "space-between": "space-between",
+          "space-around": "space-around",
+          "space-evenly": "space-evenly"
+        }
+      },
+      "align": {
+        "group": "layout",
+        "label": "Align items",
+        "css": "align-items",
+        "kind": "enum",
+        "values": {
+          "start": "flex-start",
+          "center": "center",
+          "end": "flex-end",
+          "stretch": "stretch",
+          "baseline": "baseline"
+        }
+      },
+      "gap": {
+        "group": "layout",
+        "label": "Gap",
+        "css": "gap",
+        "kind": "length",
+        "lengths": "spacing",
+        "tokens": [
+          "space"
+        ]
+      },
+      "width": {
+        "group": "size",
+        "label": "Width",
+        "css": "width",
+        "kind": "length",
+        "lengths": "dimension",
+        "keywords": [
+          "auto"
+        ],
+        "tokens": [
+          "container"
+        ]
+      },
+      "minWidth": {
+        "group": "size",
+        "label": "Min width",
+        "css": "min-width",
+        "kind": "length",
+        "lengths": "dimension"
+      },
+      "maxWidth": {
+        "group": "size",
+        "label": "Max width",
+        "css": "max-width",
+        "kind": "length",
+        "lengths": "dimension",
+        "keywords": [
+          "none"
+        ],
+        "tokens": [
+          "container"
+        ]
+      },
+      "height": {
+        "group": "size",
+        "label": "Height",
+        "css": "height",
+        "kind": "length",
+        "lengths": "dimension",
+        "keywords": [
+          "auto"
+        ]
+      },
+      "minHeight": {
+        "group": "size",
+        "label": "Min height",
+        "css": "min-height",
+        "kind": "length",
+        "lengths": "dimension"
+      },
+      "maxHeight": {
+        "group": "size",
+        "label": "Max height",
+        "css": "max-height",
+        "kind": "length",
+        "lengths": "dimension",
+        "keywords": [
+          "none"
+        ]
+      },
+      "aspectRatio": {
+        "group": "size",
+        "label": "Aspect ratio",
+        "css": "aspect-ratio",
+        "kind": "ratio",
+        "keywords": [
+          "auto"
+        ]
+      },
+      "paddingTop": {
+        "group": "spacing",
+        "label": "Padding top",
+        "css": "padding-top",
+        "kind": "length",
+        "lengths": "spacing",
+        "tokens": [
+          "space"
+        ]
+      },
+      "paddingRight": {
+        "group": "spacing",
+        "label": "Padding right",
+        "css": "padding-right",
+        "kind": "length",
+        "lengths": "spacing",
+        "tokens": [
+          "space"
+        ]
+      },
+      "paddingBottom": {
+        "group": "spacing",
+        "label": "Padding bottom",
+        "css": "padding-bottom",
+        "kind": "length",
+        "lengths": "spacing",
+        "tokens": [
+          "space"
+        ]
+      },
+      "paddingLeft": {
+        "group": "spacing",
+        "label": "Padding left",
+        "css": "padding-left",
+        "kind": "length",
+        "lengths": "spacing",
+        "tokens": [
+          "space"
+        ]
+      },
+      "marginTop": {
+        "group": "spacing",
+        "label": "Margin top",
+        "css": "margin-top",
+        "kind": "length",
+        "lengths": "spacing",
+        "tokens": [
+          "space"
+        ]
+      },
+      "marginRight": {
+        "group": "spacing",
+        "label": "Margin right",
+        "css": "margin-right",
+        "kind": "length",
+        "lengths": "spacing",
+        "keywords": [
+          "auto"
+        ],
+        "tokens": [
+          "space"
+        ]
+      },
+      "marginBottom": {
+        "group": "spacing",
+        "label": "Margin bottom",
+        "css": "margin-bottom",
+        "kind": "length",
+        "lengths": "spacing",
+        "tokens": [
+          "space"
+        ]
+      },
+      "marginLeft": {
+        "group": "spacing",
+        "label": "Margin left",
+        "css": "margin-left",
+        "kind": "length",
+        "lengths": "spacing",
+        "keywords": [
+          "auto"
+        ],
+        "tokens": [
+          "space"
+        ]
+      },
+      "alignSelf": {
+        "group": "placement",
+        "label": "Align self",
+        "css": "align-self",
+        "kind": "enum",
+        "values": {
+          "auto": "auto",
+          "start": "flex-start",
+          "center": "center",
+          "end": "flex-end",
+          "stretch": "stretch"
+        }
+      },
+      "fontFamily": {
+        "group": "typography",
+        "label": "Font",
+        "css": "font-family",
+        "kind": "font",
+        "tokens": [
+          "font"
+        ]
+      },
+      "fontSize": {
+        "group": "typography",
+        "label": "Font size",
+        "css": "font-size",
+        "kind": "length",
+        "lengths": "fontSize",
+        "tokens": [
+          "fontSize"
+        ]
+      },
+      "fontWeight": {
+        "group": "typography",
+        "label": "Weight",
+        "css": "font-weight",
+        "kind": "enum",
+        "values": {
+          "300": "300",
+          "400": "400",
+          "500": "500",
+          "600": "600",
+          "700": "700",
+          "800": "800",
+          "900": "900"
+        }
+      },
+      "lineHeight": {
+        "group": "typography",
+        "label": "Line height",
+        "css": "line-height",
+        "kind": "number",
+        "min": 0.8,
+        "max": 3
+      },
+      "letterSpacing": {
+        "group": "typography",
+        "label": "Letter spacing",
+        "css": "letter-spacing",
+        "kind": "length",
+        "lengths": "letterSpacing",
+        "keywords": [
+          "normal"
+        ]
+      },
+      "textAlign": {
+        "group": "typography",
+        "label": "Text align",
+        "css": "text-align",
+        "kind": "enum",
+        "values": {
+          "start": "start",
+          "center": "center",
+          "end": "end",
+          "justify": "justify"
+        }
+      },
+      "color": {
+        "group": "typography",
+        "label": "Text colour",
+        "css": "color",
+        "kind": "color",
+        "tokens": [
+          "color"
+        ]
+      },
+      "backgroundColor": {
+        "group": "background",
+        "label": "Background colour",
+        "css": "background-color",
+        "kind": "color",
+        "tokens": [
+          "color"
+        ]
+      },
+      "backgroundImage": {
+        "group": "background",
+        "label": "Background image",
+        "css": "background-image",
+        "kind": "image",
+        "baseOnly": true
+      },
+      "backgroundOverlay": {
+        "group": "background",
+        "label": "Overlay",
+        "css": "background-image",
+        "kind": "color",
+        "baseOnly": true
+      },
+      "backgroundSize": {
+        "group": "background",
+        "label": "Background size",
+        "css": "background-size",
+        "kind": "enum",
+        "values": {
+          "cover": "cover",
+          "contain": "contain",
+          "auto": "auto"
+        }
+      },
+      "backgroundPosition": {
+        "group": "background",
+        "label": "Background position",
+        "css": "background-position",
+        "kind": "enum",
+        "values": {
+          "center": "center",
+          "top": "top",
+          "bottom": "bottom",
+          "left": "left",
+          "right": "right",
+          "top left": "top left",
+          "top right": "top right",
+          "bottom left": "bottom left",
+          "bottom right": "bottom right"
+        }
+      },
+      "borderWidth": {
+        "group": "border",
+        "label": "Border width",
+        "css": "border-width",
+        "kind": "length",
+        "lengths": "borderWidth"
+      },
+      "borderStyle": {
+        "group": "border",
+        "label": "Border style",
+        "css": "border-style",
+        "kind": "enum",
+        "values": {
+          "none": "none",
+          "solid": "solid",
+          "dashed": "dashed",
+          "dotted": "dotted"
+        }
+      },
+      "borderColor": {
+        "group": "border",
+        "label": "Border colour",
+        "css": "border-color",
+        "kind": "color",
+        "tokens": [
+          "color"
+        ]
+      },
+      "borderRadius": {
+        "group": "border",
+        "label": "Corner radius",
+        "css": "border-radius",
+        "kind": "length",
+        "lengths": "radius",
+        "tokens": [
+          "radius"
+        ]
+      },
+      "boxShadow": {
+        "group": "effects",
+        "label": "Shadow",
+        "css": "box-shadow",
+        "kind": "shadow",
+        "tokens": [
+          "shadow"
+        ]
+      },
+      "objectFit": {
+        "group": "image",
+        "label": "Fit",
+        "css": "object-fit",
+        "kind": "enum",
+        "values": {
+          "cover": "cover",
+          "contain": "contain",
+          "fill": "fill"
+        }
+      },
+      "objectPosition": {
+        "group": "image",
+        "label": "Crop position",
+        "css": "object-position",
+        "kind": "enum",
+        "values": {
+          "center": "center",
+          "top": "top",
+          "bottom": "bottom",
+          "left": "left",
+          "right": "right",
+          "top left": "top left",
+          "top right": "top right",
+          "bottom left": "bottom left",
+          "bottom right": "bottom right"
+        }
+      },
+      "animation": {
+        "group": "motion",
+        "label": "Animation",
+        "css": "animation-name",
+        "kind": "enum",
+        "values": {
+          "none": "none",
+          "fade": "ak-a-fade",
+          "fade-up": "ak-a-up",
+          "fade-down": "ak-a-down",
+          "fade-left": "ak-a-left",
+          "fade-right": "ak-a-right",
+          "zoom": "ak-a-zoom"
+        }
+      },
+      "animationTrigger": {
+        "group": "motion",
+        "label": "Animation trigger",
+        "css": "",
+        "kind": "enum",
+        "values": {
+          "load": "load",
+          "view": "view"
+        },
+        "baseOnly": true
+      },
+      "animationDuration": {
+        "group": "motion",
+        "label": "Animation duration",
+        "css": "animation-duration",
+        "kind": "time",
+        "min": 150,
+        "max": 4000,
+        "baseOnly": true
+      },
+      "animationDelay": {
+        "group": "motion",
+        "label": "Animation delay",
+        "css": "animation-delay",
+        "kind": "time",
+        "min": 0,
+        "max": 2000,
+        "baseOnly": true
+      },
+      "animationEasing": {
+        "group": "motion",
+        "label": "Animation easing",
+        "css": "animation-timing-function",
+        "kind": "enum",
+        "values": {
+          "smooth": "cubic-bezier(.16,1,.3,1)",
+          "ease-in-out": "ease-in-out",
+          "ease": "ease",
+          "linear": "linear"
+        },
+        "baseOnly": true
+      }
+    },
+    "oneWidthPerChild": {
+      "$comment": "Components whose width list (slot root, property columns) must have one fraction per child on every screen. Counts (1-6) are free. Editing policy only: pinned validation (reproduction) does not apply it.",
+      "types": [
+        "columns"
+      ]
+    }
+  },
+  "tokens": {
+    "$comment": "Design token slots. A site's token set gives each slot a value (defaults here); styles reference them as @group.name, which the renderer emits as var(--ak-t-group-name) with the site's published value.",
+    "color": {
+      "label": "Colours",
+      "kind": "color",
+      "values": {
+        "text": "#111827",
+        "muted": "#4b5563",
+        "background": "#ffffff",
+        "surface": "#f3f4f6",
+        "primary": "#4f46e5",
+        "onPrimary": "#ffffff",
+        "accent": "#0f766e",
+        "border": "#e5e7eb"
+      }
+    },
+    "font": {
+      "label": "Fonts",
+      "kind": "font",
+      "values": {
+        "body": "sans",
+        "heading": "sans"
+      }
+    },
+    "fontSize": {
+      "label": "Type scale",
+      "kind": "length",
+      "lengths": "fontSize",
+      "values": {
+        "sm": "0.875rem",
+        "base": "1rem",
+        "lg": "1.25rem",
+        "xl": "1.5rem",
+        "xxl": "2.25rem",
+        "display": "3.5rem"
+      }
+    },
+    "space": {
+      "label": "Spacing",
+      "kind": "length",
+      "lengths": "spacing",
+      "values": {
+        "xs": "0.5rem",
+        "sm": "0.75rem",
+        "md": "1rem",
+        "lg": "2rem",
+        "xl": "4rem",
+        "section": "6rem"
+      }
+    },
+    "container": {
+      "label": "Container widths",
+      "kind": "length",
+      "lengths": "dimension",
+      "values": {
+        "narrow": "48rem",
+        "default": "72rem",
+        "wide": "90rem"
+      }
+    },
+    "radius": {
+      "label": "Corner radius",
+      "kind": "length",
+      "lengths": "radius",
+      "values": {
+        "sm": "0.25rem",
+        "md": "0.5rem",
+        "lg": "1rem",
+        "full": "999px"
+      }
+    },
+    "shadow": {
+      "label": "Shadows",
+      "kind": "shadowPreset",
+      "values": {
+        "sm": "soft",
+        "md": "medium",
+        "lg": "strong"
+      }
+    }
   }
 }

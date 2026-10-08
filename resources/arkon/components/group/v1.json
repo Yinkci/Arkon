@@ -1,0 +1,50 @@
+{
+  "type": "group",
+  "version": 1,
+  "label": "Group",
+  "children": {
+    "allow": [
+      "text",
+      "image",
+      "button",
+      "group",
+      "columns",
+      "instance"
+    ],
+    "max": 30
+  },
+  "props": {
+    "element": {
+      "type": "enum",
+      "values": [
+        "div",
+        "section",
+        "article",
+        "aside"
+      ],
+      "default": "div"
+    },
+    "style": {
+      "type": "style",
+      "slots": {
+        "root": {
+          "label": "Group",
+          "groups": [
+            "layout",
+            "spacing",
+            "size",
+            "placement",
+            "background",
+            "border",
+            "effects"
+          ]
+        }
+      },
+      "default": {}
+    }
+  },
+  "defaultProps": {
+    "element": "div",
+    "style": {}
+  }
+}

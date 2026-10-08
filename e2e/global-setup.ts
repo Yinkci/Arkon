@@ -12,6 +12,7 @@ export default async function globalSetup() {
     mkdirSync('storage/e2e', { recursive: true });
     // Migrates and empties arkonlaravel_e2e (as the schema owner, from .migrate.env).
     process.stdout.write(artisan(['arkon:reset-test-database', '--target=e2e']));
+    artisan(['arkon:theme', 'install', process.cwd() + '/themes/mysite']);
     artisan(['arkon:seed', `--host=${E2E_HOST}:${PORT}`, `--host=127.0.0.1:${PORT}`, `--host=localhost:${PORT}`]);
     artisan(['arkon:owner-create', `--email=${E2E_OWNER.email}`, `--name=${E2E_OWNER.name}`, '--password-env=E2E_PASSWORD'], {
         E2E_PASSWORD: E2E_OWNER.password,

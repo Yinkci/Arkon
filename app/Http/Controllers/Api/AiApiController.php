@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Arkon\Ai\ProposalService;
+use App\Arkon\Design\TokenService;
 use App\Arkon\Media\MediaSigner;
 use App\Http\AdminContext;
 use App\Http\Controllers\Controller;
@@ -42,5 +43,11 @@ class AiApiController extends Controller
         $this->proposals->discard(AdminContext::of($request)->ctx(), $page, $proposal);
 
         return EditorApiController::ok(['discarded' => true]);
+    }
+
+    /** Applies the proposal's site-wide token changes to the token draft (published separately, on the Design page). */
+    public function applyTokens(Request $request, string $page, string $proposal, TokenService $tokens): JsonResponse
+    {
+        return EditorApiController::ok($this->proposals->applyTokenChanges(AdminContext::of($request)->ctx(), $page, $proposal, $tokens));
     }
 }

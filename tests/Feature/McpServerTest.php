@@ -48,8 +48,8 @@ class McpServerTest extends DatabaseTestCase
     private function proposal(): array
     {
         return ['summary' => 'A landscaping hero and services.', 'notes' => [], 'changes' => [
-            ['action' => 'update', 'change' => ['id' => $this->f['heroId'], 'type' => 'hero', 'props' => ['heading' => 'Gardens that grow with you', 'headingLevel' => null, 'text' => null, 'image' => null]]],
-            ['action' => 'add', 'parent' => 'page', 'index' => null, 'block' => ['type' => 'text', 'props' => ['text' => 'Our services', 'element' => 'h2', 'align' => 'start']]],
+            ['action' => 'update', 'change' => ['id' => $this->f['heroId'], 'type' => 'hero', 'props' => ['heading' => 'Gardens that grow with you', 'headingLevel' => null, 'text' => null, 'image' => null, 'style' => null]]],
+            ['action' => 'add', 'parent' => 'page', 'index' => null, 'block' => ['type' => 'text', 'props' => ['text' => 'Our services', 'element' => 'h2', 'style' => []]]],
         ]];
     }
 
@@ -89,8 +89,8 @@ class McpServerTest extends DatabaseTestCase
         $this->assertSame(1, $page['data']['draftVersion']);
         $this->assertSame($this->f['heroId'], $page['data']['blocks'][0]['id']);
         $format = $this->tool('arkon_get_proposal_format', ['pageId' => $this->f['pageId']]);
-        $this->assertStringContainsString('- columns (Columns, version 1)', $format['data']['instructions']);
-        $this->assertSame(['summary', 'notes', 'changes'], $format['data']['schema']['required']);
+        $this->assertStringContainsString('- columns (Columns, version 3)', $format['data']['instructions']);
+        $this->assertSame(['summary', 'notes', 'tokenChanges', 'changes'], $format['data']['schema']['required']);
 
         // Another site's page is "not found", whatever ids are passed; there is no way to name a site or user.
         $cross = $this->tool('arkon_get_page', ['pageId' => $other['pageId'], 'siteId' => $other['siteId']]);

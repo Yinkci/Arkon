@@ -1,41 +1,48 @@
-import { Link, router } from '@inertiajs/react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Issue } from '@/arkon/rules';
 import type { PageDocument } from '@/arkon/schema/document';
 import type { PageOperation } from '@/arkon/schema/operations';
+import { createSaveCoordinator } from '@/arkon/editor/saveCoordinator';
 import {
-    beginSave,
     dispatch,
     hasUnsavedChanges,
     initialState,
     isDefinitiveOutcome,
     publishIntentFor,
     redo,
-    saveRejected,
-    saveSucceeded,
     undo,
     withServerVersion,
     type EditorDocState,
     type PublishIntent,
 } from '@/arkon/editor/state';
 import { isActive, isReviewable, proposalBlocker, type AiConnection, type AiProposal, type AiRequestView } from '@/arkon/editor/proposals';
+import { copySubtree, createNodes, detachOps, dropOps } from '@/arkon/editor/structure';
+import { withColumnLayouts } from '@/arkon/editor/columns';
+import { findParent } from '@/arkon/schema/document';
+import { VIEWPORT_BREAKPOINT } from '@/arkon/style/edit';
 import { api, newRequestKey, type ApiResult } from '@/lib/api';
+import { useTheme } from '@/lib/theme';
+import { Icon } from '@/Components/Icon';
+import { Button, Spinner, buttonClass } from '@/Components/ui';
 import type { EditorInit, LiveInfo, MediaInfo, PageStatus, RecoveryItem, Revision } from '@/types';
 import { Canvas, type Viewport } from './Canvas';
+import { DragProvider } from './drag/DragProvider';
+import type { CancelReason, Session } from './drag/controller';
+import type { Resolution } from '@/arkon/editor/placement';
+import { placeAt } from '@/arkon/editor/placement';
 import { HistoryPanel } from './HistoryPanel';
-import { Inspector, type UnresolvedField } from './Inspector';
+import { Inspector } from './Inspector';
 import { LayersPanel } from './LayersPanel';
 import { StructureBar } from './StructureBar';
 import { PageSettings } from './PageSettings';
 import { RecoveryPanel } from './RecoveryPanel';
 import { AiPanel } from './AiPanel';
-
-type Activity = 'idle' | 'saving' | 'publishing' | 'restoring' | 'settings';
-interface Notice {
-    tone: 'error' | 'info';
-    message: string;
-    issues?: Issue[];
-}
+import type { Protection } from './AnimationPanel';
+import { isDeleteKey, isTyping, useBlockActions } from './blockActions';
+import { DeleteDialog } from './DeleteDialog';
+import type { DragController } from './drag/controller';
+import { BackMark, EditorNotice, HistoryButtons, SaveStatus, SidebarTabs, ViewportSwitch, saveState } from './chrome';
+import { revealField, unresolvedNotice, withoutStaleAction, useActivity, useConflict, useLeaveGuard, useUnresolvedFields, type Notice } from './session';
 
 // The publish intent survives a reload of the tab, so an uncertain publish can still be retried safely.
 const intentStorageKey = (pageId: string) => `arkon:publish-intent:${pageId}`;
@@ -56,6 +63,9 @@ function storeIntent(intent: PublishIntent | null, pageId: string) {
     }
 }
 
+/** The renderer's editor-mode output for the canvas, and the animations it leaves off on the page. */
+type CanvasRender = { body: string; css: string; motion?: { protected?: Record<string, Protection> } };
+
 export function Editor({ init }: { init: EditorInit }) {
     const pageId = init.page.id;
     const [doc, setDoc] = useState<EditorDocState>(() => initialState(init.draft.document, init.draft.version));
@@ -68,52 +78,36 @@ export function Editor({ init }: { init: EditorInit }) {
         setDoc(next);
     }, []);
 
-    const [activity, setActivityState] = useState<Activity>('idle');
-    const activityRef = useRef<Activity>('idle');
-    const setActivity = useCallback((next: Activity) => {
-        activityRef.current = next;
-        setActivityState(next);
-    }, []);
+    const { activity, activityRef, setActivity, beginSaving } = useActivity();
 
     const rootChildren = init.draft.document.nodes[init.draft.document.root]?.children ?? [];
-    const [selectedId, setSelectedId] = useState<string | null>(rootChildren[0] ?? null);
+    // What is selected: a component and the part of it being edited (null: its default part).
+    const [selectedId, setSelectedIdState] = useState<string | null>(rootChildren[0] ?? null);
+    const [selectedPart, setSelectedPart] = useState<string | null>(null);
+    const setSelectedId = useCallback((nodeId: string | null) => {
+        setSelectedIdState(nodeId);
+        setSelectedPart(null);
+    }, []);
+    const selectPart = useCallback((nodeId: string | null, part: string | null) => {
+        setSelectedIdState(nodeId);
+        setSelectedPart(nodeId ? part : null);
+    }, []);
+    const { theme } = useTheme();
     const [viewport, setViewport] = useState<Viewport>('desktop');
     const [tab, setTab] = useState<'inspect' | 'layers' | 'history' | 'ai'>('inspect');
-    const [conflict, setConflictState] = useState(false);
-    const conflictRef = useRef(false);
-    const setConflict = useCallback(() => {
-        conflictRef.current = true;
-        setConflictState(true);
-    }, []);
+    const { conflict, conflictRef, setConflict } = useConflict();
     const [notice, setNotice] = useState<Notice | null>(null);
     const [live, setLive] = useState<LiveInfo | null>(init.live);
     const [revisions, setRevisions] = useState<Revision[]>(init.revisions);
     const [media, setMedia] = useState<MediaInfo[]>(init.media);
     const [pageMeta, setPageMeta] = useState({ title: init.page.title, path: init.page.path });
     const settingsAttempt = useRef<{ key: string; title: string; path: string; version: number } | null>(null);
-    const savePromise = useRef<Promise<number | null> | null>(null);
     const publishing = useRef(false);
     const intentRef = useRef<PublishIntent | null>(null);
 
-    // Field input that can't be applied yet (e.g. a half-typed link). Never in the document,
-    // so saves stay valid; but it is visible work, so it is flagged, guards leaving, and
-    // must be fixed or reverted before Preview and Publish.
-    const [unresolved, setUnresolvedState] = useState<Record<string, UnresolvedField>>({});
-    const unresolvedRef = useRef(unresolved);
-    const replaceUnresolved = useCallback((next: Record<string, UnresolvedField>) => {
-        unresolvedRef.current = next;
-        setUnresolvedState(next);
-    }, []);
-    const setUnresolved = useCallback(
-        (key: string, field: UnresolvedField | null) => {
-            const next = { ...unresolvedRef.current };
-            if (field) next[key] = field;
-            else delete next[key];
-            replaceUnresolved(next);
-        },
-        [replaceUnresolved],
-    );
-    const unresolvedCount = Object.keys(unresolved).length;
+    // Field input that can't be applied yet (e.g. a half-typed link): flagged, guards leaving,
+    // and must be fixed or reverted before Preview and Publish (see session.ts).
+    const { unresolved, unresolvedRef, setUnresolved, replaceUnresolved, unresolvedCount } = useUnresolvedFields(doc.document.nodes);
 
     // A draft stored before a rule was tightened opens in recovery: shown as stored, and nothing
     // else can change, save or publish until each affected value is corrected or its block removed.
@@ -141,8 +135,10 @@ export function Editor({ init }: { init: EditorInit }) {
     const locked = conflict || activity === 'restoring' || recovery !== null || proposal !== null;
 
     // ── Canvas: editor-mode HTML from the server's renderer (the one that publishes) ──
-    const [canvas, setCanvas] = useState(init.canvas);
+    const [canvas, setCanvas] = useState<CanvasRender>(init.canvas);
     const [canvasToken, setCanvasToken] = useState(0);
+    // The document changed and the canvas shows an older render: dragging waits for the new one.
+    const [renderPending, setRenderPending] = useState(false);
     const rendering = useRef(false);
     const renderAgain = useRef(false);
 
@@ -156,7 +152,7 @@ export function Editor({ init }: { init: EditorInit }) {
             for (;;) {
                 renderAgain.current = false;
                 const seq = docSeq.current;
-                let result: ApiResult<{ body: string; css: string }>;
+                let result: ApiResult<CanvasRender>;
                 try {
                     result = await api(`/pages/${pageId}/canvas`, { body: { document: docRef.current.document } });
                 } catch {
@@ -172,6 +168,7 @@ export function Editor({ init }: { init: EditorInit }) {
                 if (renderAgain.current || seq !== docSeq.current) continue;
                 setCanvas(result.data);
                 setCanvasToken((t) => t + 1);
+                setRenderPending(false);
                 return;
             }
         } finally {
@@ -180,7 +177,10 @@ export function Editor({ init }: { init: EditorInit }) {
     }, [pageId]);
 
     /** The document changed from outside the canvas (inspector, undo, restore): re-render it. */
-    const outsideChange = useCallback(() => void renderCanvas(), [renderCanvas]);
+    const outsideChange = useCallback(() => {
+        setRenderPending(true);
+        void renderCanvas();
+    }, [renderCanvas]);
 
     const apply = useCallback(
         (ops: PageOperation[], options: { coalesceKey?: string; fromCanvas?: boolean } = {}): boolean => {
@@ -201,13 +201,69 @@ export function Editor({ init }: { init: EditorInit }) {
         [canEdit, commit, outsideChange],
     );
 
-    /** Structural edits (add, move, remove): one undo step each; then select what the user acted on. */
+    /**
+     * Structural edits (add, move, remove): one undo step each; then select what the user acted on.
+     * Columns blocks whose columns changed get their widths reconciled in the same step.
+     */
     const structure = useCallback(
-        (ops: PageOperation[], select?: string | null) => {
-            if (apply(ops) && select !== undefined) setSelectedId(select);
+        (ops: PageOperation[], select?: string | null): boolean => {
+            const layout = withColumnLayouts(docRef.current.document, ops);
+            if (!apply(layout.ops)) return false;
+            if (select !== undefined) setSelectedId(select);
+            if (layout.notice) setNotice({ tone: 'info', message: layout.notice });
+            return true;
         },
         [apply],
     );
+
+    const selectedRef = useRef(selectedId);
+    selectedRef.current = selectedId;
+    const selectedPartRef = useRef(selectedPart);
+    selectedPartRef.current = selectedPart;
+    const dragRef = useRef<DragController | null>(null);
+    const actions = useBlockActions({
+        getDocument: () => docRef.current.document,
+        unresolved: () => unresolvedRef.current,
+        canChange: () => canEdit && !conflictRef.current && activityRef.current !== 'restoring' && recoveryRef.current === null && proposalRef.current === null,
+        structure,
+        setNotice,
+        showField: (key, field) => {
+            setSelectedId(field.nodeId);
+            setTab('inspect');
+            revealField(key);
+        },
+        undo: () => step('undo'),
+        history: () => docRef.current,
+        documentVersion: () => docSeq.current,
+        cancelDragOf: (removed) => {
+            const controller = dragRef.current;
+            const session = controller?.getState().session;
+            const target = session?.result && session.result !== 'pending' && session.result.kind === 'place' ? session.result.parentId : null;
+            if (controller && session && ((session.source.nodeId && removed.has(session.source.nodeId)) || (target && removed.has(target))))
+                controller.cancel('stale');
+        },
+    });
+
+    /**
+     * A drop from the canvas, Layers or the palette. The destination was resolved at the release;
+     * it is checked again against the document as it is now, and applied as one operation (one
+     * undo step). Dragging changes the local draft only: saving and publishing stay separate.
+     */
+    const commitDrop = useCallback(
+        (session: Session, result: Extract<Resolution, { kind: 'place' }>): boolean => {
+            const check = placeAt(docRef.current.document, session.source, result.parentId, result.index);
+            if (!check.ok) return false;
+            const ops = dropOps(session.source, check.placement);
+            if (!structure(ops)) return false;
+            setSelectedId(session.source.nodeId ?? (ops[0]?.op === 'insertNode' ? (ops[0].nodes[0]?.id ?? null) : null));
+            return true;
+        },
+        [structure, setSelectedId],
+    );
+    const dropEnded = useCallback((outcome: { committed: boolean; reason?: CancelReason }) => {
+        if (outcome.reason === 'stale') setNotice({ tone: 'error', message: 'The page changed while you were dragging, so nothing moved. Try again.' });
+        else if (outcome.reason === 'timeout') setNotice({ tone: 'error', message: 'The canvas was still updating, so nothing moved. Try the drop again.' });
+    }, []);
 
     /** The user's repair: one edit like any other (unsaved until saved), and where history starts. */
     const applyRepair = useCallback(
@@ -241,103 +297,73 @@ export function Editor({ init }: { init: EditorInit }) {
 
     /**
      * Sends the in-flight batch (resuming an unconfirmed one first) and resolves to the
-     * saved draft version, or null if it could not be confirmed. Concurrent calls
-     * (shortcut pressed twice, Save then Publish) share one request.
+     * saved draft version, or null if it could not be confirmed. Every trigger (button,
+     * parent and canvas shortcuts, Preview, Publish, asking the AI) shares one request.
      */
-    const save = useCallback(
-        (options: { proposalId?: string } = {}): Promise<number | null> => {
-            // Single entry point for every save trigger (button, parent and canvas shortcuts,
-            // Preview, Publish). A restore or a title/URL update is about to move the draft
-            // version: saving now would race it, so nothing is queued or sent.
-            if (activityRef.current === 'restoring' || activityRef.current === 'settings' || conflictRef.current || recoveryRef.current)
-                return Promise.resolve(null);
-            if (savePromise.current) return savePromise.current;
-            const run = async (): Promise<number | null> => {
-                const started = beginSave(docRef.current, newRequestKey, options.proposalId);
-                if (!started) return docRef.current.version;
-                commit(started.state);
-                const { batch } = started;
-                // Only claim the activity when nothing else holds it (Ctrl+S during a publish
-                // request must not mark the editor idle when it finishes).
-                const ownsActivity = activityRef.current === 'idle';
-                if (ownsActivity) setActivity('saving');
-                let result: ApiResult<{ version: number }>;
-                try {
-                    result = await api(`/pages/${pageId}/save`, {
+    const saver = useMemo(
+        () =>
+            createSaveCoordinator({
+                getState: () => docRef.current,
+                setState: commit,
+                newKey: newRequestKey,
+                // A restore or a title/URL update is about to move the draft version: saving now would race it.
+                canSave: () =>
+                    activityRef.current !== 'restoring' && activityRef.current !== 'settings' && !conflictRef.current && recoveryRef.current === null,
+                send: (batch) =>
+                    api<{ version: number }>(`/pages/${pageId}/save`, {
                         body: {
                             baseVersion: batch.baseVersion,
                             operations: batch.operations,
                             saveKey: batch.key,
                             ...(batch.proposalId ? { proposalId: batch.proposalId } : {}),
                         },
-                    });
-                } catch {
-                    // The request may or may not have been applied. The batch stays in flight and the
-                    // next save resends it with the same key, which the server recognises if it was applied.
-                    setNotice({
-                        tone: 'error',
-                        message: "Couldn't confirm the save because of a network problem. Your changes are kept. Save again to retry safely.",
-                    });
-                    return null;
-                } finally {
-                    if (ownsActivity && activityRef.current === 'saving') setActivity('idle');
-                }
-                if (!result.ok) {
-                    if (result.code === 'STALE_PROPOSAL') {
+                    }),
+                begin: beginSaving,
+                onOutcome: (outcome) => {
+                    if (outcome.kind === 'saved') {
+                        setNotice((current) => (current?.tone === 'error' ? null : current));
+                        void refreshStatus();
+                    } else if (outcome.kind === 'stale-proposal') {
                         // The applied proposal was refused (stale or already used): never save it as a plain edit.
                         setConflict();
-                        setNotice({ tone: 'error', message: `${result.message} Reload to continue; the proposal was not saved.` });
-                    } else if (result.code === 'STALE_VERSION') {
+                        setNotice({ tone: 'error', message: `${outcome.message} Reload to continue; the proposal was not saved.` });
+                    } else if (outcome.kind === 'stale') {
                         setConflict();
                         setNotice({
                             tone: 'error',
                             message:
                                 "This page was changed elsewhere since you opened it. Reload to continue. Your unsaved changes here can't be applied safely.",
                         });
-                    } else if (result.code === 'INTERNAL' || result.code === 'UNAUTHENTICATED') {
-                        // Possibly applied (INTERNAL) or retryable after signing in: keep the batch for a safe retry.
-                        setNotice({ tone: 'error', message: result.message });
-                    } else {
-                        commit(saveRejected(docRef.current, batch));
-                        setNotice({ tone: 'error', message: result.message, issues: result.issues });
-                    }
-                    return null;
-                }
-                commit(saveSucceeded(docRef.current, batch, result.data.version));
-                setNotice((current) => (current?.tone === 'error' ? null : current));
-                void refreshStatus();
-                return result.data.version;
-            };
-            const promise = run().finally(() => {
-                savePromise.current = null;
-            });
-            savePromise.current = promise;
-            return promise;
-        },
-        [pageId, commit, setActivity, setConflict, refreshStatus],
+                    } else if (outcome.kind === 'uncertain') {
+                        // Possibly applied: the batch stays in flight and the next save resends it with the same key.
+                        setNotice({ tone: 'error', message: outcome.message });
+                    } else setNotice({ tone: 'error', message: outcome.message, issues: outcome.issues });
+                },
+            }),
+        [pageId, commit, activityRef, conflictRef, beginSaving, setConflict, refreshStatus],
     );
-
-    // A component removed (or undone away) takes its unresolved input with it.
-    useEffect(() => {
-        const current = unresolvedRef.current;
-        const kept = Object.fromEntries(Object.entries(current).filter(([, field]) => doc.document.nodes[field.nodeId]));
-        if (Object.keys(kept).length !== Object.keys(current).length) replaceUnresolved(kept);
-    }, [doc.document, replaceUnresolved]);
+    const save = useCallback((options: { proposalId?: string } = {}) => saver.save(options), [saver]);
 
     /** True (and shows the fields) when unresolved input must be fixed or reverted first. */
-    const blockedByUnresolved = useCallback((action: 'publishing' | 'previewing' | 'asking the AI'): boolean => {
-        const fields = Object.values(unresolvedRef.current);
-        if (fields.length === 0) return false;
-        setSelectedId(fields[0]!.nodeId);
-        setTab('inspect');
-        const names = [...new Set(fields.map((f) => f.label))].join(', ');
-        setNotice({
-            tone: 'error',
-            message: `Fix or revert the ${names} before ${action}. The page still has the last valid value.`,
-            issues: fields.map((f) => ({ message: `${f.label} “${f.value}”: ${f.error}` })),
-        });
-        return true;
-    }, []);
+    const blockedByUnresolved = useCallback(
+        (action: 'publishing' | 'previewing' | 'asking the AI'): boolean => {
+            const entries = Object.entries(unresolvedRef.current);
+            if (entries.length === 0) return false;
+            const [key, first] = entries[0]!;
+            setSelectedId(first.nodeId);
+            setTab('inspect');
+            setNotice(
+                unresolvedNotice(
+                    entries.map(([, field]) => field),
+                    action,
+                    'The page still has the last valid value.',
+                ),
+            );
+            revealField(key);
+            return true;
+        },
+        [unresolvedRef],
+    );
 
     const publish = useCallback(async () => {
         if (publishing.current || activityRef.current === 'restoring' || recoveryRef.current) return;
@@ -345,9 +371,8 @@ export function Editor({ init }: { init: EditorInit }) {
         publishing.current = true;
         try {
             // Save until nothing is pending (edits may arrive while saving), then publish that exact version.
-            let version = await save();
-            for (let i = 0; version !== null && hasUnsavedChanges(docRef.current) && i < 3; i++) version = await save();
-            if (version === null || hasUnsavedChanges(docRef.current)) return;
+            const version = await saver.saveAll();
+            if (version === null) return;
             // Again after awaiting the save: a field may have become unresolved meanwhile. Nothing is
             // awaited between this check and sending the intent, so it is the last moment that counts.
             if (blockedByUnresolved('publishing')) return;
@@ -383,11 +408,11 @@ export function Editor({ init }: { init: EditorInit }) {
             publishing.current = false;
             if (activityRef.current === 'publishing') setActivity('idle');
         }
-    }, [pageId, save, setActivity, setConflict, refreshStatus, blockedByUnresolved]);
+    }, [pageId, saver, setActivity, activityRef, setConflict, refreshStatus, blockedByUnresolved]);
 
     const restore = useCallback(
         async (revision: Revision) => {
-            if (activityRef.current !== 'idle' || publishing.current || savePromise.current) return;
+            if (activityRef.current !== 'idle' || publishing.current || saver.busy()) return;
             if (docRef.current.inFlight) {
                 setNotice({ tone: 'error', message: "A save hasn't been confirmed yet. Save again first, then restore." });
                 return;
@@ -416,7 +441,7 @@ export function Editor({ init }: { init: EditorInit }) {
             setNotice({ tone: 'info', message: `Restored revision #${revision.number} into the draft. Publish to make it live.` });
             void refreshStatus();
         },
-        [pageId, commit, setActivity, setConflict, refreshStatus, outsideChange, replaceUnresolved],
+        [pageId, commit, setActivity, activityRef, unresolvedRef, saver, setConflict, refreshStatus, outsideChange, replaceUnresolved],
     );
 
     /**
@@ -456,7 +481,7 @@ export function Editor({ init }: { init: EditorInit }) {
             setNotice({ tone: 'info', message: 'Title and URL updated in the draft. The live page changes when you publish.' });
             void refreshStatus();
         },
-        [pageId, commit, setActivity, setConflict, refreshStatus],
+        [pageId, commit, setActivity, activityRef, conflictRef, setConflict, refreshStatus],
     );
 
     const showProposal = useCallback((next: AiProposal | null) => {
@@ -548,9 +573,8 @@ export function Editor({ init }: { init: EditorInit }) {
             setAiError(null);
             setSending(true);
             try {
-                let version = await save();
-                for (let i = 0; version !== null && hasUnsavedChanges(docRef.current) && i < 3; i++) version = await save();
-                if (version === null || hasUnsavedChanges(docRef.current)) {
+                const version = await saver.saveAll();
+                if (version === null) {
                     setAiError({ message: 'Your changes could not be saved, so the AI was not asked. Save, then try again.' });
                     return;
                 }
@@ -583,7 +607,7 @@ export function Editor({ init }: { init: EditorInit }) {
                 setSending(false);
             }
         },
-        [sending, pageId, save, blockedByUnresolved, setConflict, track, refreshAi],
+        [sending, pageId, saver, blockedByUnresolved, setConflict, conflictRef, track, refreshAi],
     );
 
     const cancelRequest = useCallback(
@@ -627,7 +651,30 @@ export function Editor({ init }: { init: EditorInit }) {
                         'Applied to the draft and saved. Nothing is published: review it, edit anything, then Publish when you are ready. Undo reverts it.',
                 });
         });
-    }, [commit, save, showProposal, track, refreshAi]);
+    }, [commit, save, showProposal, track, refreshAi, unresolvedRef]);
+
+    const [tokensBusy, setTokensBusy] = useState(false);
+    /** The proposal's site-wide token changes → the token draft (separate from the page; never published here). */
+    const applyProposalTokens = useCallback(async () => {
+        const current = proposalRef.current;
+        if (!current || tokensBusy) return;
+        setTokensBusy(true);
+        try {
+            const result = await api<{ tokenDraftVersion: number }>(`/pages/${pageId}/ai/requests/${current.id}/apply-tokens`, { body: {} });
+            if (!result.ok) {
+                setAiError({ message: result.message, issues: result.issues });
+                return;
+            }
+            const next = { ...current, tokenChangesApplied: result.data.tokenDraftVersion };
+            proposalRef.current = next;
+            setProposalState(next);
+            setNotice({ tone: 'info', message: 'Design token changes saved to the token draft. Publish them on the Design page to update the site.' });
+        } catch {
+            setAiError({ message: "Couldn't reach the server. Try again: the changes are applied only once." });
+        } finally {
+            setTokensBusy(false);
+        }
+    }, [pageId, tokensBusy]);
 
     const discardProposal = useCallback(() => {
         const current = proposalRef.current;
@@ -642,6 +689,85 @@ export function Editor({ init }: { init: EditorInit }) {
             .then(() => refreshAi());
     }, [pageId, showProposal, refreshAi]);
 
+    // Reusable components (published versions) this page can use; grows when the user makes one here.
+    const [components, setComponents] = useState(init.components);
+
+    /**
+     * "Make reusable": the block becomes a reusable component (published as version 1 when
+     * the user may publish), and the page gets a linked instance in its place: one undoable edit.
+     */
+    const makeReusable = useCallback(
+        async (nodeId: string, name: string) => {
+            const document = docRef.current.document;
+            const location = findParent(document, nodeId);
+            if (!location || !document.nodes[nodeId]) return;
+            const nodes = copySubtree(document, nodeId);
+            try {
+                const created = await api<{ id: string }>('/components', { body: { name, nodes } });
+                if (!created.ok) {
+                    setNotice({ tone: 'error', message: created.message, issues: created.issues });
+                    return;
+                }
+                if (!canPublish) {
+                    setComponents((list) => [...list, { id: created.data.id, name, published: null, document: null }]);
+                    setNotice({
+                        tone: 'info',
+                        message: `“${name}” was created. Someone who can publish must publish it on the Design page before it can be used on pages.`,
+                    });
+                    return;
+                }
+                const published = await api<{ version: number }>(`/components/${created.data.id}/publish`, {
+                    body: { expectedVersion: 1, idempotencyKey: newRequestKey() },
+                });
+                if (!published.ok) {
+                    setNotice({ tone: 'error', message: `“${name}” was created but not published: ${published.message}`, issues: published.issues });
+                    return;
+                }
+                const fragmentRoot = 'fragroot';
+                const componentDoc: PageDocument = {
+                    schemaVersion: document.schemaVersion,
+                    root: fragmentRoot,
+                    nodes: {
+                        [fragmentRoot]: { id: fragmentRoot, type: 'fragment', version: 1, props: {}, children: [nodes[0]!.id] },
+                        ...Object.fromEntries(nodes.map((n) => [n.id, n])),
+                    },
+                    seo: {},
+                };
+                setComponents((list) => [...list, { id: created.data.id, name, published: published.data.version, document: componentDoc }]);
+                const instance = createNodes('instance', { componentId: created.data.id });
+                structure(
+                    [
+                        { op: 'removeNode', nodeId },
+                        { op: 'insertNode', parentId: location.parentId, index: location.index, nodes: instance },
+                    ],
+                    instance[0]!.id,
+                );
+                setNotice({
+                    tone: 'info',
+                    message: `“${name}” is now a reusable component. Edit it on the Design page; publishing it updates every page that uses it.`,
+                });
+            } catch {
+                setNotice({
+                    tone: 'error',
+                    message: "Couldn't reach the server. Check the Design page before trying again (the component may exist already).",
+                });
+            }
+        },
+        [canPublish, structure],
+    );
+
+    /** Replaces a reusable component instance with a copy of its published blocks: one undoable edit. */
+    const detach = useCallback(
+        (nodeId: string) => {
+            const instance = docRef.current.document.nodes[nodeId];
+            const component = components.find((c) => c.id === instance?.props.componentId);
+            if (!instance || !component?.document) return;
+            const ops = detachOps(docRef.current.document, nodeId, component.document);
+            if (ops) structure(ops, ops[1]?.op === 'insertNode' ? (ops[1].nodes[0]?.id ?? null) : null);
+        },
+        [components, structure],
+    );
+
     const upload = useCallback(async (file: File): Promise<MediaInfo | null> => {
         const form = new FormData();
         form.set('file', file);
@@ -651,7 +777,15 @@ export function Editor({ init }: { init: EditorInit }) {
                 setNotice({ tone: 'error', message: result.message });
                 return null;
             }
-            const asset: MediaInfo = { id: result.data.id, url: result.data.url, width: result.data.width, height: result.data.height, mime: result.data.mime };
+            const uploaded = result.data as MediaInfo & { originalName?: string };
+            const asset: MediaInfo = {
+                id: uploaded.id,
+                url: uploaded.url,
+                width: uploaded.width,
+                height: uploaded.height,
+                mime: uploaded.mime,
+                name: uploaded.originalName,
+            };
             setMedia((list) => [asset, ...list]);
             return asset;
         } catch {
@@ -668,16 +802,29 @@ export function Editor({ init }: { init: EditorInit }) {
             commit(next);
             outsideChange();
         },
-        [commit, outsideChange],
+        [commit, outsideChange, conflictRef, activityRef],
     );
 
     useEffect(() => {
         function onKey(event: KeyboardEvent) {
+            // Delete/Backspace: the selection, only from the builder's selection interface (never while typing).
+            if (isDeleteKey(event) && selectedRef.current) {
+                event.preventDefault();
+                if (!event.repeat) actions.remove(selectedRef.current, selectedPartRef.current);
+                return;
+            }
             if (!(event.ctrlKey || event.metaKey)) return;
             const key = event.key.toLowerCase();
             if (key === 's') {
                 event.preventDefault();
                 if (!event.repeat) void save();
+                return;
+            }
+            // Ctrl/Cmd+D duplicates the selected block, except while typing (then it is the browser's).
+            if (key === 'd' && !event.shiftKey && !event.altKey) {
+                if (isTyping(event.target) || !selectedRef.current) return;
+                event.preventDefault();
+                if (!event.repeat) actions.duplicate(selectedRef.current);
                 return;
             }
             // Leave text fields their native undo.
@@ -691,278 +838,230 @@ export function Editor({ init }: { init: EditorInit }) {
                 step('redo');
             }
         }
-        const wouldLoseWork = () => hasUnsavedChanges(docRef.current) || Object.keys(unresolvedRef.current).length > 0;
-        function onBeforeUnload(event: BeforeUnloadEvent) {
-            if (wouldLoseWork()) event.preventDefault();
-        }
         window.addEventListener('keydown', onKey);
-        window.addEventListener('beforeunload', onBeforeUnload);
-        // Links inside the app (Inertia visits) don't fire beforeunload: ask before leaving.
-        const stopGuard = router.on('before', (event) => {
-            if (event.detail.visit.method !== 'get' || !wouldLoseWork()) return;
-            if (!confirm('Leave the editor? Unsaved changes and fields that are not saved yet will be lost.')) event.preventDefault();
-        });
-        return () => {
-            window.removeEventListener('keydown', onKey);
-            window.removeEventListener('beforeunload', onBeforeUnload);
-            stopGuard();
-        };
-    }, [save, step]);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [save, step, actions]);
+    // Any document change (an edit, undo, redo, restore): a notice's action that no longer applies goes.
+    useEffect(() => setNotice(withoutStaleAction), [doc.document, doc.undo]);
+    useLeaveGuard(() => hasUnsavedChanges(docRef.current) || Object.keys(unresolvedRef.current).length > 0);
 
     const selectedNode = selectedId ? (doc.document.nodes[selectedId] ?? null) : null;
     const busy = activity !== 'idle';
-    const statusText =
-        activity === 'saving'
-            ? 'Saving…'
-            : activity === 'publishing'
-              ? 'Publishing…'
-              : activity === 'restoring'
-                ? 'Restoring…'
-                : activity === 'settings'
-                  ? 'Updating title & URL…'
-                  : conflict
-                    ? 'Out of date'
-                    : recovery
-                      ? 'Needs repair'
-                      : proposal
-                        ? 'Previewing AI proposal'
-                        : doc.inFlight
-                          ? 'Save not confirmed'
-                          : unresolvedCount > 0
-                            ? // Saving applies valid changes only: never claim that what is on screen is saved.
-                              `${unsaved ? 'Unsaved changes, ' : ''}${unresolvedCount} invalid field${unresolvedCount === 1 ? '' : 's'} not saved`
-                            : unsaved
-                              ? 'Unsaved changes'
-                              : 'Draft saved';
+    const state = saveState({
+        activity,
+        conflict,
+        recovery: recovery !== null,
+        proposal: proposal !== null,
+        inFlight: doc.inFlight !== null,
+        unresolved: unresolvedCount,
+        unsaved,
+    });
+    const waitingProposals = aiRequests.filter(isReviewable).length;
 
     return (
-        <div className="flex h-screen flex-col">
-            <header className="flex items-center gap-3 border-b border-zinc-200 bg-white px-4 py-2">
-                <Link href="/admin" className="text-sm font-semibold text-indigo-600">
-                    Arkon
-                </Link>
-                <div className="min-w-0">
-                    <p className="truncate text-sm font-medium" data-testid="page-title">
-                        {pageMeta.title}
-                    </p>
-                    <p className="text-xs text-zinc-500" data-testid="page-path">
-                        {pageMeta.path}
-                    </p>
-                </div>
-                <div className="ml-4 flex rounded-md border border-zinc-200 text-xs" role="group" aria-label="Viewport">
-                    {(['desktop', 'tablet', 'mobile'] as const).map((v) => (
-                        <button
-                            key={v}
-                            type="button"
-                            aria-pressed={viewport === v}
-                            onClick={() => setViewport(v)}
-                            className={`px-2.5 py-1 capitalize ${viewport === v ? 'bg-zinc-900 text-white' : 'hover:bg-zinc-50'}`}
-                        >
-                            {v}
-                        </button>
-                    ))}
-                </div>
-                <div className="flex text-xs">
-                    <button
-                        type="button"
-                        onClick={() => step('undo')}
-                        disabled={doc.undo.length === 0 || locked}
-                        className="px-2 py-1 disabled:opacity-40"
-                        title="Undo (Ctrl+Z)"
-                    >
-                        Undo
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => step('redo')}
-                        disabled={doc.redo.length === 0 || locked}
-                        className="px-2 py-1 disabled:opacity-40"
-                        title="Redo (Ctrl+Shift+Z)"
-                    >
-                        Redo
-                    </button>
-                </div>
-                <div className="ml-auto flex items-center gap-3">
-                    <div className="text-right text-xs" aria-live="polite">
-                        <p data-testid="save-status" className={unsaved || conflict || unresolvedCount > 0 ? 'text-amber-700' : 'text-zinc-600'}>
-                            {statusText}
+        <DragProvider
+            theme={theme}
+            options={{ commit: commitDrop, documentVersion: () => docSeq.current, onEnd: dropEnded }}
+            enabled={canEdit && !locked}
+            controllerRef={dragRef}
+        >
+            <DeleteDialog
+                open={actions.confirming !== null}
+                title={actions.confirming?.label ?? 'Delete'}
+                contents={actions.confirming?.contents ?? 0}
+                onConfirm={actions.confirmRemove}
+                onCancel={actions.cancelRemove}
+            />
+            <div data-theme={theme} className="flex h-dvh flex-col bg-canvas text-fg">
+                <header className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-line bg-surface px-2 py-1.5 sm:px-3">
+                    <BackMark href="/admin" label="Arkon dashboard" />
+                    <div className="mr-1 min-w-0 border-l border-line pl-2.5">
+                        <p className="truncate text-[0.8125rem] leading-tight font-semibold" data-testid="page-title">
+                            {pageMeta.title}
                         </p>
-                        <p data-testid="live-status" className="text-zinc-500">
-                            {live ? `Live: revision #${live.revisionNumber} · ${new Date(live.publishedAt).toLocaleTimeString('en-GB')}` : 'Not published'}
+                        <p className="truncate font-mono text-[11px] leading-tight text-muted" data-testid="page-path">
+                            {pageMeta.path}
                         </p>
                     </div>
-                    {live && (
-                        <a href={live.path} target="_blank" rel="noreferrer" className="text-sm text-zinc-600 hover:underline">
-                            View live
-                        </a>
-                    )}
-                    <button
-                        type="button"
-                        disabled={busy || locked}
-                        onClick={async () => {
-                            // The preview would not show what is typed in an unresolved field.
-                            if (recoveryRef.current || blockedByUnresolved('previewing')) return;
-                            // Open synchronously (popup blockers), then point it at the preview once the draft is saved.
-                            const preview = window.open('about:blank', '_blank');
-                            const version = await save();
-                            // Rechecked after the save: input typed while it was pending must not be skipped.
-                            if (version === null || blockedByUnresolved('previewing')) preview?.close();
-                            else if (preview) preview.location.href = `/preview/${pageId}`;
-                        }}
-                        className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50 disabled:opacity-50"
-                    >
-                        Preview
-                    </button>
-                    <button
-                        type="button"
-                        disabled={!unsaved || busy || locked || !canEdit}
-                        onClick={() => void save()}
-                        className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50 disabled:opacity-50"
-                    >
-                        Save draft
-                    </button>
-                    <button
-                        type="button"
-                        disabled={busy || locked || !canPublish}
-                        onClick={() => void publish()}
-                        title={canPublish ? 'Publish this version to the live site' : "You don't have permission to publish"}
-                        className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
-                    >
-                        Publish
-                    </button>
-                </div>
-            </header>
-
-            {notice && (
-                <div
-                    role={notice.tone === 'error' ? 'alert' : 'status'}
-                    data-testid="notice"
-                    className={`flex items-start gap-3 border-b px-4 py-2 text-sm ${notice.tone === 'error' ? 'border-red-200 bg-red-50 text-red-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}
-                >
-                    <div className="flex-1">
-                        <p>{notice.message}</p>
-                        {notice.issues && notice.issues.length > 0 && (
-                            <ul className="mt-1 list-disc pl-5 text-xs">
-                                {notice.issues.slice(0, 5).map((issue, i) => (
-                                    <li key={i}>{issue.message}</li>
-                                ))}
-                            </ul>
+                    <div className="ml-auto flex items-center gap-1.5 lg:ml-4">
+                        <ViewportSwitch value={viewport} onChange={setViewport} />
+                        <HistoryButtons canUndo={doc.undo.length > 0 && !locked} canRedo={doc.redo.length > 0 && !locked} onStep={step} />
+                    </div>
+                    <div className="ml-auto flex min-w-0 items-center gap-2 max-md:w-full max-md:justify-end">
+                        <div className="hidden min-w-0 flex-col items-end gap-0.5 md:flex">
+                            <SaveStatus state={state} testId="save-status" />
+                            <p data-testid="live-status" className="flex items-center gap-1 truncate text-[11px] text-muted">
+                                {live ? (
+                                    <>
+                                        <span aria-hidden className="size-1.5 rounded-full bg-live" />
+                                        {`Live: revision #${live.revisionNumber} · ${new Date(live.publishedAt).toLocaleTimeString('en-GB')}`}
+                                    </>
+                                ) : (
+                                    'Not published'
+                                )}
+                            </p>
+                        </div>
+                        {live && (
+                            <a
+                                href={live.path}
+                                target="_blank"
+                                rel="noreferrer"
+                                className={buttonClass('ghost', 'md', 'max-lg:px-2')}
+                                title="Open the live page in a new tab"
+                            >
+                                <Icon name="external" />
+                                <span className="max-lg:sr-only">View live</span>
+                            </a>
                         )}
+                        <Button
+                            icon="eye"
+                            disabled={busy || locked}
+                            title="Save the draft and open a preview of it in a new tab"
+                            onClick={async () => {
+                                // The preview would not show what is typed in an unresolved field.
+                                if (recoveryRef.current || blockedByUnresolved('previewing')) return;
+                                // Open synchronously (popup blockers), then point it at the preview once the draft is saved.
+                                const preview = window.open('about:blank', '_blank');
+                                const version = await save();
+                                // Rechecked after the save: input typed while it was pending must not be skipped.
+                                if (version === null || blockedByUnresolved('previewing')) preview?.close();
+                                else if (preview) preview.location.href = `/preview/${pageId}`;
+                            }}
+                        >
+                            Preview
+                        </Button>
+                        <Button
+                            icon="save"
+                            disabled={!unsaved || busy || locked || !canEdit}
+                            onClick={() => void save()}
+                            title="Save the draft (Ctrl+S). The live page does not change."
+                        >
+                            Save draft
+                        </Button>
+                        <Button
+                            variant="primary"
+                            icon="globe"
+                            busy={activity === 'publishing'}
+                            disabled={busy || locked || !canPublish}
+                            onClick={() => void publish()}
+                            title={canPublish ? 'Publish this version to the live site' : "You don't have permission to publish"}
+                        >
+                            Publish
+                        </Button>
                     </div>
-                    {conflict ? (
-                        <button type="button" onClick={() => location.reload()} className="font-medium underline">
-                            Reload
-                        </button>
-                    ) : (
-                        <button type="button" onClick={() => setNotice(null)} aria-label="Dismiss" className="text-lg leading-none">
-                            ×
-                        </button>
-                    )}
+                </header>
+                {/* On narrow screens the status moves under the toolbar, so it is never hidden. */}
+                <div className="flex items-center gap-2 border-b border-line bg-surface px-3 py-1.5 md:hidden">
+                    <SaveStatus state={state} testId="save-status-compact" />
+                    <span className="truncate text-[11px] text-muted">{live ? `Live: revision #${live.revisionNumber}` : 'Not published'}</span>
                 </div>
-            )}
+                {!canPublish && (
+                    <p className="border-b border-line bg-raised px-3 py-1.5 text-[11px] text-muted" data-testid="role-note">
+                        <Icon name="lock" className="mr-1 inline size-3" />
+                        You can edit and save drafts. Someone with publishing rights makes them live.
+                    </p>
+                )}
 
-            <div className="flex min-h-0 flex-1">
-                <section className="flex min-w-0 flex-1 flex-col" aria-label="Canvas">
-                    {proposal && (
-                        <p className="border-b border-indigo-200 bg-indigo-50 px-4 py-1.5 text-xs text-indigo-900" data-testid="proposal-banner">
-                            {proposal.canvas
-                                ? 'Preview of the AI proposal. Nothing has changed yet: Apply or Discard it in the AI panel.'
-                                : 'The AI proposed no changes.'}
-                        </p>
-                    )}
-                    <div className="min-h-0 flex-1">
-                        <Canvas
-                            body={proposal?.canvas?.body ?? canvas.body}
-                            css={proposal?.canvas?.css ?? canvas.css}
-                            multiline={init.multiline}
-                            selectedId={selectedId}
-                            viewport={viewport}
-                            renderToken={canvasToken}
-                            onSelect={setSelectedId}
-                            onInlineEdit={(nodeId, prop, value) =>
-                                apply([{ op: 'updateProps', nodeId, set: { [prop]: value } }], { coalesceKey: `${nodeId}:${prop}`, fromCanvas: true })
-                            }
-                            onSaveShortcut={() => void save()}
-                            readOnly={recovery !== null || proposal !== null}
-                        />
-                    </div>
-                </section>
-                <aside className="flex w-80 shrink-0 flex-col border-l border-zinc-200 bg-white" aria-label="Sidebar">
-                    {recovery ? (
-                        <div className="min-h-0 flex-1 overflow-auto">
-                            <RecoveryPanel
-                                items={recovery}
-                                document={doc.document}
-                                canEdit={canEdit && !conflict}
-                                onShow={setSelectedId}
-                                onApply={applyRepair}
+                {notice && <EditorNotice notice={notice} conflict={conflict} onDismiss={() => setNotice(null)} />}
+
+                <div className="flex min-h-0 flex-1 max-md:flex-col">
+                    <section className="flex min-h-0 min-w-0 flex-1 flex-col max-md:h-[55vh] max-md:flex-none" aria-label="Canvas">
+                        {proposal && (
+                            <div className="flex items-center gap-2 border-b border-ai/25 bg-ai-soft px-3 py-1.5 text-xs text-fg" data-testid="proposal-banner">
+                                <Icon name="sparkle" className="size-3.5 text-ai" />
+                                {proposal.canvas
+                                    ? 'Preview of the AI proposal. Nothing has changed yet: Apply or Discard it in the AI panel.'
+                                    : 'The AI proposed no changes.'}
+                            </div>
+                        )}
+                        <div className="min-h-0 flex-1">
+                            <Canvas
+                                document={proposal ? undefined : doc.document}
+                                renderPending={renderPending}
+                                body={proposal?.canvas?.body ?? canvas.body}
+                                css={proposal?.canvas?.css ?? canvas.css}
+                                multiline={init.multiline}
+                                selectedId={selectedId}
+                                selectedPart={selectedPart}
+                                viewport={viewport}
+                                renderToken={canvasToken}
+                                onSelect={(nodeId, part) => {
+                                    selectPart(nodeId, part ?? null);
+                                    if (nodeId) setTab((current) => (current === 'layers' || current === 'history' ? 'inspect' : current));
+                                }}
+                                onInlineEdit={(nodeId, prop, value) =>
+                                    apply([{ op: 'updateProps', nodeId, set: { [prop]: value } }], { coalesceKey: `${nodeId}:${prop}`, fromCanvas: true })
+                                }
+                                onSaveShortcut={() => void save()}
+                                onDuplicate={canEdit && !locked ? actions.duplicate : undefined}
+                                onDelete={canEdit && !locked ? actions.remove : undefined}
+                                onAddInto={canEdit && !locked ? actions.addInto : undefined}
+                                replay={actions.replay}
+                                documentVersion={docSeq.current}
+                                readOnly={recovery !== null || proposal !== null}
                             />
                         </div>
-                    ) : (
-                        <>
-                            <div className="flex border-b border-zinc-200 text-sm" role="tablist">
-                                {(['inspect', 'layers', 'history', 'ai'] as const).map((t) => (
-                                    <button
-                                        key={t}
-                                        type="button"
-                                        role="tab"
-                                        aria-selected={tab === t}
-                                        onClick={() => setTab(t)}
-                                        className={`flex-1 px-3 py-2 ${tab === t ? 'border-b-2 border-indigo-600 font-medium' : 'text-zinc-500'}`}
-                                    >
-                                        {t === 'inspect' ? 'Properties' : t === 'layers' ? 'Layers' : t === 'history' ? 'History' : 'AI'}
-                                    </button>
-                                ))}
-                            </div>
+                    </section>
+                    <aside
+                        className="flex min-h-0 w-full shrink-0 flex-col border-line bg-surface max-md:flex-1 max-md:border-t md:w-[20rem] md:border-l xl:w-[22rem]"
+                        aria-label="Sidebar"
+                    >
+                        {recovery ? (
                             <div className="min-h-0 flex-1 overflow-auto">
-                                {tab === 'layers' ? (
-                                    <LayersPanel
-                                        document={doc.document}
-                                        selectedId={selectedId}
-                                        canEdit={canEdit && !locked}
-                                        onSelect={setSelectedId}
-                                        onStructure={structure}
-                                    />
-                                ) : tab === 'inspect' ? (
-                                    <>
-                                        {selectedNode && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setSelectedId(null)}
-                                                className="px-4 pt-3 text-xs text-indigo-600 hover:underline"
-                                            >
-                                                ← Page settings
-                                            </button>
-                                        )}
-                                        {selectedNode && (
-                                            <StructureBar
-                                                document={doc.document}
-                                                node={selectedNode}
-                                                canEdit={canEdit && !locked}
-                                                onSelect={setSelectedId}
-                                                onStructure={structure}
-                                            />
-                                        )}
-                                        {!selectedNode && (
-                                            <PageSettings
-                                                key={`${pageMeta.title}|${pageMeta.path}`}
-                                                title={pageMeta.title}
-                                                path={pageMeta.path}
-                                                live={live && { title: live.title, path: live.path }}
-                                                canEdit={canEdit && !locked}
-                                                blockedReason={
-                                                    unsaved
-                                                        ? 'Save your changes first, then update the title and URL.'
-                                                        : busy
-                                                          ? 'Wait for the current action to finish.'
-                                                          : null
-                                                }
-                                                onApply={applySettings}
-                                            />
-                                        )}
+                                <RecoveryPanel
+                                    items={recovery}
+                                    document={doc.document}
+                                    canEdit={canEdit && !conflict}
+                                    onShow={setSelectedId}
+                                    onApply={applyRepair}
+                                />
+                            </div>
+                        ) : (
+                            <>
+                                <SidebarTabs<typeof tab>
+                                    value={tab}
+                                    onChange={setTab}
+                                    tabs={[
+                                        { value: 'inspect', label: 'Properties', icon: 'sliders' },
+                                        { value: 'layers', label: 'Layers', icon: 'layers' },
+                                        { value: 'history', label: 'History', icon: 'history' },
+                                        {
+                                            value: 'ai',
+                                            label: 'AI',
+                                            icon: 'sparkle',
+                                            badge:
+                                                proposal || waitingProposals > 0 ? (
+                                                    <span
+                                                        className="rounded-full bg-ai px-1 text-[10px] leading-4 text-surface tabular-nums"
+                                                        aria-label="proposal waiting for review"
+                                                    >
+                                                        {proposal ? 1 : waitingProposals}
+                                                    </span>
+                                                ) : tracked && isActive(tracked) ? (
+                                                    <Spinner className="size-3 text-ai" />
+                                                ) : undefined,
+                                        },
+                                    ]}
+                                />
+                                <div className="min-h-0 flex-1 overflow-auto" data-testid="sidebar-body">
+                                    {tab === 'layers' ? (
+                                        <LayersPanel
+                                            document={doc.document}
+                                            selectedId={selectedId}
+                                            canEdit={canEdit && !locked}
+                                            onSelect={setSelectedId}
+                                            onStructure={structure}
+                                            components={components}
+                                            onDuplicate={actions.duplicate}
+                                            onDelete={actions.remove}
+                                        />
+                                    ) : tab === 'inspect' ? (
                                         <Inspector
                                             document={doc.document}
                                             selected={selectedNode}
+                                            part={selectedPart}
+                                            onSelectPart={selectPart}
+                                            onSelectNode={setSelectedId}
                                             media={media}
                                             canEdit={canEdit && !locked}
                                             canUpload={canUpload}
@@ -970,35 +1069,75 @@ export function Editor({ init }: { init: EditorInit }) {
                                             onUpload={upload}
                                             unresolved={unresolved}
                                             onUnresolved={setUnresolved}
+                                            breakpoint={VIEWPORT_BREAKPOINT[viewport]}
+                                            onBreakpoint={(bp) => setViewport(bp === 'base' ? 'desktop' : bp)}
+                                            tokens={init.tokens}
+                                            components={components}
+                                            onDetach={detach}
+                                            motion={proposal ? undefined : canvas.motion}
+                                            onReplay={actions.replayBlock}
+                                            toolbar={
+                                                selectedNode && (
+                                                    <StructureBar
+                                                        document={doc.document}
+                                                        node={selectedNode}
+                                                        canEdit={canEdit && !locked}
+                                                        onSelect={setSelectedId}
+                                                        onStructure={structure}
+                                                        onMakeReusable={(nodeId, name) => void makeReusable(nodeId, name)}
+                                                        onDuplicate={actions.duplicate}
+                                                        onDelete={actions.remove}
+                                                    />
+                                                )
+                                            }
+                                            pageSettings={
+                                                <PageSettings
+                                                    key={`${pageMeta.title}|${pageMeta.path}`}
+                                                    title={pageMeta.title}
+                                                    path={pageMeta.path}
+                                                    live={live && { title: live.title, path: live.path }}
+                                                    canEdit={canEdit && !locked}
+                                                    blockedReason={
+                                                        unsaved
+                                                            ? 'Save your changes first, then update the title and URL.'
+                                                            : busy
+                                                              ? 'Wait for the current action to finish.'
+                                                              : null
+                                                    }
+                                                    onApply={applySettings}
+                                                />
+                                            }
                                         />
-                                    </>
-                                ) : tab === 'history' ? (
-                                    <HistoryPanel revisions={revisions} canRestore={canEdit && !locked && !busy} onRestore={(r) => void restore(r)} />
-                                ) : (
-                                    <AiPanel
-                                        available={init.ai.available && !conflict}
-                                        unavailableReason={conflict ? 'Reload the page to continue.' : init.ai.reason}
-                                        promptMax={init.ai.promptMax}
-                                        connection={aiConnection}
-                                        requests={aiRequests}
-                                        tracked={tracked}
-                                        sending={sending}
-                                        onCancel={(id) => void cancelRequest(id)}
-                                        onReview={(id) => void reviewRequest(id)}
-                                        proposal={proposal}
-                                        applyBlocker={proposal ? proposalBlocker(doc, proposal, unresolvedCount) : null}
-                                        error={aiError}
-                                        history={aiHistory}
-                                        onAsk={(prompt) => void askAi(prompt)}
-                                        onApply={applyProposal}
-                                        onDiscard={discardProposal}
-                                    />
-                                )}
-                            </div>
-                        </>
-                    )}
-                </aside>
+                                    ) : tab === 'history' ? (
+                                        <HistoryPanel revisions={revisions} canRestore={canEdit && !locked && !busy} onRestore={(r) => void restore(r)} />
+                                    ) : (
+                                        <AiPanel
+                                            available={init.ai.available && !conflict}
+                                            unavailableReason={conflict ? 'Reload the page to continue.' : init.ai.reason}
+                                            promptMax={init.ai.promptMax}
+                                            connection={aiConnection}
+                                            requests={aiRequests}
+                                            tracked={tracked}
+                                            sending={sending}
+                                            onCancel={(id) => void cancelRequest(id)}
+                                            onReview={(id) => void reviewRequest(id)}
+                                            proposal={proposal}
+                                            applyBlocker={proposal ? proposalBlocker(doc, proposal, unresolvedCount) : null}
+                                            error={aiError}
+                                            history={aiHistory}
+                                            onAsk={(prompt) => void askAi(prompt)}
+                                            onApply={applyProposal}
+                                            onDiscard={discardProposal}
+                                            onApplyTokens={() => void applyProposalTokens()}
+                                            tokensBusy={tokensBusy}
+                                        />
+                                    )}
+                                </div>
+                            </>
+                        )}
+                    </aside>
+                </div>
             </div>
-        </div>
+        </DragProvider>
     );
 }

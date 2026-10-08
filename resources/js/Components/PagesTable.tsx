@@ -4,6 +4,8 @@ import { api } from '@/lib/api';
 import type { PageRow, PageStatus } from '@/types';
 import { ConfirmDialog } from './ConfirmDialog';
 import { fullDate, relativeTime } from '@/lib/time';
+import { Icon } from './Icon';
+import { buttonClass } from './ui';
 
 export const STATUS_LABEL: Record<PageStatus, string> = {
     draft: 'Not published',
@@ -22,7 +24,7 @@ export function StatusMark({ status, className = '' }: { status: PageStatus; cla
     );
 }
 
-const action = 'rounded px-1.5 py-1 text-muted hover:bg-line/60 hover:text-fg';
+const action = 'inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-muted hover:bg-sunken hover:text-fg';
 
 export function PagesTable({ pages, canPublish, canDelete }: { pages: PageRow[]; canPublish: boolean; canDelete: boolean }) {
     return (
@@ -53,13 +55,13 @@ export function PagesTable({ pages, canPublish, canDelete }: { pages: PageRow[];
                     >
                         <td className="py-3 pr-4 align-middle max-sm:basis-full max-sm:py-0">
                             <p className="font-medium">{page.title}</p>
-                            <p className="mt-0.5 text-xs text-muted">
+                            <p className="mt-0.5 font-mono text-[11px] text-muted">
                                 {page.path}
                                 {page.livePath && page.livePath !== page.path && <span className="ml-1.5 text-changed">live at {page.livePath}</span>}
                             </p>
                         </td>
                         <td className="py-3 pr-4 align-middle whitespace-nowrap max-sm:py-0">
-                            <span className="inline-flex items-center gap-1.5 text-xs text-muted">
+                            <span className="inline-flex items-center gap-1.5 text-xs text-fg">
                                 <StatusMark status={page.status} />
                                 {STATUS_LABEL[page.status]}
                             </span>
@@ -77,14 +79,12 @@ export function PagesTable({ pages, canPublish, canDelete }: { pages: PageRow[];
                             <div className="flex items-center justify-end gap-1 text-xs whitespace-nowrap">
                                 {page.livePath && (
                                     <a href={page.livePath} target="_blank" rel="noreferrer" className={action}>
+                                        <Icon name="external" className="size-3.5" />
                                         View live
                                     </a>
                                 )}
                                 <PageRowActions page={page} canPublish={canPublish} canDelete={canDelete} />
-                                <Link
-                                    href={`/admin/editor/${page.id}`}
-                                    className="ml-1 rounded-md border border-line-strong bg-surface px-2.5 py-1 font-medium shadow-hairline hover:border-faint"
-                                >
+                                <Link href={`/admin/editor/${page.id}`} className={buttonClass('secondary', 'sm', 'ml-1')}>
                                     Edit
                                 </Link>
                             </div>
@@ -120,7 +120,11 @@ function PageRowActions({ page, canPublish, canDelete }: { page: PageRow; canPub
                 </button>
             )}
             {canDelete && (
-                <button type="button" onClick={() => setDialog('delete')} className="rounded px-1.5 py-1 text-danger hover:bg-danger-soft">
+                <button
+                    type="button"
+                    onClick={() => setDialog('delete')}
+                    className="inline-flex h-7 items-center rounded-md px-1.5 text-danger hover:bg-danger-soft"
+                >
                     Delete
                 </button>
             )}

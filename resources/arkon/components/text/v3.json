@@ -1,0 +1,59 @@
+{
+  "type": "text",
+  "version": 3,
+  "label": "Text",
+  "children": false,
+  "props": {
+    "text": {
+      "type": "string",
+      "maxLength": 5000
+    },
+    "element": {
+      "type": "enum",
+      "values": [
+        "p",
+        "h1",
+        "h2",
+        "h3",
+        "h4"
+      ],
+      "default": "p"
+    },
+    "style": {
+      "type": "style",
+      "slots": {
+        "root": {
+          "label": "Text",
+          "groups": [
+            "typography",
+            "spacing",
+            "size",
+            "placement",
+            "background",
+            "border",
+            "effects",
+            "motion"
+          ]
+        }
+      },
+      "default": {}
+    }
+  },
+  "defaultProps": {
+    "text": "Write something here.",
+    "element": "p",
+    "style": {}
+  },
+  "inlineFields": {
+    "text": {
+      "kind": "multiline"
+    }
+  },
+  "publishChecks": [
+    {
+      "rule": "notBlank",
+      "prop": "text",
+      "message": "Text block is empty"
+    }
+  ]
+}

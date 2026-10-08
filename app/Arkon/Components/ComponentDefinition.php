@@ -2,6 +2,7 @@
 
 namespace App\Arkon\Components;
 
+use App\Arkon\Style\StyleSchema;
 use App\Arkon\Support\Text;
 
 /**
@@ -36,12 +37,28 @@ final class ComponentDefinition
             label: $manifest['label'],
             children: $manifest['children'] ?? false,
             props: new PropSchema($manifest['props'] ?? []),
-            defaultProps: $manifest['defaultProps'] ?? [],
+            defaultProps: self::rawDefaults($manifest),
             inlineFields: $manifest['inlineFields'] ?? [],
             mediaRefs: $manifest['mediaRefs'] ?? [],
             publishChecks: $manifest['publishChecks'] ?? [],
             css: $css,
         );
+    }
+
+    /**
+     * Default props in raw form: an empty style is the object `{}` (decoding the
+     * manifest gave `[]`), so new nodes encode exactly as the editor writes them.
+     */
+    private static function rawDefaults(array $manifest): array
+    {
+        $defaults = $manifest['defaultProps'] ?? [];
+        foreach ($manifest['props'] ?? [] as $key => $field) {
+            if (($field['type'] ?? null) === 'style' && ($defaults[$key] ?? null) === []) {
+                $defaults[$key] = new \stdClass;
+            }
+        }
+
+        return $defaults;
     }
 
     /** @return list<string> media asset ids referenced by parsed props */
@@ -52,6 +69,12 @@ final class ComponentDefinition
             $value = data_get($props, $path);
             if (is_string($value)) {
                 $ids[] = $value;
+            }
+        }
+        // Background images of style props.
+        foreach ($this->props->fields() as $key => $field) {
+            if ($field['type'] === 'style' && is_array($props[$key] ?? null)) {
+                array_push($ids, ...StyleSchema::assetIds($props[$key]));
             }
         }
 

@@ -30,6 +30,7 @@ export const E2E_ENV: Record<string, string> = {
     APP_DEBUG: 'true',
     APP_URL: APP_ORIGIN,
     DB_DATABASE: 'arkonlaravel_e2e',
+    ARKON_THEME_STORE: 'storage/e2e/theme-components',
     ARKON_MEDIA_ROOT: 'storage/e2e/media',
     SESSION_DRIVER: 'database',
     CACHE_STORE: 'array',

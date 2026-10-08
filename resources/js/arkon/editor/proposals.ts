@@ -17,6 +17,10 @@ export interface AiProposal {
     /** Problems that will block publishing (e.g. a button without a link). */
     warnings: string[];
     operations: PageOperation[];
+    /** Site-wide design token changes: reviewed and applied separately (to the token draft only). */
+    tokenChanges?: { token: string; value: string }[];
+    /** The token draft version they were applied as, once applied. */
+    tokenChangesApplied?: number | null;
     /** The proposed page rendered by the server (editor mode) for the preview; null when nothing changes. */
     canvas: { body: string; css: string } | null;
 }

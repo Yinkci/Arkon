@@ -50,7 +50,7 @@ describe('saving an applied proposal', () => {
     it('sends exactly the proposal in one batch tagged with its id, and resends it unchanged', () => {
         const applied = dispatch(initialState(doc, 3), proposal().operations);
         if (!applied.ok) throw new Error('setup');
-        const started = beginSave(applied.state, () => 'key-1', 'p1')!;
+        const started = beginSave(applied.state, () => 'key-1', { proposalId: 'p1' })!;
         expect(started.batch).toEqual({ key: 'key-1', baseVersion: 3, operations: proposal().operations, proposalId: 'p1' });
         // An unconfirmed batch is resent as it was, id included.
         expect(beginSave(started.state, () => 'key-2')!.batch).toBe(started.batch);

@@ -4,10 +4,10 @@ namespace App\Arkon\Media;
 
 use RuntimeException;
 
-/** Local media storage. Keys are server-generated (`<uuid>.<ext>`); anything else is refused. */
+/** Local media storage. Keys are server-generated (`<uuid>.<ext>`, variants `<uuid>-w<width>.webp`); anything else is refused. */
 class MediaStorage
 {
-    public const KEY_PATTERN = '/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|gif|webp|avif)$/D';
+    public const KEY_PATTERN = '/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:\.(jpg|png|gif|webp|avif)|-w[1-9][0-9]{1,3}\.webp)$/D';
 
     public function __construct(public readonly string $root) {}
 

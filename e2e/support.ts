@@ -26,8 +26,8 @@ export async function createPage(path: string, heading: string): Promise<string>
         schemaVersion: 1,
         root: 'e2eRoot001',
         nodes: {
-            e2eRoot001: { id: 'e2eRoot001', type: 'page', version: 1, props: {}, children: ['e2eHero001'] },
-            e2eHero001: { id: 'e2eHero001', type: 'hero', version: 1, props: { heading, headingLevel: 'h1', text: '', image: null } },
+            e2eRoot001: { id: 'e2eRoot001', type: 'page', version: 3, props: {}, children: ['e2eHero001'] },
+            e2eHero001: { id: 'e2eHero001', type: 'hero', version: 3, props: { heading, headingLevel: 'h1', text: '', image: null }, children: [] },
         },
         seo: {},
     };

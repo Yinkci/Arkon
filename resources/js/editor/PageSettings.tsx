@@ -1,7 +1,6 @@
 import { useId, useState } from 'react';
-
-const field =
-    'mt-1 w-full rounded-md border border-zinc-300 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 disabled:bg-zinc-50';
+import { Icon } from '@/Components/Icon';
+import { Button, PanelSection } from '@/Components/ui';
 
 export interface PageSettingsProps {
     title: string;
@@ -26,55 +25,60 @@ export function PageSettings({ title, path, live, canEdit, blockedReason, onAppl
 
     const changed = draftTitle !== title || draftPath !== path;
     return (
-        <form
-            className="space-y-3 border-b border-zinc-200 p-4"
-            aria-label="Title and URL"
-            onSubmit={async (event) => {
-                event.preventDefault();
-                setPending(true);
-                try {
-                    await onApply(draftTitle.trim(), draftPath.trim());
-                } finally {
-                    setPending(false);
-                }
-            }}
-        >
-            <h2 className="text-sm font-semibold">Title &amp; URL</h2>
-            <div>
-                <label htmlFor={ids.title} className="block text-xs font-medium text-zinc-600">
-                    Page title
-                </label>
-                <input
-                    id={ids.title}
-                    className={field}
-                    disabled={!canEdit}
-                    value={draftTitle}
-                    maxLength={120}
-                    onChange={(e) => setDraftTitle(e.target.value)}
-                />
-            </div>
-            <div>
-                <label htmlFor={ids.path} className="block text-xs font-medium text-zinc-600">
-                    URL path
-                </label>
-                <input id={ids.path} className={field} disabled={!canEdit} value={draftPath} maxLength={200} onChange={(e) => setDraftPath(e.target.value)} />
-            </div>
-            {live && (live.path !== path || live.title !== title) && (
-                <p className="text-xs text-amber-700" data-testid="live-meta">
-                    Live now as “{live.title}” at {live.path} until you publish.
-                </p>
-            )}
-            {live && changed && draftPath !== live.path && (
-                <p className="text-xs text-zinc-500">When published, {live.path} will redirect (301) to the new URL.</p>
-            )}
-            {blockedReason && changed && <p className="text-xs text-amber-700">{blockedReason}</p>}
-            <button
-                type="submit"
-                disabled={!canEdit || !changed || pending || blockedReason !== null}
-                className="w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm hover:bg-zinc-50 disabled:opacity-50"
+        <PanelSection title="Title and URL">
+            <form
+                className="space-y-3"
+                aria-label="Title and URL"
+                onSubmit={async (event) => {
+                    event.preventDefault();
+                    setPending(true);
+                    try {
+                        await onApply(draftTitle.trim(), draftPath.trim());
+                    } finally {
+                        setPending(false);
+                    }
+                }}
             >
-                {pending ? 'Updating…' : 'Update title & URL'}
-            </button>
-        </form>
+                <div>
+                    <label htmlFor={ids.title} className="ui-label">
+                        Page title
+                    </label>
+                    <input
+                        id={ids.title}
+                        className="ui-input"
+                        disabled={!canEdit}
+                        value={draftTitle}
+                        maxLength={120}
+                        onChange={(e) => setDraftTitle(e.target.value)}
+                    />
+                </div>
+                <div>
+                    <label htmlFor={ids.path} className="ui-label">
+                        URL path
+                    </label>
+                    <input
+                        id={ids.path}
+                        className="ui-input font-mono"
+                        disabled={!canEdit}
+                        value={draftPath}
+                        maxLength={200}
+                        onChange={(e) => setDraftPath(e.target.value)}
+                    />
+                </div>
+                {live && (live.path !== path || live.title !== title) && (
+                    <p className="flex items-start gap-1.5 text-[11px] text-changed" data-testid="live-meta">
+                        <Icon name="clock" className="mt-px size-3.5" />
+                        Live now as “{live.title}” at {live.path} until you publish.
+                    </p>
+                )}
+                {live && changed && draftPath !== live.path && (
+                    <p className="text-[11px] text-muted">When published, {live.path} will redirect (301) to the new URL.</p>
+                )}
+                {blockedReason && changed && <p className="text-[11px] text-changed">{blockedReason}</p>}
+                <Button type="submit" className="w-full" busy={pending} disabled={!canEdit || !changed || pending || blockedReason !== null}>
+                    {pending ? 'Updating…' : 'Update title & URL'}
+                </Button>
+            </form>
+        </PanelSection>
     );
 }

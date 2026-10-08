@@ -1,19 +1,32 @@
 // Structural editing helpers: where a component may go, and the operations that put it there.
 // Pure functions over the document; the editor dispatches what they return, and dispatch
 // validates the result with the same rules as the server, so these only decide what to offer.
-import { currentDefinition } from '../components/registry';
-import { createNodeId, findParent, collectSubtree, type Node, type NodeId, type PageDocument } from '../schema/document';
+import { componentTypes, currentDefinition, themeIsAddable } from '../components/registry';
+import { createNodeId, findParent, type Node, type NodeId, type PageDocument } from '../schema/document';
 import type { PageOperation } from '../schema/operations';
+import { placeAt } from './placement';
 
 /** Components the palette offers, in display order. Columns create their column children themselves. */
-export const ADDABLE_TYPES = ['hero', 'text', 'image', 'button', 'columns'] as const;
+export function addableTypes(): string[] {
+    return [
+        'section',
+        'group',
+        'hero',
+        'text',
+        'image',
+        'button',
+        'columns',
+        ...componentTypes().filter((type) => type.startsWith('theme-') && themeIsAddable(type)),
+    ];
+}
+export const ADDABLE_TYPES = ['section', 'group', 'hero', 'text', 'image', 'button', 'columns'] as const;
 export type AddableType = (typeof ADDABLE_TYPES)[number];
 
-/** A new component with its defaults; Columns come with two empty columns. The first node is the root. */
-export function createNodes(type: string): Node[] {
+/** A new component with its defaults (and `props` on top); Columns come with two empty columns. The first node is the root. */
+export function createNodes(type: string, props: Record<string, unknown> = {}): Node[] {
     const definition = currentDefinition(type);
     if (!definition) throw new Error(`Unknown component ${type}`);
-    const node: Node = { id: createNodeId(), type, version: definition.version, props: structuredClone(definition.defaultProps) };
+    const node: Node = { id: createNodeId(), type, version: definition.version, props: { ...structuredClone(definition.defaultProps), ...props } };
     if (definition.children === false) return [node];
     const children = type === 'columns' ? [...createNodes('column'), ...createNodes('column')] : [];
     node.children = children.filter((c) => c.type === 'column').map((c) => c.id);
@@ -80,9 +93,6 @@ export type DropPosition = 'before' | 'after' | 'inside';
 export function dropPlacement(doc: PageDocument, dragged: { nodeId?: NodeId; type: string }, targetId: NodeId, position: DropPosition): Placement | null {
     const target = doc.nodes[targetId];
     if (!target) return null;
-    if (dragged.nodeId && collectSubtree(doc, dragged.nodeId).some((n) => n.id === targetId)) return null;
-    const from = dragged.nodeId ? findParent(doc, dragged.nodeId) : null;
-
     let parentId: NodeId;
     let index: number;
     if (position === 'inside') {
@@ -96,21 +106,14 @@ export function dropPlacement(doc: PageDocument, dragged: { nodeId?: NodeId; typ
         parentId = location.parentId;
         index = location.index + (position === 'after' ? 1 : 0);
     }
-    const parent = doc.nodes[parentId]!;
-    const sameParent = from?.parentId === parentId;
-    if (!canContain(parent, dragged.type, sameParent ? 0 : 1)) return null;
-    // Moving out of a container takes a child away from it: it must keep its minimum (a Columns block's last column).
-    if (dragged.nodeId && !sameParent && !canRemove(doc, dragged.nodeId)) return null;
-    // Move indices count positions after the node has left its old place.
-    if (sameParent && from && from.index < index) index -= 1;
-    if (sameParent && from && from.index === index) return null; // no change
-    return { parentId, index };
+    const check = placeAt(doc, dragged, parentId, index);
+    return check.ok ? check.placement : null;
 }
 
-export function dropOps(dragged: { nodeId?: NodeId; type: string }, placement: Placement): PageOperation[] {
+export function dropOps(dragged: { nodeId?: NodeId; type: string; props?: Record<string, unknown> }, placement: Placement): PageOperation[] {
     return dragged.nodeId
         ? [{ op: 'moveNode', nodeId: dragged.nodeId, parentId: placement.parentId, index: placement.index }]
-        : insertOps(placement, createNodes(dragged.type));
+        : insertOps(placement, createNodes(dragged.type, dragged.props));
 }
 
 /** The root cannot go, and a container keeps its minimum children (the last column of Columns). */
@@ -130,4 +133,33 @@ export function nodeLabel(node: Node): string {
     const text = [node.props.heading, node.props.text, node.props.label, node.props.caption].find((v) => typeof v === 'string' && v.trim() !== '') as
         string | undefined;
     return text ? `${name}: ${text.trim().replace(/\s+/g, ' ').slice(0, 40)}` : name;
+}
+
+/** A copy of a subtree of `source` with new node ids, root first (for insertNode). */
+export function copySubtree(source: PageDocument, rootId: NodeId): Node[] {
+    const out: Node[] = [];
+    const visit = (id: NodeId): NodeId => {
+        const node = source.nodes[id]!;
+        const copy: Node = { ...structuredClone(node), id: createNodeId() };
+        out.push(copy);
+        if (node.children) copy.children = node.children.map(visit);
+        return copy.id;
+    };
+    visit(rootId);
+    return out;
+}
+
+/**
+ * Detaching a reusable component: the instance is replaced, at the same place, by a
+ * copy of the blocks of the component's published version. The page then owns them
+ * (later changes to the component no longer reach it). Null if the instance is gone.
+ */
+export function detachOps(doc: PageDocument, instanceId: NodeId, component: PageDocument): PageOperation[] | null {
+    const location = findParent(doc, instanceId);
+    if (!location) return null;
+    const ops: PageOperation[] = [{ op: 'removeNode', nodeId: instanceId }];
+    (component.nodes[component.root]?.children ?? []).forEach((childId, i) => {
+        ops.push({ op: 'insertNode', parentId: location.parentId, index: location.index + i, nodes: copySubtree(component, childId) });
+    });
+    return ops;
 }

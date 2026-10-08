@@ -1,0 +1,30 @@
+{
+  "type": "instance",
+  "version": 1,
+  "label": "Reusable component",
+  "children": false,
+  "props": {
+    "componentId": {
+      "type": "uuid",
+      "ref": "component"
+    },
+    "style": {
+      "type": "style",
+      "slots": {
+        "root": {
+          "label": "Placement",
+          "groups": [
+            "spacing",
+            "size",
+            "placement"
+          ]
+        }
+      },
+      "default": {}
+    }
+  },
+  "defaultProps": {
+    "style": {}
+  },
+  "publishChecks": []
+}

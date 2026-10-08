@@ -2,6 +2,7 @@
 
 namespace App\Arkon\Components;
 
+use App\Arkon\Style\StyleSchema;
 use App\Arkon\Support\Json;
 use App\Arkon\Support\Rules;
 use App\Arkon\Support\Text;
@@ -13,7 +14,8 @@ use InvalidArgumentException;
  *
  * Field types: string {maxLength, minLength}, link {maxLength} (a string
  * matching the shared safe-link pattern), enum {values}, boolean, uuid,
- * object {properties, nullable}. A field without `default` is required. Objects
+ * object {properties, nullable}, style {slots} (the shared styling model, see
+ * StyleSchema). A field without `default` is required. Objects
  * are strict: unknown keys are rejected.
  */
 final class PropSchema
@@ -147,6 +149,9 @@ final class PropSchema
                 }
 
                 return $value;
+
+            case 'style':
+                return StyleSchema::parse($field, $value, $at, $issues, $raw);
 
             case 'object':
                 if ($value === null && ($field['nullable'] ?? false)) {

@@ -57,7 +57,7 @@ test('draft, preview, history and publish keep the live page safe', async ({ pag
     await expect(page.getByTestId('live-status')).toContainText('Live: revision #2');
     const published = await live(anonymous);
     expect(published.status).toBe(200);
-    expect(published.html).toContain('<h1 class="ak-hero__heading">Hello from the canvas</h1>');
+    expect(published.html).toContain('<h1 class="ak-hero3__heading">Hello from the canvas</h1>');
     // No editor attributes, scripts, framework bundles or editor assets on the public page.
     expect(published.html).not.toContain('data-ak-');
     expect(published.html).not.toMatch(/<script/i);
@@ -93,7 +93,7 @@ test('draft, preview, history and publish keep the live page safe', async ({ pag
     const revisions = page.getByTestId('revision');
     await expect(revisions).toHaveCount(3);
     await expect(revisions.first()).toContainText('#3 Saved draft');
-    await expect(revisions.nth(1)).toContainText('LIVE');
+    await expect(revisions.nth(1)).toContainText('Live now');
     await revisions.nth(1).getByRole('button', { name: 'Restore' }).click();
     await expect(page.getByTestId('notice')).toContainText('Restored revision #2');
     await expect(heading).toHaveText('Hello from the canvas');
@@ -102,13 +102,14 @@ test('draft, preview, history and publish keep the live page safe', async ({ pag
 
     // ── Image: upload, alt text is required to publish ──
     await page.getByRole('tab', { name: 'Properties' }).click();
+    await page.getByTestId('part-media').click();
     await page.getByLabel('Upload image').setInputFiles({ name: 'dot.png', mimeType: 'image/png', buffer: PNG_1X1 });
-    await expect(canvas.locator('img.ak-hero__image')).toBeVisible();
+    await expect(canvas.locator('img.ak-hero3__media')).toBeVisible();
     // Unpublished uploads are private: the sandboxed canvas loads them through a signed URL,
     // anonymous visitors get 404.
-    const canvasSrc = await canvas.locator('img.ak-hero__image').getAttribute('src');
+    const canvasSrc = await canvas.locator('img.ak-hero3__media').getAttribute('src');
     expect(canvasSrc).toMatch(/^\/media\/[0-9a-f-]+\.png\?t=\d+\./);
-    await expect.poll(() => canvas.locator('img.ak-hero__image').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(1);
+    await expect.poll(() => canvas.locator('img.ak-hero3__media').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(1);
     expect((await anonymous.get(canvasSrc!.split('?')[0]!)).status()).toBe(404);
     await page.getByRole('button', { name: 'Publish' }).click();
     await expect(page.getByTestId('notice')).toContainText('Hero image needs alternative text');
@@ -118,7 +119,7 @@ test('draft, preview, history and publish keep the live page safe', async ({ pag
     await page.getByRole('button', { name: 'Publish' }).click();
     await expect(page.getByTestId('notice')).toContainText('Published');
     const withImage = await live(anonymous);
-    expect(withImage.html).toMatch(/<img class="ak-hero__image" src="\/media\/[0-9a-f-]+\.png" alt="A single pixel" width="1" height="1"/);
+    expect(withImage.html).toMatch(/<img class="ak-hero3__media" src="\/media\/[0-9a-f-]+\.png" alt="A single pixel" width="1" height="1"/);
     const imageUrl = withImage.html.match(/src="(\/media\/[^"]+)"/)![1]!;
     const image = await anonymous.get(imageUrl);
     expect(image.headers()['content-type']).toBe('image/png');

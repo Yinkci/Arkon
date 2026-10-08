@@ -1,0 +1,40 @@
+import { expect, test } from '@playwright/test';
+import { createPage, db } from './support';
+import { APP_ORIGIN, SERVER_URL } from './env';
+
+test('theme preview, retry after lost response, publish and Inertia navigation update the palette', async ({ page }) => {
+    const id = await createPage('/theme-selection', 'Theme selection');
+    await page.goto('/admin/themes');
+    const mysite = page.getByRole('article', { name: 'MySite', exact: true });
+    await mysite.getByRole('button', { name: 'Preview components' }).click();
+    await expect(page.frameLocator('iframe[title="Theme component preview"]').getByText('Alex Morgan')).toBeVisible();
+    const before = await db.query('select count(*)::int as count from site_theme_requests');
+    let intercepted = false;
+    await page.route('**/admin/api/themes/activate', async (route) => {
+        if (intercepted) return route.continue();
+        intercepted = true;
+        const request = route.request();
+        await route.fetch({ url: request.url().replace(APP_ORIGIN, SERVER_URL), headers: await request.allHeaders() });
+        await route.abort('connectionreset');
+    });
+    await mysite.getByRole('button', { name: /Activate for editing|Refresh from files/ }).click();
+    await expect(page.getByRole('button', { name: 'Retry theme request' })).toBeVisible();
+    await page.reload();
+    await page.getByRole('button', { name: 'Retry theme request' }).click();
+    await expect(page.getByText('Theme activated for editing. Your live pages have not changed.', { exact: true })).toBeVisible();
+    const after = await db.query('select count(*)::int as count from site_theme_requests');
+    expect(after.rows[0].count).toBe(before.rows[0].count + 1);
+    await page.getByRole('button', { name: 'Publish theme selection' }).click();
+    await expect(page.getByText('Theme selection published. Publish individual pages to release their edits.', { exact: true })).toBeVisible();
+    await page.getByRole('link', { name: 'Pages', exact: true }).click();
+    await page.locator(`a[href="/admin/editor/${id}"]`).click();
+    await page.getByRole('tab', { name: 'Layers' }).click();
+    await expect(page.getByRole('button', { name: 'Add Testimonial', exact: true })).toBeVisible();
+    await page.goto('/admin/themes');
+    await page.getByRole('article', { name: 'Arkon core', exact: true }).getByRole('button', { name: 'Activate for editing' }).click();
+    await expect(page.getByText('Theme activated for editing. Your live pages have not changed.', { exact: true })).toBeVisible();
+    await page.getByRole('link', { name: 'Pages', exact: true }).click();
+    await page.locator(`a[href="/admin/editor/${id}"]`).click();
+    await page.getByRole('tab', { name: 'Layers' }).click();
+    await expect(page.getByRole('button', { name: 'Add Testimonial', exact: true })).toHaveCount(0);
+});

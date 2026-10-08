@@ -69,7 +69,7 @@ class AiProposalTest extends DatabaseTestCase
 
     private static function text(string $text, string $element = 'p'): array
     {
-        return ['type' => 'text', 'props' => ['text' => $text, 'element' => $element, 'align' => 'start']];
+        return ['type' => 'text', 'props' => ['text' => $text, 'element' => $element, 'style' => []]];
     }
 
     private function landscaping(): array
@@ -81,17 +81,17 @@ class AiProposalTest extends DatabaseTestCase
             'notes' => ['Set where the Contact us button links to before publishing.'],
             'changes' => [
                 ['action' => 'update', 'change' => ['id' => $this->f['heroId'], 'type' => 'hero', 'props' => [
-                    'heading' => 'Gardens that grow with you', 'headingLevel' => null, 'text' => 'Garden design, planting and lawn care for homes and businesses.', 'image' => null,
+                    'heading' => 'Gardens that grow with you', 'headingLevel' => null, 'text' => 'Garden design, planting and lawn care for homes and businesses.', 'image' => null, 'style' => null,
                 ]]],
                 ['action' => 'add', 'parent' => 'page', 'index' => null, 'block' => self::text('Our services', 'h2')],
-                ['action' => 'add', 'parent' => 'page', 'index' => null, 'block' => ['type' => 'columns', 'props' => ['stackOn' => 'mobile', 'gap' => 'medium'], 'children' => [
+                ['action' => 'add', 'parent' => 'page', 'index' => null, 'block' => ['type' => 'columns', 'props' => ['style' => []], 'children' => [
                     $service('Garden design', 'Plans that fit your space and how you use it.'),
                     $service('Planting', 'Trees, shrubs and borders chosen for your soil.'),
                     $service('Lawn care', 'Mowing, feeding and repair through the seasons.'),
                 ]]],
                 ['action' => 'add', 'parent' => 'page', 'index' => null, 'block' => self::text('About us', 'h2')],
                 ['action' => 'add', 'parent' => 'page', 'index' => null, 'block' => self::text('We are a local team that looks after gardens of every size.')],
-                ['action' => 'add', 'parent' => 'page', 'index' => null, 'block' => ['type' => 'button', 'props' => ['label' => 'Contact us', 'href' => '', 'style' => 'primary', 'newTab' => false]]],
+                ['action' => 'add', 'parent' => 'page', 'index' => null, 'block' => ['type' => 'button', 'props' => ['label' => 'Contact us', 'href' => '', 'variant' => 'primary', 'size' => 'medium', 'newTab' => false, 'style' => []]]],
             ],
         ];
     }
@@ -184,15 +184,15 @@ class AiProposalTest extends DatabaseTestCase
         ], $proposal['changes']);
         $this->assertSame(['Button needs a link'], $proposal['warnings']);
         $this->assertSame(['Set where the Contact us button links to before publishing.'], $proposal['notes']);
-        $this->assertMatchesRegularExpression('#<h2 class="ak-text"[^>]*data-ak-type="text">Our services</h2>#', $proposal['canvas']['body']);
+        $this->assertMatchesRegularExpression('#<h2 class="ak-text2 ak-flow"[^>]*data-ak-type="text">Our services</h2>#', $proposal['canvas']['body']);
 
         // What Claude Code got: Arkon's instructions with the registry catalogue, the page and the request.
         $sent = $runner->requests[0];
-        $this->assertStringContainsString('- columns (Columns, version 1)', $sent->instructions);
+        $this->assertStringContainsString('- columns (Columns, version 3)', $sent->instructions);
         $this->assertStringContainsString('"id":"'.$this->f['heroId'].'"', $sent->prompt);
         $this->assertStringContainsString('Build a homepage for a landscaping business', $sent->prompt);
         $this->assertSame('json_schema', 'json_schema'); // the schema travels separately:
-        $this->assertSame(['summary', 'notes', 'changes'], $sent->schema['required']);
+        $this->assertSame(['summary', 'notes', 'tokenChanges', 'changes'], $sent->schema['required']);
         $this->assertStringNotContainsString('owner@', $sent->prompt.$sent->instructions, 'no account data is sent');
 
         // Nothing changed: no new version, revision or publication.
@@ -230,8 +230,8 @@ class AiProposalTest extends DatabaseTestCase
         $this->pages()->saveDraft($this->f['ctx'], ['pageId' => $this->f['pageId'], 'baseVersion' => 4, 'saveKey' => self::key(), 'operations' => [['op' => 'updateProps', 'nodeId' => $button['id'], 'set' => ['href' => '/contact']]]]);
         $this->pages()->publish($this->f['ctx'], ['pageId' => $this->f['pageId'], 'expectedVersion' => 5, 'idempotencyKey' => self::key()]);
         $html = $this->pages()->livePage($this->f['siteId'], '/')->html;
-        $this->assertStringContainsString('<h1 class="ak-hero__heading">Gardens that grow with you</h1>', $html);
-        $this->assertStringContainsString('<a class="ak-button ak-button--primary" href="/contact">Contact us</a>', $html);
+        $this->assertStringContainsString('<h1 class="ak-hero3__heading">Gardens that grow with you</h1>', $html);
+        $this->assertStringContainsString('<a class="ak-btn2 ak-btn2--primary" href="/contact">Contact us</a>', $html);
         foreach (['data-ak-', '<script', 'contenteditable'] as $forbidden) {
             $this->assertStringNotContainsString($forbidden, $html);
         }
@@ -244,7 +244,7 @@ class AiProposalTest extends DatabaseTestCase
             'summary' => 'Shortened the headline and added a services introduction.',
             'notes' => [],
             'changes' => [
-                ['action' => 'update', 'change' => ['id' => $this->f['heroId'], 'type' => 'hero', 'props' => ['heading' => 'Gardens that grow', 'headingLevel' => null, 'text' => null, 'image' => null]]],
+                ['action' => 'update', 'change' => ['id' => $this->f['heroId'], 'type' => 'hero', 'props' => ['heading' => 'Gardens that grow', 'headingLevel' => null, 'text' => null, 'image' => null, 'style' => null]]],
                 ['action' => 'add', 'parent' => 'page', 'index' => 2, 'block' => self::text('From first sketch to seasonal care, one team does it all.')],
             ],
         ]]);
@@ -275,7 +275,7 @@ class AiProposalTest extends DatabaseTestCase
     public static function invalidReplies(): array
     {
         $add = fn (array $block, string $parent = 'page') => ['summary' => 'x', 'notes' => [], 'changes' => [['action' => 'add', 'parent' => $parent, 'index' => null, 'block' => $block]]];
-        $button = fn (string $href) => $add(['type' => 'button', 'props' => ['label' => 'Go', 'href' => $href, 'style' => 'primary', 'newTab' => false]]);
+        $button = fn (string $href) => $add(['type' => 'button', 'props' => ['label' => 'Go', 'href' => $href, 'variant' => 'primary', 'size' => 'medium', 'newTab' => false, 'style' => []]]);
 
         return [
             'not an object' => ['Here is your page: <section>…</section>', 'not a proposal'],
@@ -283,13 +283,13 @@ class AiProposalTest extends DatabaseTestCase
             'unknown component' => [$add(['type' => 'form', 'props' => []]), 'there is no "form" block'],
             'invented block id' => [['summary' => 'x', 'notes' => [], 'changes' => [['action' => 'remove', 'id' => 'doesNotExist']]], 'there is no block "doesNotExist"'],
             'column at the page level' => [$add(['type' => 'column', 'props' => [], 'children' => []]), 'column is not allowed inside page'],
-            'hero inside a column' => [$add(['type' => 'columns', 'props' => ['stackOn' => 'mobile', 'gap' => 'medium'], 'children' => [['type' => 'column', 'props' => [], 'children' => [['type' => 'hero', 'props' => ['heading' => 'x', 'headingLevel' => 'h2', 'text' => '', 'image' => null]]]]]]), 'hero is not allowed inside column'],
+            'hero inside a column' => [$add(['type' => 'columns', 'props' => ['style' => []], 'children' => [['type' => 'column', 'props' => [], 'children' => [['type' => 'hero', 'props' => ['heading' => 'x', 'headingLevel' => 'h2', 'text' => '', 'image' => null, 'style' => []]]]]]]), 'hero is not allowed inside column'],
             'unsafe link' => [$button('javascript:alert(1)'), 'Use a link starting with'],
             'backslash link' => [$button('/\\evil.example'), 'Use a link starting with'],
             'HTML in text' => [$add(self::text('<b>Bold</b> claims')), 'use plain text, not HTML'],
-            'unknown prop' => [$add(['type' => 'text', 'props' => ['text' => 'x', 'element' => 'p', 'align' => 'start', 'color' => 'red']]), 'Unrecognized key'],
+            'unknown prop' => [$add(['type' => 'text', 'props' => ['text' => 'x', 'element' => 'p', 'style' => [], 'color' => 'red']]), 'Unrecognized key'],
             'too long' => [$add(self::text(str_repeat('a', 5001))), 'Too long'],
-            'invented image' => [$add(['type' => 'image', 'props' => ['image' => ['assetId' => '01890a5d-ac96-774b-bcce-b302099a8057', 'alt' => 'x'], 'caption' => '', 'size' => 'full']]), 'is not one of the images on this page'],
+            'invented image' => [$add(['type' => 'image', 'props' => ['image' => ['assetId' => '01890a5d-ac96-774b-bcce-b302099a8057', 'alt' => 'x'], 'caption' => '', 'loading' => 'auto', 'style' => []]]), 'is not one of the images on this page'],
         ];
     }
 
@@ -321,7 +321,7 @@ class AiProposalTest extends DatabaseTestCase
             ['op' => 'updateProps', 'nodeId' => $this->f['heroId'], 'set' => ['image' => ['assetId' => $asset['id'], 'alt' => 'A garden']]],
         ]]);
         $runner = new FakeClaudeRunner([['summary' => 'Repeated the photo.', 'notes' => [], 'changes' => [
-            ['action' => 'add', 'parent' => 'page', 'index' => null, 'block' => ['type' => 'image', 'props' => ['image' => ['assetId' => $asset['id'], 'alt' => 'A garden'], 'caption' => 'Our work', 'size' => 'medium']]],
+            ['action' => 'add', 'parent' => 'page', 'index' => null, 'block' => ['type' => 'image', 'props' => ['image' => ['assetId' => $asset['id'], 'alt' => 'A garden'], 'caption' => 'Our work', 'loading' => 'auto', 'style' => []]]],
         ]]]);
         $request = $this->ask('Show the photo again below');
         $this->tick($runner);

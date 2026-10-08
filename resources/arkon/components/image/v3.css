@@ -1,0 +1,3 @@
+:where(.ak-img2){margin:0}
+.ak-img2__media{display:block;width:100%;height:auto;border-radius:var(--ak-t-radius-lg)}
+.ak-img2__caption{margin-top:.5rem;font-size:.875rem;color:var(--ak-t-color-muted)}

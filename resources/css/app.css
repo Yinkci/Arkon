@@ -7,56 +7,75 @@
 
 @theme {
     --font-sans: 'Segoe UI Variable Text', 'Segoe UI', ui-sans-serif, system-ui, -apple-system, Roboto, sans-serif;
+    --font-mono: ui-monospace, 'Cascadia Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
 }
 
 /*
- * Admin tokens. Screens that adopt them render inside an element with data-theme="light|dark"
- * (AdminLayout resolves the "system" preference). Everything else keeps the light defaults.
+ * Admin design tokens (the admin only: published sites never load this stylesheet).
+ * Screens render inside an element with data-theme="light|dark" (AdminLayout and the
+ * editors resolve the "system" preference). Status hues always come with an icon and
+ * text, never colour alone.
  */
 :root,
 [data-theme] {
-    --ak-canvas: #f6f6f7;
+    --ak-canvas: #f4f5f7;
     --ak-surface: #ffffff;
-    --ak-raised: #fbfbfc;
-    --ak-line: #e6e6e9;
-    --ak-line-strong: #d4d4d9;
-    --ak-fg: #17171a;
-    --ak-muted: #63636e;
-    --ak-faint: #9a9aa4;
-    --ak-accent: #4a4ad6;
-    --ak-accent-hover: #3c3cc4;
+    --ak-raised: #f9fafb;
+    --ak-sunken: #eceef1;
+    --ak-line: #e3e5e9;
+    --ak-line-strong: #cbd0d7;
+    --ak-fg: #15171c;
+    --ak-muted: #575e6a;
+    --ak-faint: #838a96;
+    --ak-accent: #3047d1;
+    --ak-accent-hover: #2538b2;
     --ak-accent-fg: #ffffff;
-    --ak-accent-soft: #ededfc;
-    --ak-live: #1d8a57;
-    --ak-changed: #b26b00;
-    --ak-draft: #8a8a94;
-    --ak-danger: #c4302b;
-    --ak-danger-soft: #fdeeed;
-    --ak-shadow: 0 1px 2px rgb(20 20 30 / 0.05);
-    --ak-shadow-pop: 0 12px 32px -8px rgb(20 20 30 / 0.18), 0 2px 6px rgb(20 20 30 / 0.06);
+    --ak-accent-soft: #eaedfb;
+    --ak-accent-line: #b5bff0;
+    --ak-live: #157347;
+    --ak-live-soft: #e5f3eb;
+    --ak-changed: #965600;
+    --ak-changed-soft: #fcf0dc;
+    --ak-draft: #6b7280;
+    --ak-danger: #be2530;
+    --ak-danger-soft: #fcebec;
+    --ak-ai: #6a3fcf;
+    --ak-ai-soft: #f1ebfd;
+    --ak-site: #0b6b75;
+    --ak-site-soft: #e2f3f4;
+    --ak-shadow: 0 1px 2px rgb(20 22 30 / 0.06);
+    --ak-shadow-pop: 0 12px 32px -8px rgb(20 22 30 / 0.22), 0 2px 6px rgb(20 22 30 / 0.07);
     color-scheme: light;
 }
 
 [data-theme='dark'] {
-    --ak-canvas: #121215;
-    --ak-surface: #18181c;
-    --ak-raised: #1d1d22;
-    --ak-line: #2a2a31;
-    --ak-line-strong: #3a3a43;
-    --ak-fg: #ececf0;
-    --ak-muted: #a0a0ab;
-    --ak-faint: #6c6c77;
-    --ak-accent: #8d8dfa;
-    --ak-accent-hover: #a3a3ff;
-    --ak-accent-fg: #121215;
-    --ak-accent-soft: #23234a;
-    --ak-live: #3fc187;
-    --ak-changed: #e7a73a;
-    --ak-draft: #85858f;
-    --ak-danger: #f0716b;
-    --ak-danger-soft: #3a1d1d;
-    --ak-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
-    --ak-shadow-pop: 0 16px 40px -8px rgb(0 0 0 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.04);
+    --ak-canvas: #0e1014;
+    --ak-surface: #15181d;
+    --ak-raised: #1a1d23;
+    --ak-sunken: #0b0d10;
+    --ak-line: #272b32;
+    --ak-line-strong: #363b45;
+    --ak-fg: #e7e9ed;
+    --ak-muted: #a3aab5;
+    --ak-faint: #737a86;
+    --ak-accent: #8b9cff;
+    --ak-accent-hover: #a5b2ff;
+    --ak-accent-fg: #0e1014;
+    --ak-accent-soft: #1d2348;
+    --ak-accent-line: #3b468f;
+    --ak-live: #52c690;
+    --ak-live-soft: #10281c;
+    --ak-changed: #f0b14c;
+    --ak-changed-soft: #2d2311;
+    --ak-draft: #8b919c;
+    --ak-danger: #f47f78;
+    --ak-danger-soft: #361a1b;
+    --ak-ai: #b7a0ff;
+    --ak-ai-soft: #251c43;
+    --ak-site: #63c9d2;
+    --ak-site-soft: #0f2a2d;
+    --ak-shadow: 0 1px 2px rgb(0 0 0 / 0.45);
+    --ak-shadow-pop: 0 16px 40px -8px rgb(0 0 0 / 0.65), 0 0 0 1px rgb(255 255 255 / 0.05);
     color-scheme: dark;
 }
 
@@ -64,6 +83,7 @@
     --color-canvas: var(--ak-canvas);
     --color-surface: var(--ak-surface);
     --color-raised: var(--ak-raised);
+    --color-sunken: var(--ak-sunken);
     --color-line: var(--ak-line);
     --color-line-strong: var(--ak-line-strong);
     --color-fg: var(--ak-fg);
@@ -73,13 +93,25 @@
     --color-accent-hover: var(--ak-accent-hover);
     --color-accent-fg: var(--ak-accent-fg);
     --color-accent-soft: var(--ak-accent-soft);
+    --color-accent-line: var(--ak-accent-line);
     --color-live: var(--ak-live);
+    --color-live-soft: var(--ak-live-soft);
     --color-changed: var(--ak-changed);
+    --color-changed-soft: var(--ak-changed-soft);
     --color-draft: var(--ak-draft);
     --color-danger: var(--ak-danger);
     --color-danger-soft: var(--ak-danger-soft);
+    --color-ai: var(--ak-ai);
+    --color-ai-soft: var(--ak-ai-soft);
+    --color-site: var(--ak-site);
+    --color-site-soft: var(--ak-site-soft);
     --shadow-hairline: var(--ak-shadow);
     --shadow-pop: var(--ak-shadow-pop);
+}
+
+[data-theme] {
+    background: var(--ak-canvas);
+    color: var(--ak-fg);
 }
 
 [data-theme] :focus-visible {
@@ -89,4 +121,70 @@
 
 [data-theme] ::selection {
     background: var(--ak-accent-soft);
+}
+
+/* Shared form controls (see Components/ui.tsx). One look for every input in the admin. */
+@layer components {
+    .ui-input {
+        width: 100%;
+        min-width: 0;
+        height: 2rem;
+        border-radius: 0.375rem;
+        border: 1px solid var(--ak-line-strong);
+        background: var(--ak-surface);
+        padding-inline: 0.5rem;
+        font-size: 0.8125rem;
+        color: var(--ak-fg);
+        outline: none;
+        transition: border-color 120ms;
+    }
+    textarea.ui-input {
+        height: auto;
+        padding-block: 0.375rem;
+        line-height: 1.45;
+        resize: vertical;
+    }
+    select.ui-input {
+        padding-right: 1.5rem;
+    }
+    .ui-input::placeholder {
+        color: var(--ak-faint);
+    }
+    .ui-input:hover:not(:disabled) {
+        border-color: var(--ak-faint);
+    }
+    .ui-input:focus {
+        border-color: var(--ak-accent);
+        box-shadow: 0 0 0 3px var(--ak-accent-soft);
+    }
+    .ui-input:disabled {
+        background: var(--ak-raised);
+        color: var(--ak-muted);
+        cursor: not-allowed;
+    }
+    .ui-input[aria-invalid='true'] {
+        border-color: var(--ak-danger);
+        box-shadow: 0 0 0 3px var(--ak-danger-soft);
+    }
+    .ui-label {
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--ak-muted);
+        margin-bottom: 0.25rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [data-theme] * {
+        transition: none !important;
+        animation: none !important;
+    }
+}
+
+/* While a block is being dragged (DragController): no accidental text selection, one cursor. */
+html.ak-dragging,
+html.ak-dragging * {
+    cursor: grabbing !important;
+    user-select: none !important;
 }

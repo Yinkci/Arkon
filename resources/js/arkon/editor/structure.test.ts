@@ -27,7 +27,7 @@ function layout() {
 }
 
 describe('creating components', () => {
-    it.each(['hero', 'text', 'image', 'button', 'columns'])('%s gets valid defaults at the page level', (type) => {
+    it.each(['section', 'group', 'hero', 'text', 'image', 'button', 'columns'])('%s gets valid defaults at the page level', (type) => {
         const doc = createPageDocument([]);
         const next = apply(doc, insertOps({ parentId: doc.root, index: 0 }, createNodes(type)));
         expect(Object.keys(next.nodes)).toHaveLength(type === 'columns' ? 4 : 2);
@@ -49,10 +49,12 @@ describe('where Add puts things', () => {
         expect(insertionFor(l.doc, null, 'text')).toEqual({ parentId: l.doc.root, index: 3 });
     });
 
-    it('never nests what may not be nested: a hero or columns chosen inside a column go after the columns', () => {
+    it('never nests what may not be nested: a hero or section chosen inside a column go after the columns', () => {
         const l = layout();
         expect(insertionFor(l.doc, l.inner, 'hero')).toEqual({ parentId: l.doc.root, index: 2 });
-        expect(insertionFor(l.doc, l.colA, 'columns')).toEqual({ parentId: l.doc.root, index: 2 });
+        expect(insertionFor(l.doc, l.colA, 'section')).toEqual({ parentId: l.doc.root, index: 2 });
+        // Columns and groups nest inside columns.
+        expect(insertionFor(l.doc, l.colA, 'columns')).toEqual({ parentId: l.colA, index: 1 });
     });
 });
 
@@ -83,7 +85,7 @@ describe('moving', () => {
         expect(dropPlacement(l.doc, { nodeId: l.columns, type: 'columns' }, l.colA, 'inside')).toBeNull();
         expect(dropPlacement(l.doc, { nodeId: l.colA, type: 'column' }, l.hero, 'after')).toBeNull();
         expect(dropPlacement(l.doc, { nodeId: l.inner, type: 'text' }, l.columns, 'inside')).toBeNull();
-        expect(dropPlacement(l.doc, { type: 'columns' }, l.inner, 'after')).toBeNull();
+        expect(dropPlacement(l.doc, { type: 'section' }, l.inner, 'after')).toBeNull();
         expect(dropPlacement(l.doc, { type: 'button' }, l.inner, 'after')).toEqual({ parentId: l.colA, index: 1 });
     });
 
@@ -93,6 +95,8 @@ describe('moving', () => {
         let doc = l.doc;
         doc = apply(doc, insertOps({ parentId: l.columns, index: 2 }, createNodes('column')));
         doc = apply(doc, insertOps({ parentId: l.columns, index: 3 }, createNodes('column')));
+        doc = apply(doc, insertOps({ parentId: l.columns, index: 4 }, createNodes('column')));
+        doc = apply(doc, insertOps({ parentId: l.columns, index: 5 }, createNodes('column')));
         expect(dropPlacement(doc, { type: 'column' }, l.colA, 'after')).toBeNull();
     });
 

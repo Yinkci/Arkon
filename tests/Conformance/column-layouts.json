@@ -1,0 +1,59 @@
+[
+  {
+    "name": "reordered columns keep their widths",
+    "style": { "root": { "base": { "columns": "1fr 2fr" } } },
+    "oldCount": 2,
+    "mapping": [1, 0],
+    "expected": { "style": { "root": { "base": { "columns": "2fr 1fr" } } }, "reset": [] }
+  },
+  {
+    "name": "a new empty column resets proportions; phones keep stacking",
+    "style": { "root": { "base": { "columns": "1fr 2fr" }, "mobile": { "columns": "1" } } },
+    "oldCount": 2,
+    "mapping": [0, 1, null],
+    "expected": { "style": { "root": { "mobile": { "columns": "1" } } }, "reset": ["base"] }
+  },
+  {
+    "name": "screens set explicitly are left as set; the others are reconciled",
+    "style": { "root": { "base": { "columns": "1fr 2fr" }, "tablet": { "columns": "2fr 1fr" }, "mobile": { "columns": "1" } } },
+    "oldCount": 2,
+    "mapping": [0, 1, null],
+    "keep": ["tablet"],
+    "expected": { "style": { "root": { "tablet": { "columns": "2fr 1fr" }, "mobile": { "columns": "1" } } }, "reset": ["base"] }
+  },
+  {
+    "name": "all side by side follows the number of columns",
+    "style": { "root": { "base": { "columns": "3" }, "tablet": { "columns": "3" }, "mobile": { "columns": "1" } } },
+    "oldCount": 3,
+    "mapping": [0, 1, 2, null],
+    "expected": { "style": { "root": { "tablet": { "columns": "4" }, "mobile": { "columns": "1" } } }, "reset": [] }
+  },
+  {
+    "name": "a per-row count larger than the columns resets",
+    "style": { "root": { "tablet": { "columns": "3" } } },
+    "oldCount": 4,
+    "mapping": [0, 1],
+    "expected": { "style": {}, "reset": ["tablet"] }
+  },
+  {
+    "name": "a duplicated column copies its width",
+    "style": { "root": { "base": { "columns": "1fr 2fr 1fr" } } },
+    "oldCount": 3,
+    "mapping": [0, 1, 1, 2],
+    "expected": { "style": { "root": { "base": { "columns": "1fr 2fr 2fr 1fr" } } }, "reset": [] }
+  },
+  {
+    "name": "down to one column: no widths left, phones keep stacking",
+    "style": { "root": { "base": { "columns": "1fr 2fr" }, "mobile": { "columns": "1" } } },
+    "oldCount": 2,
+    "mapping": [1],
+    "expected": { "style": { "root": { "mobile": { "columns": "1" } } }, "reset": [] }
+  },
+  {
+    "name": "other settings of the screen are untouched",
+    "style": { "root": { "base": { "gap": "20px", "columns": "1fr 2fr" } } },
+    "oldCount": 2,
+    "mapping": [0, 1, null],
+    "expected": { "style": { "root": { "base": { "gap": "20px" } } }, "reset": ["base"] }
+  }
+]

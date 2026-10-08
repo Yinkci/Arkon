@@ -11,11 +11,13 @@
  */
 
 use App\Arkon\Ai\ProposalService;
+use App\Arkon\Design\TokenService;
 use App\Arkon\Errors\ArkonException;
 use App\Arkon\Pages\PageManagement;
 use App\Arkon\Pages\PageService;
 use App\Arkon\Sites\SiteContext;
 use App\Arkon\Support\Json;
+use App\Arkon\Themes\ThemeService;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
 
@@ -45,6 +47,8 @@ usleep((int) (($job['delayMs'] ?? 0) * 1000));
 $ctx = new SiteContext($job['ctx']['siteId'], $job['ctx']['userId']);
 try {
     $result = match ($job['call']) {
+        'activateTheme' => app(ThemeService::class)->activate($ctx, $job['input']),
+        'publishTheme' => app(ThemeService::class)->publish($ctx, $job['input']),
         'saveDraft' => app(PageService::class)->saveDraft($ctx, $job['input']),
         'publish' => app(PageService::class)->publish($ctx, $job['input']),
         'createPage' => app(PageManagement::class)->create($ctx, $job['input']),
@@ -53,6 +57,7 @@ try {
         'delete' => app(PageManagement::class)->delete($ctx, $job['input']),
         'unpublish' => app(PageManagement::class)->unpublish($ctx, $job['input']),
         'aiRequest' => app(ProposalService::class)->request($ctx, $job['input']['pageId'], $job['input']),
+        'applyTokens' => app(ProposalService::class)->applyTokenChanges($ctx, $job['input']['pageId'], $job['input']['proposalId'], app(TokenService::class)),
     };
     echo json_encode(['ok' => true, 'result' => $result])."\n";
 } catch (ArkonException $error) {

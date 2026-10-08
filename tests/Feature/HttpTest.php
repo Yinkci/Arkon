@@ -245,7 +245,7 @@ class HttpTest extends DatabaseTestCase
 
         $response = $this->publicGet('/')->assertOk();
         $html = $response->getContent();
-        $this->assertStringContainsString('<h1 class="ak-hero__heading">Original heading</h1>', $html);
+        $this->assertStringContainsString('<h1 class="ak-hero3__heading">Original heading</h1>', $html);
         foreach (['data-ak-', '<script', '/build/', 'inertia', 'data-page', 'contenteditable'] as $forbidden) {
             $this->assertStringNotContainsStringIgnoringCase($forbidden, $html);
         }

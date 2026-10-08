@@ -1,13 +1,15 @@
 // Twin of app/Arkon/Components/PropSchema.php: the manifest prop-schema language.
 import { isPlainObject, matches, message } from '../rules';
+import { parseStyle, type StyleField } from '../style/schema';
 
 export type Field =
     | { type: 'string'; maxLength?: number; minLength?: number; default?: unknown }
     | { type: 'enum'; values: string[]; default?: unknown }
     | { type: 'boolean'; default?: unknown }
-    | { type: 'uuid'; default?: unknown }
+    | { type: 'uuid'; ref?: 'component'; default?: unknown }
     | { type: 'link'; maxLength?: number; default?: unknown }
-    | { type: 'object'; properties?: Record<string, Field>; nullable?: boolean; default?: unknown };
+    | { type: 'object'; properties?: Record<string, Field>; nullable?: boolean; default?: unknown }
+    | StyleField;
 
 export interface PropIssue {
     path: string;
@@ -73,6 +75,8 @@ function parseField(field: Field, value: unknown, at: string, issues: PropIssue[
         case 'uuid':
             if (!matches('uuid', value)) issues.push({ path: at, message: message('invalidUuid') });
             return value;
+        case 'style':
+            return parseStyle(field, value, at, issues);
         case 'object':
             if (value === null && field.nullable) return null;
             return parseObject(field.properties ?? {}, value, at, issues);

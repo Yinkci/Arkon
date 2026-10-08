@@ -1,0 +1,47 @@
+{
+  "type": "columns",
+  "version": 2,
+  "label": "Columns",
+  "children": {
+    "allow": [
+      "column"
+    ],
+    "min": 1,
+    "max": 6
+  },
+  "props": {
+    "style": {
+      "type": "style",
+      "slots": {
+        "root": {
+          "label": "Columns",
+          "groups": [
+            "layout",
+            "spacing",
+            "size",
+            "placement",
+            "background",
+            "border",
+            "effects"
+          ]
+        }
+      },
+      "default": {
+        "root": {
+          "mobile": {
+            "columns": "1"
+          }
+        }
+      }
+    }
+  },
+  "defaultProps": {
+    "style": {
+      "root": {
+        "mobile": {
+          "columns": "1"
+        }
+      }
+    }
+  }
+}

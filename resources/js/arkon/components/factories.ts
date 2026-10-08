@@ -5,7 +5,13 @@ import { currentDefinition } from './registry';
 
 export function createHeroNode(props: Record<string, unknown> = {}): Node {
     const hero = currentDefinition('hero')!;
-    return { id: createNodeId(), type: hero.type, version: hero.version, props: { ...structuredClone(hero.defaultProps), ...props } };
+    return {
+        id: createNodeId(),
+        type: hero.type,
+        version: hero.version,
+        props: { ...structuredClone(hero.defaultProps), ...props },
+        ...(hero.children === false ? {} : { children: [] }),
+    };
 }
 
 export function createPageDocument(sections: Node[] = []): PageDocument {

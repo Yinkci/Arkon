@@ -170,8 +170,8 @@ test('panel: prompt → helper → preview → apply → undo/redo → follow-up
     await page.getByRole('button', { name: 'Publish' }).click();
     await expect(notice(page)).toContainText('Published');
     const live = await publicHtml(page, '/ai-landscaping');
-    expect(live.html).toContain('<h1 class="ak-hero__heading">Gardens that grow</h1>');
-    expect(live.html).toContain('<a class="ak-button ak-button--primary" href="/contact">Contact us</a>');
+    expect(live.html).toContain('<h1 class="ak-hero3__heading">Gardens that grow</h1>');
+    expect(live.html).toContain('<a class="ak-btn2 ak-btn2--primary" href="/contact">Contact us</a>');
     for (const forbidden of ['data-ak-', '<script', 'contenteditable']) expect(live.html).not.toContain(forbidden);
 });
 
@@ -232,7 +232,7 @@ test('VS Code (MCP): a submitted proposal waits in the editor for visual review 
         { name: 'arkon_get_proposal_format', arguments: { pageId: id } },
     ]);
     expect(listed.pages.map((p: { id: string }) => p.id)).toContain(id);
-    expect(format.schema.required).toEqual(['summary', 'notes', 'changes']);
+    expect(format.schema.required).toEqual(['summary', 'notes', 'tokenChanges', 'changes']);
     const hero = read.blocks.find((b: { type: string }) => b.type === 'hero');
     const [submitted] = await mcp([
         {
@@ -248,7 +248,11 @@ test('VS Code (MCP): a submitted proposal waits in the editor for visual review 
                     changes: [
                         {
                             action: 'update',
-                            change: { id: hero.id, type: 'hero', props: { heading: 'Garden design that lasts', headingLevel: null, text: null, image: null } },
+                            change: {
+                                id: hero.id,
+                                type: 'hero',
+                                props: { heading: 'Garden design that lasts', headingLevel: null, text: null, image: null, style: null },
+                            },
                         },
                     ],
                 },

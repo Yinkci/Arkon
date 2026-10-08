@@ -55,6 +55,7 @@ test('a draft saved with backslash links opens in recovery and becomes a normal 
     // An image uploaded through the editor (on another page), for the older page to use.
     const scratch = await createPage('/recovery-upload', 'Upload');
     await page.goto(`/admin/editor/${scratch}`);
+    await page.getByTestId('edit-hero-image').click();
     await page.getByLabel('Upload image').setInputFiles({ name: 'dot.png', mimeType: 'image/png', buffer: PNG_1X1 });
     await expect(canvas(page).locator('img')).toBeVisible();
     await page.getByRole('button', { name: 'Save draft' }).click();
@@ -74,7 +75,7 @@ test('a draft saved with backslash links opens in recovery and becomes a normal 
     await expect(status(page)).toHaveText('Needs repair');
     for (const name of ['Save draft', 'Publish', 'Preview', 'Undo']) await expect(page.getByRole('button', { name, exact: true })).toBeDisabled();
     await expect(canvas(page).locator('img')).toHaveAttribute('alt', 'A dot');
-    await expect(canvas(page).locator('a.ak-button')).toHaveCount(2);
+    await expect(canvas(page).locator('a.ak-btn2')).toHaveCount(2);
     await canvas(page).locator('h1').click();
     await expect(canvas(page).locator('h1')).not.toHaveAttribute('contenteditable');
     const apply = panel.getByRole('button', { name: 'Apply repair' });
@@ -95,8 +96,8 @@ test('a draft saved with backslash links opens in recovery and becomes a normal 
     await expect(panel).toHaveCount(0);
     await expect(notice(page)).toContainText('Repair applied');
     await expect(status(page)).toHaveText('Unsaved changes');
-    await expect(canvas(page).locator('a.ak-button')).toHaveCount(1);
-    await expect(canvas(page).locator('a.ak-button')).toHaveAttribute('href', '/contact');
+    await expect(canvas(page).locator('a.ak-btn2')).toHaveCount(1);
+    await expect(canvas(page).locator('a.ak-btn2')).toHaveAttribute('href', '/contact');
     await expect(canvas(page).locator('img')).toHaveAttribute('alt', 'A dot');
     await expect(page.getByRole('button', { name: 'Undo' })).toBeDisabled(); // history starts after the repair
 
@@ -110,7 +111,7 @@ test('a draft saved with backslash links opens in recovery and becomes a normal 
     await expect(notice(page)).toContainText('Published');
     const live = await publicHtml(page, '/recovery');
     expect(live.status).toBe(200);
-    expect(live.html).toContain('<a class="ak-button ak-button--primary" href="/contact">Contact</a>');
+    expect(live.html).toContain('<a class="ak-btn2 ak-btn2--primary" href="/contact">Contact</a>');
     expect(live.html).toContain(`/media/${assetId}.png`);
     expect(live.html).not.toContain('\\');
     expect(live.html).not.toContain('Partner');
@@ -119,6 +120,7 @@ test('a draft saved with backslash links opens in recovery and becomes a normal 
 test('a single stored backslash link can be repaired by removing its block', async ({ page }) => {
     const scratch = await createPage('/recovery-upload-2', 'Upload');
     await page.goto(`/admin/editor/${scratch}`);
+    await page.getByTestId('edit-hero-image').click();
     await page.getByLabel('Upload image').setInputFiles({ name: 'dot.png', mimeType: 'image/png', buffer: PNG_1X1 });
     await expect(canvas(page).locator('img')).toBeVisible();
     await page.getByRole('button', { name: 'Save draft' }).click();
@@ -131,8 +133,8 @@ test('a single stored backslash link can be repaired by removing its block', asy
     await expect(panel.getByTestId('recovery-item')).toHaveCount(1);
     await panel.getByLabel('Remove this block').check();
     await panel.getByRole('button', { name: 'Apply repair' }).click();
-    await expect(canvas(page).locator('a.ak-button')).toHaveCount(1);
-    await expect(canvas(page).locator('a.ak-button')).toHaveAttribute('href', '/partners');
+    await expect(canvas(page).locator('a.ak-btn2')).toHaveCount(1);
+    await expect(canvas(page).locator('a.ak-btn2')).toHaveAttribute('href', '/partners');
     await page.getByRole('button', { name: 'Publish' }).click(); // saves first, then publishes
     await expect(notice(page)).toContainText('Published');
     expect((await publicHtml(page, '/recovery-one')).html).not.toContain('Contact');

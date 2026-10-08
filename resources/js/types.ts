@@ -1,4 +1,5 @@
 import type { PageDocument } from '@/arkon/schema/document';
+import type { TokenSet } from '@/arkon/style/tokens';
 
 export type PageStatus = 'draft' | 'published' | 'changed';
 
@@ -20,6 +21,18 @@ export interface MediaInfo {
     width: number;
     height: number;
     mime: string;
+    /** The original file name, when known (shown instead of the storage id). */
+    name?: string;
+}
+
+/** A reusable component of the site, as pages see it: only its published version is ever used. */
+export interface ReusableComponentInfo {
+    id: string;
+    name: string;
+    /** Published version number, or null when it was never published. */
+    published: number | null;
+    /** The published version's document (null when unpublished), for detaching. */
+    document: PageDocument | null;
 }
 
 export interface LiveInfo {
@@ -63,6 +76,10 @@ export interface EditorInit {
     site: { name: string };
     canvas: { body: string; css: string };
     multiline: Record<string, string[]>;
+    /** The site's published design tokens with defaults applied. */
+    tokens: TokenSet;
+    /** Reusable components (published versions) that instances on this page can use. */
+    components: ReusableComponentInfo[];
     /** Whether the AI panel can be used (never provider credentials). */
     ai: { available: boolean; reason: string | null; promptMax: number; connection: import('@/arkon/editor/proposals').AiConnection };
 }

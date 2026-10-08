@@ -21,8 +21,12 @@ document covers what is different and how the port keeps its guarantees. Plan: [
 - `routes/web.php`: sign-in, admin pages, the editor's JSON API, preview. `web` middleware group (session, CSRF).
 - `routes/public.php`: loaded last and outside the `web` group. `/media/{file}` and a catch-all page route whose
   pattern excludes the reserved first segments (`admin`, `login`, `logout`, `api`, `preview`, `media`, `build`),
-  the same list page URLs are validated against. Public responses carry no `Set-Cookie`, no scripts, no Vite or
-  Inertia assets, and `Content-Security-Policy: script-src 'none'`.
+  the same list page URLs are validated against. Public responses carry no `Set-Cookie`, no Vite or Inertia assets,
+  and no scripts with one narrow exception: a page with entrance animations loads the versioned animation runtime
+  (`/_arkon/motion-3.js` for new output, on any page with an entrance; `motion-1.js` and `motion-2.js` stay, on pages
+  with "when scrolled into view" entrances only, for publications that recorded them), a static file pinned by
+  `integrity`. Its policy is `script-src 'none'`, or exactly that file's URL on this origin for such pages (see
+  "Entrance animations").
 - Services take a `SiteContext` (site + user) and authorize first, inside their transaction. Ids of other sites
   (and malformed ids) are "not found", never "forbidden".
 
@@ -59,8 +63,8 @@ every save authoritatively. Both must agree exactly, so:
    with `Support\Json::decode`, which keeps empty objects as `stdClass`, and operations keep that form, so
    `props: {}` and `seo: {}` are never turned into lists and `[]` sent where an object belongs is rejected exactly
    as TypeScript rejects it.
-4. **A shared conformance suite.** `tests/Conformance/fixtures.json` holds 103 tricky cases (documents, operations,
-   URL paths) with the PHP results; `php tests/Conformance/build.php` regenerates it. PHPUnit fails if PHP's
+4. **A shared conformance suite.** `tests/Conformance/fixtures.json` holds 143 tricky cases (documents, operations,
+   URL paths, design-token sets; 30 of them exercise the styling model) with the PHP results; `php tests/Conformance/build.php` regenerates it. PHPUnit fails if PHP's
    behaviour changes; Vitest (`tests/Conformance/conformance.test.ts`) fails unless TypeScript produces exactly the
    same issues, documents, inverses and messages. Verified by mutation: counting code points instead of UTF-16
    units in TypeScript alone fails the suite.
@@ -95,22 +99,50 @@ To change a rule: edit the JSON, run `php tests/Conformance/build.php`, review t
   migration), with the site's current data; a dependency change never silently upgrades published content.
 - **Renderer versions.** Any change to output for the same inputs (serializer, head, base stylesheet) needs a new
   `PageRenderer::VERSION`, with the previous behaviour kept selectable so recorded publications still reproduce.
-- `ComponentHistoryTest` publishes with hero v1, registers a hypothetical hero v2 (renamed prop, different markup
-  and CSS), and proves: the v1 publication reproduces byte for byte (current-version rendering would fail, migrated
-  rendering differs); editing and publishing move forward to v2 with the migrated document stored; a re-render
-  keeps v1 markup; legacy and unavailable inputs are reported. It fails if the renderer uses current definitions.
+- `ComponentHistoryTest` publishes with the current hero (v2), registers a hypothetical hero v3 (renamed prop,
+  different markup and CSS), and proves: the v2 publication reproduces byte for byte (current-version rendering
+  would fail, migrated rendering differs); editing and publishing move forward to v3 with the migrated document
+  stored; a re-render keeps v2 markup; legacy and unavailable inputs are reported. It fails if the renderer uses
+  current definitions.
+- **Development builds and compatibility records.** Four development publications (2026-10-07 12:00–12:01) were
+  made by arkon-php-2 before hero v2's parts used the `--ak-basis` flex basis and before direction settings wrote
+  it. Their recorded inputs say `arkon-php-2`, which today renders the later behaviour. Instead of changing those
+  immutable rows, `PageRenderer::COMPAT_BUILDS` keeps that build selectable (`arkon-php-2-pre-basis`: frozen
+  `resources/arkon/compat/hero-v2-pre-basis.css`, no basis from direction settings), for reproduction only. The
+  append-only table `publication_render_compat` names the build per publication; `arkon:record-render-compat <id>
+  <build>` writes a row only if the recorded version does **not** reproduce the publication and the named build does,
+  byte for byte. Reproduction itself stays read-only and uses the recorded build when a row exists. All nine
+  development publications reproduce (`RenderCompatTest` covers both behaviours, refusals and append-only grants).
+  Later behaviour changes get new component or renderer versions, never edits to a released one.
+- **Renderer arkon-php-2** (current) adds design tokens, generated style classes and reusable components to the
+  output. `arkon-php-1` (base stylesheet with fixed values, no token variables, no style classes) stays selectable,
+  so every publication recorded with it still reproduces byte for byte; it records no shared-resource dependencies.
 
 ### Components and the visual builder
 
-| Component | Version | Props (defaults) | Children | Publish checks |
-|---|---|---|---|---|
-| `page` | 2 | none (SEO lives on the document) | `hero`, `text`, `image`, `button`, `columns`, max 50 | – |
-| `hero` | 1 | unchanged | – | heading, image alt |
-| `text` | 1 | `text` ("Write something here."), `element` p/h2/h3, `align` start/center | – | not blank |
-| `image` | 2 | `image` {assetId, alt} or null, `caption`, `size` full/medium/small | – | has an image; alt text |
-| `button` | 1 | `label` ("Learn more"), `href` ("/", type `link`), `style` primary/secondary, `newTab` | – | label; link |
-| `columns` | 1 | `stackOn` tablet/mobile (mobile), `gap` small/medium/large (medium) | `column`, min 1, max 4 | – |
-| `column` | 1 | none | `text`, `image`, `button`, max 20 | – |
+Current versions (older versions stay registered, see below and §4):
+
+| Component | Version | Props (besides `style`) | Style slots | Children | Publish checks |
+|---|---|---|---|---|---|
+| `page` | 3 | none (SEO lives on the document) | root: background, typography | section, hero, text, image, button, columns, group, instance; max 50 | – |
+| `section` | 2 | `element` section/div/header/footer/aside, `contentWidth` narrow/default/wide/full | root: layout, spacing, size, background, border, effects, typography, motion | hero, text, image, button, group, columns, instance; max 30 | – |
+| `group` | 2 | `element` div/section/article/aside | root: layout, spacing, size, placement, background, border, effects, motion | text, image, button, group, columns, instance; max 30 | – |
+| `hero` | 4 | `heading`, `headingLevel` h1/h2, `text`, `image` {assetId, alt} | root (+ motion), content (text column), heading, text, actions, media | button, max 4 (shown under the text) | heading; image alt |
+| `text` | 3 | `text`, `element` p/h1/h2/h3/h4 | root: typography, spacing, size, placement, background, border, effects, motion | – | not blank |
+| `image` | 4 | `image`, `caption`, `loading` auto/eager/lazy | root (block, + motion), media (the image: size, fit, crop, border, shadow), caption | – | has an image; alt |
+| `button` | 3 | `label`, `href` (safe link), `variant` primary/secondary/text, `size` small/medium/large, `newTab` | root (alignment, spacing, motion), button | – | label; link |
+| `columns` | 3 | none | root: layout (column count or proportions), spacing, size, …, motion | column, min 1, max 6 | – |
+| `column` | 3 | none | root: layout, spacing, size, …, motion | text, image, button, group, columns, instance; max 30 | – |
+| `instance` | 2 | `componentId` (a reusable component of the site) | root: spacing, size, placement, motion | – | component published |
+| `fragment` | 1 | none: the root of a reusable component's document | – | section, hero, text, image, button, columns, group; max 30 | – |
+
+Migrations into the current versions (old drafts open at them; publications keep theirs): page 1→2→3 and
+hero 1→2 unchanged props (hero gains an empty children list); text 1→2 `align: center` → `textAlign`;
+image 1→2→3 `size` medium/small → `maxWidth` 48rem/28rem; button 1→2 `style` → `variant`; columns 1→2
+`stackOn` → `columns: "1"` on that screen, `gap` small/large → `@space.md`/`@space.xl`. The entrance-animation
+versions (section 2, group 2, hero 4, text 3, image 4, button 3, columns 3, column 3, instance 2) only add the
+`motion` group to the root slot: identity migrations, the same renderer classes and stylesheets (copied, so each
+version keeps its own file), so publications of the earlier versions reproduce byte for byte.
 
 - **page v2** exists only to allow the new children (v1 allowed `hero` only). Its migration is the identity and it
   shares page v1's renderer and (empty) CSS, so v1 publications still reproduce byte for byte and drafts move to
@@ -120,9 +152,9 @@ To change a rule: edit the JSON, run `php tests/Conformance/build.php`, review t
   column. v2 has the same props (identity migration), the same renderer and markup, and a stylesheet where sizes are
   maximum widths on the page (full = page width, medium 48rem, small 28rem, as in v1) and shares of the column inside
   Columns (100%, 2/3, 2/5). v1 publications keep v1's CSS and reproduce byte for byte; drafts move to v2 when opened.
-  The inspector names the actual size for where the image is ("Medium (2/3 of the column)").
-- **Nesting is data.** Each manifest's `children` lists allowed types, `max` and (new) `min`. Columns cannot hold
-  Columns or a Hero, a Column can only live in Columns, and the last Column cannot be removed. Both validators
+  Image v3 replaces the size presets with design settings (the migration keeps medium/small as max widths).
+- **Nesting is data.** Each manifest's `children` lists allowed types, `max` and `min` (current rules in the table
+  above): a Column can only live in Columns, sections only at the top level, and the last Column cannot be removed. Both validators
   report `childNotAllowed`, `tooManyChildren` and `tooFewChildren`; every structural operation is re-validated on
   the server, so a crafted request cannot create invalid nesting.
 - **Safe links.** The `link` prop type accepts only `/path` (not `//`), `#…`, `?…`, `http(s)://host…`, `mailto:` and
@@ -155,8 +187,7 @@ To change a rule: edit the JSON, run `php tests/Conformance/build.php`, review t
   subtree, a container that does not accept it, a full one, or out of a container that would drop below its
   minimum, such as a Columns block's last column), and index adjustment for moves within a parent.
 - **Editor UI.** The **Layers** tab has the Add palette, the tree with Move up / Move down / Remove buttons for
-  every node (the keyboard and screen-reader path), and HTML5 drag and drop of layers and of palette items that
-  shows only valid drop positions. A toolbar above the canvas offers Select parent / Move / Remove for the
+  every node (the keyboard and screen-reader path), and dragging of rows and palette items (see "Dragging"). A toolbar above the canvas offers Select parent / Move / Remove for the
   selection. Each component has its own inspector.
 - **Unresolved fields.** A Button link is applied to the document only once it is valid, so documents (and saves)
   never contain an unsafe link. Text typed that is not valid yet (`https://`) is an *unresolved field*, held by the
@@ -167,17 +198,315 @@ To change a rule: edit the JSON, run `php tests/Conformance/build.php`, review t
   Publish and Preview check again *after* awaiting their save and immediately before sending the publish intent or
   pointing the preview window at the preview (nothing is awaited in between), so input that became unresolved while
   the save was pending also blocks them; the blank preview window is closed.
-- **Responsive previews.** Desktop/tablet/mobile previews resize the canvas iframe, so components' real media
-  queries apply (Columns stack below 900px or 600px).
-- **Editor-only output.** Selection outlines, empty-column hints and the empty-image placeholder are canvas CSS or
-  editor-mode markup (`data-ak-*`, `ak-image__empty`); production rendering never emits them, and published pages
-  have no scripts.
+- **Responsive previews.** Desktop/tablet/mobile resize the canvas iframe, so the page's real media queries apply
+  (899 px and 599 px, the same as published pages), and select the screen the design controls edit.
+- **Editor-only output.** Selection outlines, empty-column hints and "Add block" targets, the empty-image placeholder
+  and animation replay are canvas CSS, editor overlays or editor-mode markup (`data-ak-*`, `ak-image__empty`,
+  `ak-replay`); production rendering never emits them. Published pages have no scripts except the animation runtime
+  described below.
+
+### Visual builder foundation: one styling model, layout, shared resources
+
+**One styling model (`style` prop).** Every current component version has a `style` prop:
+`{slot: {base?, tablet?, mobile?}}`, each a map of property → value. The manifest declares the component's *slots*
+(`root`, `media`, `heading`, …) and which property *groups* each accepts; the properties themselves (42: display,
+direction, wrap, column tracks, justify/align, gap, width/min/max, height/min/max, aspect ratio, padding and margin
+per side, align-self, font family/size/weight, line height, letter spacing, text align, text colour, background
+colour/image/overlay/size/position, border width/style/colour, corner radius, shadow, object fit and crop position)
+are defined once in `rules.json` (`style`): CSS property, value kind, units and bounds, keywords, which token groups
+they accept, base-only. `App\Arkon\Style\StyleSchema` and `resources/js/arkon/style/schema.ts` validate against it
+(conformance fixtures cover every kind and every refusal). Values are strings in an allowlisted format: lengths
+in permitted units within bounds (`500px`, `2.5rem`, `60ch`, `80vh`), hex colours, enum names, unitless numbers,
+ratios (`16/9`), column counts or 2–6 fraction tracks (`1fr 2fr`), font and shadow presets, token references
+(`@color.primary`), and `{assetId}` for background images (site-owned, checked on save like any image). Raw CSS,
+`calc()`, `!important`, semicolons or unknown properties are refused in both languages.
+
+**CSS generation.** `App\Arkon\Style\StyleSheet` (PHP only, used by the one renderer) turns each styled slot into a
+class `ak-s<hash>` of its declarations: values are re-validated and mapped from the registry (enums → CSS values,
+tokens → `var(--ak-t-group-name)`, columns → `minmax(0,…)` tracks, background image → `url("/media/…")` from the
+media map), so content never reaches CSS unchecked. Identical styles share one rule. Rules are emitted after the
+component stylesheets: all-screens rules, then one `@media (max-width:899px)` block, then one `@media
+(max-width:599px)` block, so a smaller screen inherits a larger one unless it sets its own value. Component
+stylesheets keep their defaults at zero or single-class specificity (`:where()`), so a generated class always wins.
+A `direction` setting also sets `--ak-basis` (0% side by side, auto when stacked) so stacked parts keep a set height.
+**Hero v3** (current) marks its content area and image as *sized flex items*: a width set on them also writes
+`flex:0 1 auto` (`auto` gives the equal share back), so "Image width" works side by side; in v2 the equal flex share
+silently ignored it. v2 output is unchanged (`StyleRenderingTest`). In the editor (never in published HTML) each
+part is marked `data-ak-part` so the canvas can select and highlight it.
+The page's `<style>` holds the base stylesheet, the CSS of the component versions used and the generated rules; the
+`:root` block defines only the token variables that CSS actually uses. Nothing is inline on elements.
+
+**Responsive editing.** Desktop / tablet / mobile in the editor set both the canvas width (≥ 960 px, 820 px, 390 px:
+inside the same two media queries the published page uses) and the screen the inspector edits (all screens,
+tablet overrides, mobile overrides). Each control shows its own value at that screen in bold, or the inherited
+value ("From all screens: 500px"), or "Default"; Reset removes that screen's value (one undo step), and a part can be
+reset for a screen at once. Invalid typed values show an error and are never applied. Sensible mobile defaults are
+explicit, visible values in the defaults (Hero stacks below 900 px, Columns stack on phones), not hidden CSS.
+`resources/js/arkon/style/edit.ts` (unit-tested) holds inheritance and immutable set/reset.
+
+**Layout.** Sections are full-width bands (backgrounds reach the edges) whose content stays within a content width,
+without an inner wrapper (the inline padding is computed from the width). Groups are flex or grid containers (stack,
+row, wrap, grid with column tracks), Columns are grids with adjustable proportions per screen. Top-level blocks sit
+in the centred content column (`.ak-flow`); nested blocks fill their container. Nesting is limited to 8 levels (the
+page counts) and 2,000 nodes per document, containers to 30 children (the page 50), Columns to 6 columns.
+Accessibility: the DOM order is the Layers order and the reading order; which side something appears on changes only
+through `direction` (row-reverse, column-reverse), never by reordering content; headings keep their level (Text
+offers h1–h4 as semantics, size is a design setting), images need alt text to publish, links keep the safe-link
+policy, and keyboard users have Move up/down, Select parent and Layers.
+
+**Dragging.** One lifecycle for every drag source (canvas Move handles, Layers rows, palette items) in both editors:
+`resources/js/editor/drag/controller.ts` (`DragController`, one per editor, created by `DragProvider`), the pure
+placement model `resources/js/arkon/editor/placement.ts`, and two drop zones (the canvas in `Canvas.tsx`, the
+outline in `LayersPanel.tsx`). No library: the needs (sandboxed iframe geometry, document-index slots, revalidation
+against the editor's document) are specific, and the whole thing is a few hundred lines.
+
+- *Lifecycle.* Pointer events with capture from the press (mouse, pen and touch; handles and Layers grips are
+  `touch-action: none`, so a finger drags them instead of scrolling). A press becomes a drag after 4 px (8 px for
+  touch); a press without movement runs the source's own action (selecting the row) and a click on the canvas handle
+  does nothing. Escape (also when the canvas iframe has focus: the bridge forwards it), window blur (forwarded from
+  the iframe too, ignored when focus only moved into the editor), a hidden tab, `pointercancel`, lost capture,
+  unmount, and losing edit rights or a lock (conflict, restore, AI preview, recovery: `setEnabled(false)`) cancel.
+  The overlay, preview, cursor class and scheduled work are removed in one place (`cleanup`).
+- *One frame loop.* While dragging, one `requestAnimationFrame` loop: automatic scrolling for each zone, then — only
+  when the pointer, the scroll position or the geometry changed — the destination is resolved, then indicators and
+  the pointer-following preview are positioned by writing styles directly. React state changes only when the
+  destination changes (a label, a status pill). Pointer moves never cause canvas renders or bridge messages.
+- *Geometry, not hit tests.* At the start of a drag the canvas asks the bridge to `measure`: one snapshot of every
+  block (rectangle in page coordinates, so scrolling never invalidates it) with each container's real layout (axis
+  and reversed order from flex-direction, wrapping rows and multi-track grids, content box). While the drag lasts the
+  bridge sends a new snapshot when layout changes (a ResizeObserver; each element observed once per render) and after
+  a render. Snapshots carry the drag's session id, a generation (an older one never replaces a newer one) and the
+  render token they were taken after. Scrolling is driven by the editor (`scroll-to` with a sequence number; the
+  bridge confirms with `scrolled`), so the editor always knows the scroll position its geometry needs.
+- *Placement.* `resolveSlot` takes the deepest container around the point that accepts the block, then the gap
+  among its children nearest the point (so space and padding between blocks are slots too), mapping visual
+  positions to document order for reversed rows and columns and for wrapped rows/grids. Within 14 px of a
+  container's own edge the slot beside it in its parent wins (between two sections never needs precision); a 6 px
+  hysteresis keeps the slot when the pointer wobbles across a boundary. Validity is `placeAt` (the same nesting
+  rules, capacity limits, minimum children and cycle prevention as `dropPlacement`, which now uses it), with refusals
+  in words. Layers uses `resolveTreeSlot` (rows; at the end of a group the pointer's indent chooses the level).
+- *Release.* The destination is resolved again from the release coordinates, synchronously, from the current
+  geometry: an earlier destination is never committed because a reply is pending. Only when the canvas geometry is
+  not current (the canvas is re-rendering after a document change) does the release wait, showing "Updating the
+  canvas…", for at most 600 ms, then cancel with a notice. The editor's commit checks the document version recorded
+  at the start (a change during the drag cancels with "The page changed while you were dragging"), checks the
+  placement again with `placeAt` on the current document, and applies exactly one `moveNode` or `insertNode` (one
+  undo step, the normal save path; nothing is saved or published by dragging). Cancelled, refused and no-op drags
+  change nothing.
+- *Stale canvas.* After a drop (or any change from outside the canvas) the editor marks the render pending until the
+  renderer's new HTML is shown; canvas handles are disabled meanwhile ("Updating the canvas…"), and drops on the
+  canvas wait for the new geometry as above. Both editors render "latest wins": an older render response never
+  replaces newer content (the component editor gained this guard in this milestone).
+- *Automatic scrolling.* Within 56 px of a zone's visible edge (the iframe clipped by the stage, or the sidebar),
+  speed rises with the square of the distance into the band, up to 1,400 px/s at or past the edge, by elapsed time
+  (frames capped at 50 ms), clamped to the scroll range; it keeps going while the pointer is still. The canvas scrolls
+  vertically in the iframe and sideways in the stage when the desktop canvas is wider than the editor; Layers scrolls
+  its sidebar. Scrolling ends with the drag.
+- *Feedback.* A pointer-following chip ("Move Hero section", "Add Text"), the source dimmed in place, an insertion
+  line or container outline with its label on the canvas and in Layers, and a status pill (destination, refusal
+  reason, "Esc cancels"). Hover shows a small handle on any block's outline; the selected block's handle names
+  exactly what moves. All of it is admin-only (editor bundle and the sandboxed bridge); the sandbox has no
+  same-origin access, and published pages contain none of it.
+
+**Duplicate.** `resources/js/arkon/editor/duplicate.ts` (`duplicateBlock`, pure) copies a block and its subtree
+(`copySubtree`: `structuredClone` of every node, fresh ids, child lists remapped; props, per-screen styles, animation
+settings, image `assetId`s and an instance's `componentId` are kept as they are, so a copied instance stays linked
+and no reusable component is created) and inserts it right after the original: one `insertNode` (plus the Columns
+block's widths for a column), dispatched as one undo step through the editor's normal `structure` path, so saves,
+batches, retries, history and locks apply unchanged and no endpoint is needed. Refused with the reason, before
+anything changes: the root, a parent that is full or would break the nesting rules (`placeAt`), Columns at 6, more
+than 200 nodes in one insert (`limits.insertNodes`), more than 2,000 on the page, or an unresolved field (a link not
+applied yet) inside the subtree, which the editor then shows: duplicating would otherwise copy the older valid
+value. Entry points (both editors, `editor/blockActions.ts`): the toolbar above the properties, a Layers row button,
+a control next to the canvas Move handle, and Ctrl/Cmd+D when a block is selected and focus is not in a text field
+(inputs, textareas, selects, inline canvas editing keep the key; the canvas bridge forwards it only when not editing).
+
+**The Columns width contract.** A Columns block's fraction widths give one width per Column, on every screen
+(`rules.json` `style.oneWidthPerChild`; `DocumentValidator::widthIssues` and its TypeScript twin, covered by the
+conformance fixtures): `1fr 2fr` needs exactly two columns. Counts stay free (`1` to stack on phones, `2` per row,
+even more than there are columns), and Group grids are not concerned. It is editing policy only: `validatePinned`
+(reproduction, re-renders) does not apply it, so publications made before it reproduce byte for byte. A draft stored
+before the rule that breaks it opens in **recovery** (like backslash links): the stored widths are listed per screen,
+the user resets that screen to equal widths or removes the block, and nothing is rewritten on load. (Reusable
+component drafts have no recovery mode: one that breaks the rule fails to open ("The component is not valid", with the issue). The
+development database had none.)
+- *Editor.* Every structural edit goes through `withColumnLayouts` (both editors' `structure`, which drops, Layers,
+  the toolbar, duplicate and delete use): for each Columns block whose columns it changed, `reconcileColumns` adds one
+  `updateProps` to the same undo step. Only the screens whose `columns` value the edit itself changes are left as
+  set; any other style change in the same edit (gap, padding, background, animation …) does not count as widths. Widths follow their columns
+  (reorder, remove, duplicate); a column moved in from another block, or new empty columns, reset that screen to
+  equal, with a notice. The inspector's custom widths are checked with the same rule before anything is applied.
+- *AI.* The compiler applies the whole reply first, then reconciles every Columns block whose columns changed
+  (`App\Arkon\Components\ColumnLayout::changes`, the PHP twin; copied columns take their original's width). A
+  screen counts as set by the reply only if the reply has a `columns` setting for it (a value, or null to reset):
+  changing the gap, padding, background or animation never exempts the widths, and setting phones to stack never
+  exempts base or tablet widths. Both languages pass the same reconciliation cases
+  (`tests/Conformance/column-layouts.json`). Each reconciliation is one more operation in the reviewed proposal, with a description
+  ("Columns widths on all screens went back to equal: 2 widths no longer fit 3 columns"), so the reviewed and
+  applied operations are identical. Intermediate counts are never judged: only the final document is validated, so
+  adding columns and setting final widths in one reply works, and widths that don't fit the final columns are refused
+  with the rule (one repair run on the helper path, a tool error over MCP).
+
+**Deleting the selection.** One decision (`resources/js/arkon/editor/remove.ts`, `removalOf`) and one action
+(`useBlockActions().remove`) for every entry point: the canvas control next to Duplicate and Move (trash icon, named
+for what it deletes, with a tooltip), the toolbar above the properties, the Layers row button, and Delete/Backspace
+when focus is in the selection interface (`data-selection-scope`: the canvas stage, Layers, the toolbar; in the canvas
+iframe the bridge sends it only when no text is being edited). Text fields, inline editing, dialogs and the rest of the
+page keep their keys.
+- *What goes.* The block and its subtree through `removeNode` (a column through `removeColumn`, so its width goes
+  too), as one undo step through the normal path. With only a hero's image selected, the image is cleared
+  (`updateProps image: null`) and labelled "Remove image": the hero stays. Labels name the block ("Delete button",
+  "Delete hero section and its contents"). Refused with the reason: the root, a Columns block's last column.
+- *Asking.* Blocks with content inside (empty Column slots don't count) open a confirmation naming the block and the
+  number of blocks inside; Cancel or Escape changes nothing, and the deletion is re-checked against the document when
+  confirmed. Other blocks go at once, with an **Undo delete** action in the notice. It is bound to the history entry
+  the deletion made (entries carry a stable id, kept by coalescing, undo and redo; `canUndoEntry`), not to a
+  position in the history: it works only while that entry is exactly what Undo would undo, and both editors drop the
+  action as soon as it isn't (after another edit, an undo, a branch, a restore or the 200-entry cap). The same holds
+  for "Remove image".
+- *Afterwards.* The next block is selected (else the previous one, else the parent). A drag in progress that moves or
+  targets a removed block is cancelled, an animation replay of it is dropped, and unresolved input inside it goes with
+  it (as for any removal). Nothing is saved or published by deleting; permissions, recovery, conflicts, restores and AI
+  previews hide the canvas control and make the key do nothing.
+
+**Column layouts.** `resources/js/arkon/editor/columns.ts` is the one place where Columns change shape: the picker
+presets (`createColumns`: the Column nodes and the base `columns` widths together), `setColumnCount` (more: empty
+columns appended; fewer: the blocks of the removed columns move, in order, to the end of the last column kept, or are
+deleted only when the user chooses so in the confirmation; refused when the target column would exceed its 30
+blocks), `duplicateColumn` and `removeColumn`/`removeOps` (every Remove of a column). Each returns structural
+operations plus the reconciled `style` of the Columns block (`reconcileColumns`, by a mapping from new to old
+columns): proportions follow their columns when every new column came from an old one (duplicate, remove);
+otherwise a screen whose proportions no longer fit goes back to equal and the panel says which; an "all equal"
+count follows the new number; a smaller count (wrapping, or `1` for stacking) stays while it fits. The structural
+count is global; tablet and mobile layouts only set `columns` on that screen (stacked by default on phones) and
+never add or remove columns. The AI compiler's duplicate uses the same reconciliation (`App\Arkon\Ai\Duplicates`,
+tested against the same cases). Empty columns get an editor-only **Add block** target on the canvas (the bridge
+reports their rectangles; the menu offers what a column accepts).
+
+**Entrance animations.** Stored as ordinary, validated design settings in the root slot of the current block
+versions (group `motion` in `rules.json`): `animation` (none, fade, fade-up/-down/-left/-right, zoom; per screen,
+so `mobile: none` turns it off on phones), and for all screens only `animationTrigger` (load, view),
+`animationDuration` (150–4000 ms) and `animationDelay` (0–2000 ms) as a new `time` kind (`^[0-9]{1,4}ms$`, checked
+against bounds), and `animationEasing` (four named curves). PHP and TypeScript validate them with the same registry
+(conformance fixtures cover every preset, bound, unit, base-only rule and refusal); there is no field for CSS,
+keyframes, selectors or script, and the enum values map to fixed keyframe names.
+- *Rendering.* `StyleSheet::motionClassFor` writes the motion settings as their own class (`ak-m<hash>`:
+  `animation-name`, duration, delay, timing function per screen), kept out of the slot's ordinary class so the
+  renderer can leave it off. `PageRenderer` adds `ak-anim` (plus `ak-reveal` for "view") and that class to the
+  block's root element, and appends the runtime's CSS (`App\Arkon\Renderer\Motion`): six keyframes of opacity and
+  transform only, defaults through `:where(.ak-anim)`, `body{overflow-x:clip}` so sideways entrances never scroll
+  the page, and `prefers-reduced-motion` and print rules that remove animations. Pages without animations get none of
+  this (their output is unchanged).
+- *Never the likely LCP (protected content).* A block is not animated when it is, or holds, an image that got
+  `fetchpriority="high"` (`RenderContext::imageAttributes` reports it) or the page's first h1 (a text h1 or a hero
+  with an h1 heading): a container around it would hide or delay it too. The report lists every such block of the
+  page with the reason and the node responsible (`report.motion.protected`: `{reason: image | heading, cause}`, and
+  `suppressed` for the ones that have settings); the canvas response carries `protected`, so the inspector says it
+  before any effect is chosen. This policy is unchanged from motion-1 (it never changed output). A reusable
+  component's own canvas does not apply it (it depends on the page).
+- *Every entrance starts with the page (motion-2, and motion-3, current).* The generated class plays the entrance in CSS from the
+  first paint, for "on page load" and "when scrolled into view" alike, so content on screen at load plays its
+  entrance (motion-1 showed it without one), no script is needed for that, and without JavaScript (off, blocked,
+  failed, no IntersectionObserver or `getAnimations`) every entrance plays with the page and ends shown. Delay plus
+  duration is at most 6 s, so nothing stays hidden.
+- *The runtime.* motion-3 loads the deferred `public/_arkon/motion-3.js` (2.5 KB, sha384 `integrity` checked by
+  tests and the browser) on every page with an entrance; motion-1 and motion-2 loaded theirs only for "when scrolled
+  into view". It does nothing under reduced motion. Otherwise, once, it looks at the `.ak-reveal` blocks. Those on screen are left alone (their entrance is already playing). Below the fold, a block
+  whose entrance has not finished, so nobody has seen it, is held back (`.ak-anim.ak-wait`: no animation, opacity 0),
+  and one shared IntersectionObserver lets each play once, from the start, when it comes into view. A finished
+  entrance (a runtime that ran late) or a block with no animation on this screen (a phone override) is never held
+  back: painted content is never hidden again. Reduced motion and printing show the final state
+  (`animation:none; opacity:1`). The observer is disconnected when nothing is held back any more. No timers,
+  polling, scroll handlers, frame loops or per-frame layout reads (one `getBoundingClientRect` and `getAnimations`
+  per block, once).
+- *Keyboard focus (motion-3).* Focus anywhere inside an animated block shows the focused content and every animated
+  block around it at once, whatever the trigger, whether the block is on screen or held back, during its delay or
+  while it plays. CSS does it without a script: `.ak-anim:focus-within{opacity:1!important}` (an `!important`
+  declaration wins over a running animation without restarting it, so focus leaving doesn't replay anything). The
+  runtime makes it last: its `focusin` listener (capture, kept for the visit, it only walks the focused element's
+  ancestors) adds `.ak-shown` (animation ended, opacity 1) to each of those blocks and releases held-back ones, so
+  content seen once stays shown after focus moves on; content focused before the script ran is handled at start.
+  That is why motion-3 loads its runtime on load-only pages too. motion-2 revealed only held-back blocks, so a link
+  focused inside an on-screen entrance stayed invisible during its delay (kept as it was for its publications).
+- *Script policy.* Pages without an entrance (and, from motion-1 and motion-2, load-only pages): `script-src
+  'none'`. A page whose stored HTML contains the runtime's
+  exact tag (and whose `render_inputs.motion` names it): `script-src <origin>/_arkon/motion-N.js` of that runtime,
+  never `'self'`, `'unsafe-inline'` or `'unsafe-eval'`. The member preview uses the same rule. Editor assets, Inertia,
+  React and third-party scripts stay forbidden; components still cannot emit `<script>`.
+- *Reproduction.* Publications with animations record `render_inputs.motion` (the CSS and the script together).
+  `motion-1` (paused reveal classes, `motion-1.js`, its CSS) and `motion-2` (its CSS, `motion-2.js`, script on
+  "view" pages only) stay registered byte for byte, so publications that recorded them reproduce exactly (the
+  development database's About Us publications among them) and are served with their own script policy; new output
+  records `motion-3`. A runtime file never changes: a fix ships as the next version. Reproduction refuses a missing
+  or unknown runtime ("unavailable").
+- *Editor.* The canvas gets the editor variant of the CSS: `.ak-anim:not(.ak-replay)` has no animation, so editing,
+  inline typing, server redraws and drag geometry always see the final state. The Animation section always edits the
+  root slot ("animates the whole block") and shows the **effective status** next to the effect: plays (on load, or
+  when it comes into view: on load if already on screen), off on this screen (a tablet or phone override), reduced
+  motion (the user's own system setting: previews show the final state), or **protected content**, naming the image
+  or heading responsible with a link to it. The effect of a protected block can't be chosen (stored settings are
+  kept and shown; "Remove the stored entrance" deletes them only when asked). For a protected container with a stored
+  entrance, **Move this entrance to the other blocks inside** (`animateInsteadTargets`, `animateInsteadOps`) gives
+  the same settings to the blocks that can play it and removes the container's, in one undo step and without
+  wrappers. Targets are judged against the page's whole protection map from the last render, not only the cause the
+  status names: never a protected block (the image that loads first, the main heading, any block holding either, a
+  reusable component holding one), protected containers are looked into (a reusable component is not), and blocks
+  with their own entrance keep it. When nothing eligible is left, no move is offered.
+- *Previews.* Choosing or changing an eligible setting (effect, trigger, duration, delay, easing, phones) previews
+  the block once the canvas shows the render of exactly that document version (`replay {nodeId, seq, version}`):
+  a newer change asks again (latest wins, also with slow renders), any other edit (typing, structural edits),
+  selecting another block, a drag or a read-only state drops it, and the bridge stops a running preview on a
+  pointer press, key press, selection change, render or drag measurement. **Preview animation** plays it again.
+  Nothing is previewed when it would not play on this screen, under reduced motion, or for protected content. Both
+  editors share this.
+
+**Design tokens.** Fixed slots (`rules.json` `tokens`): 8 colours, 2 fonts (system stacks: sans, serif, mono,
+rounded; no web fonts), 6 type sizes, 6 spaces, 3 container widths, 4 radii, 3 shadows. `site_token_sets` holds the
+site's editable draft (optimistic version, idempotent save key); publishing (`TokenService::publish`, publishers
+only, idempotent per key) stores an immutable `site_token_versions` row and takes the site's epoch lock. Pages,
+previews and the canvas always render with the *published* version (`DesignResources`), so a draft can never reach a
+live page. The legacy CSS variables (`--ak-color-primary`, …) are aliases of token variables in the arkon-php-2 base
+stylesheet, so every component follows the site's tokens. Publications record `tokens: {version, values}`.
+
+**Reusable components.** `reusable_components` holds a named fragment document (same nodes, props and validation as a
+page, root type `fragment`, no instances inside) with a draft and a version; `reusable_component_versions` holds
+immutable published versions. A page places one with an `instance` block, which renders the component's latest
+*published* version (unpublished: a placeholder in the editor, and publishing the page is blocked). Override rule:
+an instance may set its own placement (spacing, size, alignment); the content belongs to the component. *Detach*
+replaces the instance with a copy of the published blocks (one undoable edit; the page then owns them). "Make
+reusable" turns a selected block into a component (published as v1 when the user may publish) and leaves a linked
+instance in its place. The component editor reuses the canvas, layers, inspector and undo model.
+
+**Published dependencies and refresh.** Every publication rendered with arkon-php-2 records `publication_dependencies`
+(token version; each component id and version), and its `render_inputs` record the same, so
+`reproducePublication` renders with the recorded token values and the recorded (immutable) component versions.
+Publishing tokens or a component, in its transaction and under the epoch lock, inserts one `page_refreshes` row per
+live page whose *live* publication depends on it. `PageRefreshes::run` (after the publish commits, bounded; also
+`arkon:refresh-pages` and Retry on the Design page) claims rows with `FOR UPDATE SKIP LOCKED` and re-renders each page's
+live revision (never its draft) with what is published at that moment through `prepareRerender`/`commitRerender`: one
+REPEATABLE READ snapshot, an idempotency key per page and epoch, and a live-pointer update only to a newer epoch, so a
+page published meanwhile is never rolled back and retries never publish twice. Status: pending, done, skipped (no
+longer live or deleted) or failed (error kept; retried up to 3 times automatically, then on request). Pages published
+before tokens existed (arkon-php-1) depend on nothing and are never refreshed: they stay exactly as published until
+someone publishes them again. Draft-only media of a component becomes public only when a live page uses it.
+
+**Images.** On upload (and `arkon:media-variants` for older images) GD makes WebP copies at 320–1920 px below the
+original's width (and at its width, when that is small enough), kept only if smaller than the original; GIFs and
+very large images are left alone; the original is never changed. Variants (`media_variants`, append-only) are
+delivered under exactly the original's policy (`resolveAccess` maps a variant key to its asset), so private images
+stay private in every size, and the canvas gets signed URLs for each. Image and Hero render `srcset` + `sizes`
+(estimated from the block's share of the content width), intrinsic `width`/`height` (no layout shift), and
+`fetchpriority="high"` without lazy loading for the first image within the first two top-level blocks only; every
+other image is `loading="lazy"`; Image's `loading` prop can force either. AVIF is not generated (encoding cost).
 
 ## 5. Data model
 
 Same tables as the reference, with Laravel's plural names: `sites`, `site_domains`, `site_members`, `pages`,
 `page_drafts`, `page_revisions`, `publications`, `live_pages`, `publication_media`, `redirects`, `media_assets`,
-`audit_logs`, `data_upgrades`, plus `users` and `sessions`, and (Laravel only) `ai_proposals`. Every link between tenant tables is a composite foreign
+`audit_logs`, `data_upgrades`, plus `users` and `sessions`, and (Laravel only) `ai_proposals`, `ai_connections`,
+`site_token_sets`, `site_token_versions`, `reusable_components`, `reusable_component_versions`,
+`publication_dependencies`, `page_refreshes` and `media_variants` (the version, dependency and variant tables are
+append-only for the runtime role). Every link between tenant tables is a composite foreign
 key including `site_id`. UUIDv7 ids (`Str::uuid7()`).
 
 The migrations follow the reference project's schema history (foundation → request keys and publication media →
@@ -252,8 +581,24 @@ paid API path and no Anthropic SDK; Arkon never reads, stores or exports Claude'
   `cancel`/`discard` serve the editor. Both entry points go through `ProposalCompiler` against the draft version the
   proposal claims, and produce the same rows, previews, change descriptions and apply path.
 - **The contract comes from the registry.** `ProposalSchema` builds the JSON schema and the catalogue text from the
-  current component manifests (types, versions, props, enums, limits, defaults, nesting); `ProposalPrompt` adds the
-  rules and the page context (site name, page title/path, blocks, ids/alt/size of images already on the page).
+  current component manifests (types, versions, props, enums, limits, defaults, nesting, style slots) and the style
+  registry (every design property with its accepted values and ranges, the token slots); `ProposalPrompt` adds the
+  rules and the page context (site name, page title/path, blocks, ids/alt/size of images already on the page, the
+  site's published tokens and published reusable components). Both entry points get exactly this.
+- **Builder capabilities in proposals.** A `duplicate {id, ref}` change copies a block exactly like the editor
+  (`Duplicates`: fresh ids, everything kept, a copied column's width copied too); its `ref` names the copy for later
+  updates, and a block added or copied in the same proposal is described as "new". Columns are a `columns` block
+  with one `column` per column (the instructions say so, with proportions as the `columns` setting and phones
+  stacking by default). Entrance animations are the `motion` settings of the catalogue (bounds included), with
+  guidance to use "view" further down and never animate the first block, main heading or first image.
+- **Design in proposals.** A style prop is a flat list `{slot, screen, property, value}` in the schema; the compiler
+  merges it into the block's defaults (new blocks) or its current style (updates), so a follow-up changes one setting
+  and keeps the others (`null` removes one), then validates it exactly like a save. Blocks are added one at a time;
+  an add may name its new block (`ref`) so later adds go inside it (`parent: "new:<ref>"`): the schema stays flat
+  (about 12 KB, within the Claude Code command line) whatever the nesting depth. Instances may only use published
+  components that were listed. Site-wide token changes are a separate `tokenChanges` list: shown apart in the AI
+  panel, never part of "Apply to draft", applied once by "Apply to the token draft" (one transaction with the proposal's applied marker, under the proposal row lock; only if the token draft is still the version the proposal was made against; an exact retry returns the original result; audited) and published only from
+  the Design page.
 - **Untrusted output.** Whatever Claude returns (CLI `structured_output` or an MCP argument) is compiled: new ids,
   current versions and defaults, each change applied in order to the base draft, then the same validation as a save
   (types, props, nesting, link policy), only images already on the page, plain text, at most 40 changes. A helper run
@@ -353,10 +698,25 @@ paid API path and no Anthropic SDK; Arkon never reads, stores or exports Claude'
 | PHPUnit `tests/Unit` | renderer, conformance, component versions | exact production markup, escaping, editor annotations; PHP side of the conformance fixtures; inverses restore documents; version migration |
 | PHPUnit `LifecycleRaceTest`, `CreateIntentTest`, `ReadConsistencyTest`, `ComponentHistoryTest` | 19 | forced interleavings of delete with waiting publish/save/restore/title/unpublish/delete (both orders), rename with a waiting save, identical and conflicting creates waiting on the path lock; a rename committed in the middle of editor, page-load and preview reads; create-intent replay after rename/delete and its backfill; historical reproduction across component versions |
 | PHPUnit `tests/Feature` | pages, requests, page management, media, concurrency, upgrade, runtime safety, HTTP | everything in reference `pages`, `requests`, `page-management`, `media`, `media-access`, `consistency`, `upgrade` and `config` tests, plus the HTTP layer (sign-in, rate limit, no sign-up, JSON envelopes, `{}` fidelity, canvas endpoint, public headers, redirects, preview, media with a real session cookie) |
-| Vitest | editor state, operations, conformance, structure, recovery repair, AI proposal guards (stale/unsaved/unfinished, one undo step, tagged save batch), request keys | the reference editor-state tests; TypeScript matches PHP on all 103 fixtures; structure helpers (placement, drop targets, undo/redo of structural changes); request keys without `crypto.randomUUID` |
+| PHPUnit `StyleRenderingTest`, `DesignResourcesTest`, `AiDesignTest` | 9 + 13 + 7 | generated classes, deduplication and media-query order; unsafe and out-of-range values refused on save; canvas, preview and live CSS identical; background images private until live and foreign ones refused; WebP variants (sizes, smaller than the original, original kept), `srcset`/`sizes`, private variants with signed canvas URLs and public once live; LCP priority; sections/groups/proportions without wrappers; arkon-php-1 output unchanged; token drafts private, publishing refreshes the live revision (not the draft), validation/versioning/idempotency/permissions, pre-token publications never refreshed, reproduction with recorded tokens and component versions; instances render published versions only, unpublished and foreign components refused, components validated like pages (no nested instances), component images public with the page; failed refreshes recorded, retried and never publishing twice, a refresh never replacing a newer publication, unpublished pages skipped; AI: the acceptance request becomes settings that save, reload, edit and publish (helper and MCP), follow-ups merge settings, invalid settings refused with the broken rule, nested layouts with named new blocks, token changes separate and draft-only, instances limited to published listed components |
+| Vitest `placement` | 16 | drag placement: gaps and padding are slots between neighbours, first/last, no-op, hysteresis; container padding vs. edge band; empty containers; reparenting; refusals in words (nesting, itself, Columns minimum, full group); side by side, row-reverse, column-reverse, wrapping rows; Layers rows with level chosen by indent; container names in labels; automatic scroll speed and steps (stationary pointer keeps scrolling, bounded) |
+| Vitest `duplicate`, `columns` | 8 + 8 | nested duplication with fresh ids and identical props/styles/animations/images, independence of copies (no shared objects), linked instances kept, one undo/redo step, a column copied with its width, refusals (page, full group, Columns at 6, insert size, unresolved field inside but not elsewhere); creating 3/4/5 equal columns and proportions as real Column nodes; more columns keep content; fewer move blocks in order or delete only when asked; capacity refusal; proportions reset with the notice; reconciliation per screen (counts, wrapping, stacking, tracks following duplicated or removed columns) |
+| PHPUnit `MotionRenderingTest`, `AiBuilderTest` | 7 + 7 | runtime file = pinned integrity, one observer, no timers/polling/eval; pages without entrances script-free with `script-src 'none'` (load-only pages too before motion-3); viewport pages load exactly the runtime with a policy naming only its URL (live and member preview); no-JS, reduced-motion and print rules; keyframes animate only opacity/transform; phones override; LCP blocks (first h1, priority image, their containers) left off and reported to the canvas; editor CSS final state; inputs record `motion-1`; reproduction byte for byte, unknown/missing runtime unavailable; pages without animations unchanged; invalid settings and released versions refused on save; PHP column reconciliation. AI (fake runner and MCP): catalogue offers duplicate/motion and drops the blanket "no animations"; duplicating a button (ref + update), five equal columns, fade-up in view; review without change, apply as one AI revision, undo, explicit publish, stale proposal refused, out-of-range animation refused with the rule (helper repair run and MCP tool error) |
+| Playwright `e2e/builder-features.spec.ts` | 8 | duplicate from the toolbar, Layers, canvas control and Ctrl/Cmd+D (editor and canvas focus; never while typing), undo/redo, save/reload with fresh ids; unresolved link blocks it; Columns at 6 refuses; layout picker creates 5 columns and a measured wide-middle layout, one undo step; count selector keeps content, cancel/move/delete for populated columns, widths reset notice, Add block in an empty column, phones stacked and side by side, publish; animation inspector (target named, default trigger, replay starts and a click stops it, phones off, reload), the hero's h1 suppressed with the reason, live page: runtime allowed by CSP with no violations, below-the-fold section paused then played once when scrolled to (not again), one observer created and disconnected, keyboard focus reveals at once, JavaScript disabled and reduced motion show everything, phones not animated; load-only pages allow only the runtime (motion-3); the component editor (duplicate, picker, animation); the AI panel with fake Claude Code: duplicate + five columns + fade-up previewed, applied, one undo, redo, explicit publish |
+| PHPUnit `ColumnLayoutTest`, Vitest `remove`, `columns` (normalizer), `RecoveryPanel` | 7 + 5 + 3 + 1 | saves refuse fraction widths that don't match the columns on any screen and a third column under "1fr 2fr"; counts and Group grids stay free; AI (helper and MCP): a column added without widths gets a reviewed reconciliation operation, explicit final widths in the same reply are kept, widths fitting only an intermediate count are refused with the rule, moves between Columns blocks and reorders/removals keep widths with their columns; an older draft breaking the rule opens in recovery, untouched until the explicit repair saves; historical documents still render pinned. Editor: deletion labels, confirmation for containers with content (empty columns are not content), next/previous/parent selection, one undo/redo step, a column's width removed with it, last column/root refused, hero image removed without the hero; moves between Columns and reorders reconciled in the same step, edits that set widths left alone; the width repair in recovery |
+| Vitest `state` (history identity), `columns` (explicit widths, shared cases), PHPUnit `ColumnLayoutTest` (added) | 2 + 3 + 3 | an "Undo delete" entry is never another edit: other edits, coalesced typing, undo/redo, a branch after undo, the 200-entry cap and a restore; a gap, padding, background or animation change together with an add/remove/move still reconciles the widths (AI and editor); an explicit phone layout doesn't exempt base and tablet; valid explicit final proportions and an explicit reset are kept; PHP and TypeScript agree on `tests/Conformance/column-layouts.json` |
+| Playwright `e2e/motion.spec.ts`, Vitest `motion`, PHPUnit `MotionRenderingTest` (updated) | 10 + 6 + 9 | canvas previews measured by animation events and progress: an eligible effect previews after its render and ends in the final state; Preview animation plays again; rapid changes with 700 ms renders preview only the latest, once; selecting another block or typing cancels; mobile override ("Off on phones") and reduced motion shown and never previewed; protected image, heading and the section holding the image named with their cause, effect locked, the section's stored entrance moved to the other blocks (button, column) without touching the image; the component editor previews too. Live: the h1 never animates; an on-screen intro plays its entrance at load (start and end events); a below-the-fold section is held back, plays once in view and never again; CLS 0; keyboard focus shows it at once; JavaScript disabled, reduced motion and phone override show everything. Both runtimes pinned by integrity; motion-2 CSS; every protected block reported with its cause; a motion-1 publication still reproduces byte for byte and keeps motion-1's script policy. Focus (motion-3): Tab into nested on-screen entrances (load and view, 2 s delay, nothing held back) during the delay and while running: the focused link and every block around it fully visible, still visible after focus moves on, Enter activates the link; reduced motion and no JavaScript too; a motion-2 load-only publication still reproduces byte for byte with no script. Moving an entrance: a section holding the h1, the priority image and two buttons offers only the button without its own entrance, every stored entrance afterwards really animates on the canvas and the published page (h1 and image never), one undo and redo; nested protected containers, a protected reusable component and no eligible block (no move offered) |
+| Playwright `e2e/delete.spec.ts` | 10 | a button deleted from the canvas without opening Layers (named control, tooltip, notice with Undo, redo, no save until asked, save and reload); in both editors, the notice's Undo delete never undoes a later edit (checked on the inspector field and the saved draft); a section with content asks, Cancel and Escape change nothing, the same from the Layers row, one undo; Delete/Backspace edit text while typing (canvas and inspector) and delete only from the canvas or a Layers row; a column deleted with its width, the last column refused (control disabled with the reason, key explained), nothing to delete for the page; hero image removed vs the whole hero; invalid custom widths refused before applying; a column dragged to another Columns block (both valid, the reset explained, one undo); recovery for older inconsistent widths (no delete control, keys do nothing, stored draft untouched, explicit repair saves); the component editor |
+| Playwright `e2e/drag.spec.ts` | 11 | quick drags released on arrival (never waiting for an indicator): a quick release with geometry replies delayed 400 ms and out of order lands where released (the old code put it at the previous target); holding still at the bottom edge keeps scrolling to the end and drops there (the old code stopped after 24 px); gaps, padding, empty group, reparenting with three undo steps; row-reverse; an image block between columns; palette to canvas; explained refusals; Escape (also with focus in the canvas), window blur, release outside the window, late replies after a cancel, click without drag; a change during the drag (undo) and a lock (stale save) cancel; Layers rows to the canvas and Layers autoscroll; the component editor; touch on the Move handle. Each checks document order, one undo step per drop, nothing undoable after cancels, and no save or publish request |
+| Vitest | editor state, operations, conformance, structure, responsive style editing, recovery repair, AI proposal guards (stale/unsaved/unfinished, one undo step, tagged save batch), request keys | the reference editor-state tests; TypeScript matches PHP on all 143 fixtures; structure helpers (placement, drop targets, undo/redo of structural changes); request keys without `crypto.randomUUID` |
 | PHPUnit `StructuralEditingTest`, `LinkRecoveryTest` | 16 | add/nest/reorder/remove through the save API, the server applying undo inverses, invalid nesting and unsafe links refused, backslash links refused while a publication recorded under the older link policy still reproduces, image v1 publications reproducing while republishing moves to image v2, drafts with one or several stored backslash links (and an image) opening in recovery over HTTP instead of 422, nothing saving or publishing until corrected or removed, the repaired draft saving and publishing normally while the old publication stays live until then and still reproduces, other invalid drafts not opened in recovery, publish of a nested layout as clean semantic HTML with recorded component versions, publish checks of the new components, editor/viewer/outsider permissions, foreign assets, a pre-milestone page v1 publication still reproducing |
 | PHPUnit `AiProposalTest`, `McpServerTest`, `AiCommandsTest`, `ClaudeCodeCliTest` | 42 + 8 + 4 + 7 | panel path with a scripted fake runner: queued → helper → validated proposal that changes nothing, apply as one AI revision, undo, explicit publish, follow-up, one repair run, 12 kinds of invalid output, empty answers, images on the page only; request keys (replay, changed prompt/version/page refused), **real concurrent identical requests replay (the old lookup-before-lock order fails with 23505)**, one helper per request, lease expiry recovery and the late result refused, retry limit, queue expiry, cancel while running (late result never lands), revocation while idle and while running (fenced, back in the queue; a runner that ignores the stop still cannot store its result; the requester stays the owner), the helper's or requester's edit rights lost mid-run, expired leases rejected before recovery, after takeover and exactly at the expiry instant (database clock), supersede, discard, stale drafts and proposals, helper readiness/offline/not-ready, Claude Code failure codes, frequency and concurrency limits, permissions and site isolation, HTTP; MCP protocol, the five tools only, site scoping, submission without draft change → review in the editor → apply, validation and stale/changed-key refusal, exact retries after a manual edit and after applying (original id and current status, no new row or application), token identity and immediate revocation, a real stdio process; pairing/revoke commands and `arkon:ai-helper --once` with the real CLI runner and a fake `claude`; the CLI runner against a fake executable: subscription-only readiness, the exact flags (no `--bare`), the prompt byte-for-byte on stdin, the real schema intact (failed through `cmd.exe`), no secrets in the child environment, empty working directory, limit/login/garbage/timeout/cancel |
-| Playwright `e2e/` | 29 | **AI** (global setup pairs and starts the real helper with a fake Claude Code CLI, `e2e/fake-claude.mjs`): connection shown, prompt → queued/running → preview → apply → undo/redo → follow-up → explicit publish, the CLI run with the locked-down flags and a clean environment, cancel while running, edits made meanwhile never replaced, discard, subscription limit, invalid output, unsupported request, editor role, and the VS Code path: `arkon:mcp` driven over stdio → proposal waits in the editor → review → apply; **builder**: palette, layers, move buttons, drag and drop (incl. refused invalid drops, a Columns block's last column, and palette drags), unsafe link refused in the inspector, unresolved link kept across selection, flagged in the status, blocking Preview/Publish and leaving until fixed or reverted (also when it becomes unresolved while the save before Publish or Preview is held: no publish request, no preview navigation), drafts stored with backslash links opening in recovery and returning to normal after an explicit correct/remove repair, image sizes in a column measured in canvas, preview and live page, structural undo/redo, mobile stacking, save/reload/publish clean HTML, structure toolbar, editor role builds but cannot publish; **write flows**, at an insecure origin like Herd's (`http://arkon-e2e.test:8100`, mapped to the PHP server inside Chromium only; asserts `isSecureContext === false` and no `randomUUID`) against `arkonlaravel_e2e`: editor flow with save/publish/upload/restore, typing/undo during slow saves, aborted and lost saves, exact publish retries, Ctrl+S during a slow restore, page create/rename/unpublish/delete, editor role limits |
+| Playwright `e2e/design.spec.ts` | 6 | the design acceptance request through the AI panel (fake CLI): proposal with the settings and a preview, apply, reload, the settings shown and edited in the inspector per screen (undo), the hero measured in the canvas at desktop and mobile and on the live page at 1280 and 390 px; design controls with mobile overrides, inheritance, reset and undo, invalid values refused; canvas drag and drop with placement feedback (Move handle and palette drag); token draft private, publishing refreshes the live page; a reusable component made from a block, edited and published on its own page, updating the live page; AI token changes shown apart and only reaching the token draft |
+| Playwright `e2e/` (other specs) | 29 | **AI** (global setup pairs and starts the real helper with a fake Claude Code CLI, `e2e/fake-claude.mjs`): connection shown, prompt → queued/running → preview → apply → undo/redo → follow-up → explicit publish, the CLI run with the locked-down flags and a clean environment, cancel while running, edits made meanwhile never replaced, discard, subscription limit, invalid output, unsupported request, editor role, and the VS Code path: `arkon:mcp` driven over stdio → proposal waits in the editor → review → apply; **builder**: palette, layers, move buttons, drag and drop (incl. refused invalid drops, a Columns block's last column, and palette drags), unsafe link refused in the inspector, unresolved link kept across selection, flagged in the status, blocking Preview/Publish and leaving until fixed or reverted (also when it becomes unresolved while the save before Publish or Preview is held: no publish request, no preview navigation), drafts stored with backslash links opening in recovery and returning to normal after an explicit correct/remove repair, image sizes in a column measured in canvas, preview and live page, structural undo/redo, mobile stacking, save/reload/publish clean HTML, structure toolbar, editor role builds but cannot publish; **write flows**, at an insecure origin like Herd's (`http://arkon-e2e.test:8100`, mapped to the PHP server inside Chromium only; asserts `isSecureContext === false` and no `randomUUID`) against `arkonlaravel_e2e`: editor flow with save/publish/upload/restore, typing/undo during slow saves, aborted and lost saves, exact publish retries, Ctrl+S during a slow restore, page create/rename/unpublish/delete, editor role limits |
+| PHPUnit `AiTokenApplyTest`, `RenderCompatTest` | 5 + 5 | AI token changes: an interruption after the token write rolls back both writes and the retry applies once; an exact retry after later token edits returns the original result and keeps the edits; a change is never replayed over token edits made after the proposal (stale); real concurrent duplicates apply once; a demoted requester and other editors are refused, live pages unchanged until tokens are published (three of these fail against the previous two-transaction code). Render compatibility: post-fix hero v2 publications reproduce from their recorded version; in-development ones only with a compat record naming the build, recorded only on an exact match, append-only, never used for new output |
+| Vitest `saveCoordinator`, `parts`, `length` | 9 + 3 + 3 | one save coordinator for pages and components against a fake server with the save-key contract: response lost after commit (rename only) confirmed by resending the same request, lost before the server, server error, rename and edits during an in-flight save kept for the next batch, a later rename not changing an uncertain request, repeated shortcuts sharing one request, save then publish, retry then later edits, definitive refusal; part names and contextual labels; number-and-unit lengths validated by the shared rules |
+| Playwright `e2e/components.spec.ts`, `e2e/inspector.spec.ts` | 4 + 2 | component editor: an invalid link (already there, or typed while a save is held) blocks publishing and is brought into view until reverted or corrected; a rename-only save whose response is lost after commit is confirmed by saving again (never "changed elsewhere"), and a later rename is saved next; an unsaved rename alone guards leaving (all four fail against the previous component editor). Inspector: clicking the hero image targets the image; image height 500 px with cover; image width without changing the section; section width separately; mobile override and reset; undo/redo; reload; canvas = preview = published page at 1440 and 390 px; every hero part named, inline text editing kept |
+| Playwright `e2e/screenshots.spec.ts`, `e2e/responsiveness.spec.ts` | opt-in | review screenshots (light, dark, laptop/tablet/phone widths with every toolbar action in view; `SCREENSHOTS=<label>`) and editor interaction timings on a ~200-block page (`EDITOR_PERF=1`, see PERFORMANCE.md) |
 | Playwright `e2e-herd/` | 1 | **authenticated, non-persisting** smoke test through Herd itself (dev database): sign-in, dashboard, editor canvas, history, member-only preview, clean public responses, insecure-context conditions, and one write request (create with a reserved URL) that generates a request key and is refused before anything is written. It does not save or publish |
 
 - Integration tests use `arkonlaravel_test` as the runtime role; the schema owner only truncates between tests.
@@ -388,16 +748,30 @@ paid API path and no Anthropic SDK; Arkon never reads, stores or exports Claude'
 ## 9. Status
 
 Implemented: everything in the reference foundation and page-management slice (login, CLI accounts, membership
-and roles, iframe editor with inline hero editing, inspector, upload, preview, undo/redo, history and restore,
-batch saves, safe retries, publish intents, epoch ordering, private media, page create/rename/redirect/unpublish/
-delete, clean public HTML), plus publication inputs and versioned component manifests, and the visual builder
-(Text, Image, Button, Columns/Column; add, select, edit, remove, reorder by buttons or drag and drop, nesting in
-Columns, responsive previews, structural undo/redo), and the first AI workflow: one-page generation and follow-up
-edits as validated proposals of native blocks, preview, apply/discard, undo, explicit publishing, through Claude
-Code on the user's subscription (VS Code via MCP, and the editor's AI panel via the local helper).
+and roles, iframe editor with inline editing, inspector, upload, preview, undo/redo, history and restore, batch
+saves, safe retries, publish intents, epoch ordering, private media, page create/rename/redirect/unpublish/delete,
+clean public HTML), publication inputs and versioned components, the visual builder (sections, groups, hero, text,
+image, button, columns; add, select, edit, remove, reorder and nest by buttons, Layers drag and drop or directly on the
+canvas; structural undo/redo; duplicate; column layouts with a picker, a count selector and per-screen layouts), entrance
+animations (CSS presets, a versioned viewport runtime only where needed), the shared styling model with responsive overrides, design tokens and reusable
+components with versioned publishing and dependent-page refreshes, responsive image variants, and the AI workflow
+(VS Code via MCP and the editor's AI panel via the local helper, on the user's Claude subscription) with the full
+design catalogue. Performance evidence: [PERFORMANCE.md](PERFORMANCE.md).
 
-Deferred: multi-page AI orchestration, collections and content entries, dependency tables beyond media and the outbox/workers,
-design-token editing, editable site settings, autosave, site switcher, member management UI, row-level security.
+Deferred: multi-page AI orchestration, collections and content entries, a general outbox/workers (refreshes run
+after publishing and from `arkon:refresh-pages`), editable site settings, autosave, site switcher, member
+management UI, row-level security, web fonts, AVIF variants, AI changes to reusable components.
+
+### Admin interface
+
+One visual system for every screen (`resources/css/app.css` tokens, light and dark; `Components/ui.tsx` buttons,
+fields, segmented controls, status pills, notices, empty states; `Components/Icon.tsx` hand-drawn icons, no icon
+dependency). States always have an icon and words. The editors share `editor/chrome.tsx` (status pill, viewport,
+tabs, notices) and `editor/session.ts` (activity, conflict, unresolved fields, leave guard); saving goes through
+`arkon/editor/saveCoordinator.ts` for both pages and reusable components: one immutable request per batch
+(operations, base version, key, and for components the name), resent unchanged after an uncertain outcome, shared by
+every trigger. The inspector's model of parts lives in `arkon/editor/parts.ts`. Admin CSS and JavaScript never reach
+published pages.
 
 ### Known limitations
 
@@ -407,7 +781,9 @@ design-token editing, editable site settings, autosave, site switcher, member ma
   (one helper per site). Claude can only use images already on the page, cannot set SEO fields, title/URL or site
   settings, and leaves button links empty unless given a destination. Subscription usage limits are Claude Code's;
   Arkon cannot show the remaining allowance. The page context goes through stdin, but the JSON schema must be a
-  command-line argument (about 12-15 KB); a run whose command line would exceed ~32 KB is refused.
+  command-line argument (about 12-13 KB with the design catalogue); a run whose command line would exceed ~32 KB is
+  refused. The schema does not enforce which property a slot accepts (the compiler does, with one repair run).
+  Page prompts cannot edit reusable components or publish tokens; they can propose token changes for the draft.
 - Canvas updates after inspector edits, undo and restore need a request to the server (~tens of ms locally). If
   canvas typing coincides with an in-flight render, the canvas is re-rendered with the latest content and the
   caret may jump once.
@@ -425,11 +801,64 @@ design-token editing, editable site settings, autosave, site switcher, member ma
 - Recovery covers values a tightened rule explains (today: backslash links). Choices made in the repair panel are not
   kept across a reload (nothing is applied until "Apply repair", so nothing is lost either), and the member preview
   URL of a draft still needing repair answers 400 ("The page could not be rendered") until the repair is saved.
+- Refreshing live pages after publishing tokens or a component runs in that request (up to 50 pages or 20 s); the
+  rest wait with status on the Design page until **Retry now** or `php artisan arkon:refresh-pages`. There is no
+  background worker.
+- Detaching a reusable component instance copies its blocks but drops the instance's own spacing and size settings.
+- AI can propose page changes and token changes for the token draft; it cannot edit reusable component definitions.
+- A hero that uses a CSS background image is not given fetch priority (only `<img>` elements are prioritised).
 - Unresolved fields exist for Button links only (other fields accept any text up to their limit). They live in the
   open tab: a reload, after the warning, discards them.
-- Drag and drop works in the Layers panel, not directly on the canvas (selecting on the canvas works). Touch
-  devices use the move buttons, since HTML5 drag and drop has no touch support.
+- Dragging on touch screens works with the canvas handles and the Layers grips; palette items are tapped to add on
+  touch (dragging them from the palette needs a mouse or pen). Long-press dragging is not implemented.
+- A drop resolves against the canvas geometry; while the canvas re-renders after a change (typically tens of
+  milliseconds locally) handles are disabled and a release waits up to 600 ms, then cancels with a notice.
+- Placement follows flex and grid layout as rendered, left-to-right; right-to-left text direction and dense grid
+  placement are not modelled. Elements positioned out of flow by custom CSS can't occur (there is none).
+- The desktop canvas is at least 960 px wide; in a narrower editor the stage scrolls sideways (also while dragging).
 - Links must be ASCII without backslashes (percent-encode other characters). An empty button link renders `href="#"` in drafts;
   publishing requires a link.
-- Columns hold Text, Image and Button only (no Hero or nested Columns); at most 4 columns and 20 blocks per column.
-- Only the first top-level block's image is loaded eagerly with high priority; nested images are lazy-loaded.
+- Containers cannot hold sections; columns hold no hero; at most 6 columns, 30 blocks per container, 8 levels.
+- Only one image gets high priority: the first within the first two top-level blocks (or one marked "Load early").
+  A CSS background image is never preloaded, so a background-image hero is a slower LCP than an image element.
+- `sizes` is an estimate from the layout (full width below 900 px, the block's share of 72rem above); a block set to
+  a fixed narrow width may fetch a larger variant than it needs.
+- Design values are bounded: no arbitrary CSS, gradients, transforms, positioning, custom fonts or per-element hover
+  styles; animations are the entrance presets only (whole blocks, opacity and transform). Tokens have fixed slots
+  (values are editable, slots are not added by users).
+- Entrance animations: since motion-2 a "when scrolled into view" block on screen at load plays its entrance with the
+  page, and since motion-3 keyboard focus shows any entrance around it at once (motion-1 and motion-2 publications
+  keep their recorded behaviour until republished); without JavaScript, focus shows a block only while it stays
+  there (CSS), so an entrance still in its delay can hide again when focus moves on before it ends; a below-the-fold block whose
+  entrance finished before the runtime ran (a very slow script) simply shows when scrolled to; right-to-left pages are not mirrored (fade left/right are physical
+  directions); nested text is not animated separately (the whole block is); without IntersectionObserver every
+  entrance plays with the page, below the fold too. `body{overflow-x:clip}` is part of the animation CSS, so a page with animations never
+  scrolls sideways. In the reusable-component editor, LCP protection depends on the page a component is placed on
+  and is not shown there.
+- Duplicating a block copies what is applied; an unresolved link inside it must be fixed or reverted first.
+- Columns widths: a column moved in from another Columns block (or new empty columns) can't carry its proportion, so
+  that screen goes back to equal widths (explained); reusable component drafts that break the one-width-per-column
+  rule have no recovery mode (none exist in the development data). Deleting with Delete/Backspace needs focus in the
+  canvas, Layers or the block toolbar; the hero image is the only part with its own "Remove" (other parts delete
+  their whole block, named as such).
+- Columns: dragging Columns from the palette creates two equal columns (the picker is on click); the canvas "Add
+  block" menu offers text, image, button and group (the others are in Properties and Layers).
+- Instances cannot override content (only placement); changing content means editing the component or detaching.
+  Detaching drops the instance's own placement settings.
+- Page refreshes run in the request that publishes a resource (up to 50 pages or 20 s); the rest stay pending and
+  show on the Design page until `arkon:refresh-pages` or Retry runs them (there is no background worker yet).
+- The canvas, preview and live page use the same breakpoints, but the editor's desktop canvas is at least 960 px
+  wide; very wide layouts are previewed at the editor's width.
+
+
+## Developer theme components (first milestone)
+
+Folders under `themes/` can declare editable components using the constrained manifest/template/CSS contract in [THEMES.md](THEMES.md). `arkon:theme validate` and `install` compile trusted local packages into immutable snapshots. The server publishes their manifests to the admin, so the palette, generic inspector and existing AI catalogue discover them without rebuilding frontend assets. Rendering uses the same element/media/style pipeline and old publications retain their pinned component versions. Installing never changes pages or moves a live pointer.
+
+Immutable component registration is application-wide for history; Appearance → Themes now selects custom component availability per site. Parent inheritance and site-wide theme skins remain unimplemented. Package schema changes require a new type; consecutive versions support presentation changes only. Snapshots under `storage/app/theme-components` must accompany deployments and backups. No author PHP/JavaScript is executed. See the guide for exact limits and the theme-only VS Code workspace workflow.
+
+### Per-site theme selection
+
+`site_theme_sets` holds a versioned draft choice and a composite live pointer to immutable `site_theme_versions`; `site_theme_requests` is the append-only request ledger. Activation/publishing require page.publish (owners/admins), site membership and an expected version. Exact retries authorize before lookup and return their original result even after later changes; changed payloads conflict. Publish holds the site epoch lock and records the selection; page rendering records its published version as audit metadata without changing HTML.
+
+Per-site advisory locks serialize selection changes with component availability checks inside page/reusable-component saves. All immutable component definitions remain registered; palette and AI schema/catalogue filter by active site types, keeping existing inactive document types editable. The AI compiler and server saves enforce availability. Preview uses the single PHP renderer with default sample content, no writes, scripts or page media. The sources are fixed beneath themes/, not supplied web paths. Public requests continue serving stored HTML and do not read theme selections.

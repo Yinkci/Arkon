@@ -22,6 +22,8 @@ class ComponentVersionsTest extends TestCase
         parent::setUp();
         $this->dir = storage_path('testing/components-'.uniqid());
         File::copyDirectory(resource_path('arkon/components'), $this->dir);
+        // This registry models hero v1 → a hypothetical v2 only.
+        File::delete(glob("{$this->dir}/hero/v[3-9].*") ?: []);
         $v1 = json_decode(File::get("{$this->dir}/hero/v1.json"), true);
         // v2 renames `text` to `body`.
         $v2 = $v1;

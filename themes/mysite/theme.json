@@ -1,0 +1,10 @@
+{
+  "format": 1,
+  "id": "mysite",
+  "components": [
+    "testimonial"
+  ],
+  "name": "MySite",
+  "version": 1,
+  "description": "Custom builder components for your site, developed inside themes/mysite."
+}

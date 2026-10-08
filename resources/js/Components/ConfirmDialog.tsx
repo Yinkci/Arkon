@@ -1,4 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { Icon } from './Icon';
+import { Button } from './ui';
 
 export interface ConfirmDialogProps {
     open: boolean;
@@ -49,7 +51,7 @@ export function ConfirmDialog({ open, title, children, confirmLabel, requireText
                 event.preventDefault();
                 close();
             }}
-            className="m-auto w-full max-w-md rounded-xl text-left whitespace-normal border border-line bg-surface p-0 text-fg shadow-pop backdrop:bg-black/40"
+            className="m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border border-line bg-surface p-0 text-left whitespace-normal text-fg shadow-pop backdrop:bg-black/45"
         >
             <form
                 method="dialog"
@@ -68,22 +70,17 @@ export function ConfirmDialog({ open, title, children, confirmLabel, requireText
                     }
                 }}
             >
-                <h2 id={titleId} className="text-lg font-semibold">
+                <h2 id={titleId} className="flex items-center gap-2 text-base font-semibold">
+                    {tone === 'danger' && <Icon name="alert" className="size-4 text-danger" />}
                     {title}
                 </h2>
                 <div className="space-y-2 text-sm text-muted">{children}</div>
                 {requireText && (
                     <div>
-                        <label htmlFor={inputId} className="block text-sm font-medium">
-                            Type <code className="rounded bg-line px-1">{requireText}</code> to confirm
+                        <label htmlFor={inputId} className="ui-label">
+                            Type <code className="rounded bg-sunken px-1 font-mono text-fg">{requireText}</code> to confirm
                         </label>
-                        <input
-                            id={inputId}
-                            value={typed}
-                            onChange={(e) => setTyped(e.target.value)}
-                            autoComplete="off"
-                            className="mt-1 w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-fg outline-none placeholder:text-faint focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                        />
+                        <input id={inputId} value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" className="ui-input" />
                     </div>
                 )}
                 {error && (
@@ -91,22 +88,13 @@ export function ConfirmDialog({ open, title, children, confirmLabel, requireText
                         {error}
                     </p>
                 )}
-                <div className="flex justify-end gap-2">
-                    <button
-                        type="button"
-                        onClick={close}
-                        disabled={pending}
-                        className="rounded-md border border-line-strong px-3 py-1.5 text-sm hover:bg-line/50"
-                    >
+                <div className="flex justify-end gap-2 pt-1">
+                    <Button onClick={close} disabled={pending}>
                         Cancel
-                    </button>
-                    <button
-                        type="submit"
-                        disabled={!ready || pending}
-                        className={`rounded-md px-3 py-1.5 text-sm font-medium disabled:opacity-50 ${tone === 'danger' ? 'bg-danger text-surface hover:opacity-90' : 'bg-accent text-accent-fg hover:bg-accent-hover'}`}
-                    >
+                    </Button>
+                    <Button type="submit" variant={tone === 'danger' ? 'danger' : 'primary'} busy={pending} disabled={!ready || pending}>
                         {pending ? 'Working…' : confirmLabel}
-                    </button>
+                    </Button>
                 </div>
             </form>
         </dialog>

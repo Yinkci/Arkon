@@ -24,6 +24,10 @@ return [
     */
     'media_root' => env('ARKON_MEDIA_ROOT', 'storage/app/media'),
 
+    // Installed developer components are application-wide in this first milestone.
+    'theme_source' => base_path('themes'),
+    'theme_store' => env('ARKON_THEME_STORE', env('APP_ENV') === 'testing' ? storage_path('framework/testing/theme-components') : storage_path('app/theme-components')),
+
     'seed_hosts' => env('ARKON_SEED_HOSTS', 'arkonlaravel.test'),
 
     /*

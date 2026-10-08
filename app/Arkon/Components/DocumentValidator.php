@@ -4,6 +4,7 @@ namespace App\Arkon\Components;
 
 use App\Arkon\Schema\DocumentShape;
 use App\Arkon\Schema\DocumentStructure;
+use App\Arkon\Style\StyleSchema;
 use App\Arkon\Support\Json;
 use App\Arkon\Support\Rules;
 
@@ -40,7 +41,17 @@ final class DocumentValidator
         return $this->check($doc, pinned: true);
     }
 
-    private function check(mixed $doc, bool $pinned): array
+    /**
+     * A reusable component's document: the same rules, with a fragment as its root.
+     *
+     * @return list<array{nodeId?: string, path?: string, message: string}>
+     */
+    public function validateFragment(mixed $doc, bool $pinned = false): array
+    {
+        return $this->check($doc, $pinned, 'fragment');
+    }
+
+    private function check(mixed $doc, bool $pinned, string $rootType = 'page'): array
     {
         $shape = DocumentShape::documentIssues($doc);
         if ($shape !== []) {
@@ -48,8 +59,8 @@ final class DocumentValidator
         }
         $issues = DocumentStructure::validate($doc);
         $nodes = Json::entries($doc['nodes']);
-        if (($nodes[$doc['root']]['type'] ?? null) !== 'page') {
-            $issues[] = ['message' => Rules::message('rootNotPage')];
+        if (($nodes[$doc['root']]['type'] ?? null) !== $rootType) {
+            $issues[] = ['message' => Rules::message($rootType === 'page' ? 'rootNotPage' : 'rootNotFragment')];
         }
 
         foreach ($nodes as $node) {
@@ -94,6 +105,41 @@ final class DocumentValidator
                         $issues[] = ['nodeId' => $childId, 'message' => Rules::message('childNotAllowed', ['child' => $child['type'], 'parent' => $node['type']])];
                     }
                 }
+                // Columns: one width per column (editing policy; recorded documents render as they were).
+                if (! $pinned) {
+                    array_push($issues, ...self::widthIssues($node, $definition->label, count($children)));
+                }
+            }
+        }
+
+        return $issues;
+    }
+
+    /**
+     * A Columns block's fraction widths must give one width per column on every screen; counts
+     * ("1" to stack, "2" per row …) are free. Group grids are not concerned (rules.json
+     * style.oneWidthPerChild). Values that are not valid widths at all are reported by the props.
+     *
+     * @return list<array{nodeId: string, path: string, message: string}>
+     */
+    public static function widthIssues(array $node, string $label, int $children): array
+    {
+        if (! in_array($node['type'], Rules::get('style.oneWidthPerChild.types'), true)) {
+            return [];
+        }
+        $props = Json::entries($node['props'] ?? []);
+        $root = Json::entries(Json::entries($props['style'] ?? [])['root'] ?? []);
+        $issues = [];
+        foreach (['base', 'tablet', 'mobile'] as $screen) {
+            $value = Json::entries($root[$screen] ?? [])['columns'] ?? null;
+            if (! is_string($value) || preg_match('/^[1-6]$/D', $value) === 1 || StyleSchema::valueProblem(StyleSchema::properties()['columns'], $value) !== null) {
+                continue;
+            }
+            $widths = count(explode(' ', $value));
+            if ($widths !== $children) {
+                $issues[] = ['nodeId' => $node['id'], 'path' => "style.root.{$screen}.columns", 'message' => Rules::message('columnWidths', [
+                    'label' => $label, 'widths' => "{$widths} widths", 'columns' => $children === 1 ? '1 column' : "{$children} columns",
+                ])];
             }
         }
 

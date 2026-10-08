@@ -1,0 +1,95 @@
+{
+  "type": "button",
+  "version": 3,
+  "label": "Button",
+  "children": false,
+  "props": {
+    "label": {
+      "type": "string",
+      "maxLength": 80
+    },
+    "href": {
+      "type": "link",
+      "maxLength": 2000,
+      "default": "/"
+    },
+    "variant": {
+      "type": "enum",
+      "values": [
+        "primary",
+        "secondary",
+        "text"
+      ],
+      "default": "primary"
+    },
+    "size": {
+      "type": "enum",
+      "values": [
+        "small",
+        "medium",
+        "large"
+      ],
+      "default": "medium"
+    },
+    "newTab": {
+      "type": "boolean",
+      "default": false
+    },
+    "style": {
+      "type": "style",
+      "slots": {
+        "root": {
+          "label": "Block",
+          "groups": [
+            "spacing",
+            "placement",
+            "motion"
+          ],
+          "properties": [
+            "textAlign"
+          ]
+        },
+        "button": {
+          "label": "Button",
+          "groups": [
+            "typography",
+            "background",
+            "border",
+            "effects",
+            "spacing"
+          ],
+          "properties": [
+            "width",
+            "minWidth"
+          ]
+        }
+      },
+      "default": {}
+    }
+  },
+  "defaultProps": {
+    "label": "Learn more",
+    "href": "/",
+    "variant": "primary",
+    "size": "medium",
+    "newTab": false,
+    "style": {}
+  },
+  "inlineFields": {
+    "label": {
+      "kind": "line"
+    }
+  },
+  "publishChecks": [
+    {
+      "rule": "notBlank",
+      "prop": "label",
+      "message": "Button needs a label"
+    },
+    {
+      "rule": "notBlank",
+      "prop": "href",
+      "message": "Button needs a link"
+    }
+  ]
+}

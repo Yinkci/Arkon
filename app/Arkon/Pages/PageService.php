@@ -6,6 +6,7 @@ use App\Arkon\Ai\ProposalLedger;
 use App\Arkon\Audit\AuditLog;
 use App\Arkon\Components\DocumentValidator;
 use App\Arkon\Database\Transactions;
+use App\Arkon\Design\DesignResources;
 use App\Arkon\Errors\ConflictException;
 use App\Arkon\Errors\NotFoundException;
 use App\Arkon\Errors\ValidationException;
@@ -24,6 +25,7 @@ use App\Arkon\Support\Json;
 use App\Arkon\Support\Rules;
 use App\Arkon\Support\Time;
 use App\Arkon\Support\Uuid;
+use App\Arkon\Themes\ThemeService;
 use Closure;
 use Illuminate\Support\Facades\DB;
 
@@ -43,6 +45,7 @@ class PageService
         private readonly AuditLog $audit,
         private readonly DocumentValidator $validator,
         private readonly ProposalLedger $proposals,
+        private readonly DesignResources $resources,
     ) {}
 
     // ── Reading ─────────────────────────────────────────────────────────────
@@ -113,11 +116,14 @@ class PageService
         return $this->readSnapshot(function () use ($ctx, $pageId, $signer) {
             $state = $this->editorState($ctx, $pageId);
             // The sandboxed canvas cannot send the session cookie, so it gets signed preview URLs.
-            $state['media'] = array_map(fn ($m) => [...$m, 'url' => $signer->signUrl($m['url'])], $state['media']);
+            $state['media'] = array_map(fn ($m) => [...$m, 'url' => $signer->signUrl($m['url']), 'variants' => array_map(fn ($v) => [...$v, 'url' => $signer->signUrl($v['url'])], $m['variants'] ?? [])], $state['media']);
 
             return [
                 ...$state,
                 'revisions' => $this->listRevisions($ctx, $pageId),
+                // Published design tokens (with defaults) and reusable components, never their drafts.
+                'tokens' => $this->resources->resolvedTokens($ctx->siteId),
+                'components' => $this->resources->componentsForEditor($ctx->siteId),
                 // A draft in recovery is shown as stored (its first paint only); every later canvas
                 // render goes through the normal endpoint and the current rules.
                 'canvas' => $this->readSnapshot(fn () => $this->readCanvas($ctx, $pageId, $state['draft']['document'], $signer, recorded: $state['recovery'] !== null)),
@@ -155,7 +161,11 @@ class PageService
             'recovery' => $recovery,
             'live' => $live ? self::liveInfo($live) : null,
             'status' => self::statusOf($draft, $live?->revision_id),
-            'media' => array_values($this->media->mediaMap($ctx->siteId, $this->store->safeMediaRefs($doc, pinned: $recovery !== null))),
+            // The page's images first, then the site's most recent uploads (to choose from).
+            'media' => $this->media->withNames($ctx->siteId, array_values($this->media->mediaMap($ctx->siteId, array_values(array_unique([
+                ...$this->store->safeMediaRefs($doc, pinned: $recovery !== null),
+                ...DB::table('media_assets')->where('site_id', $ctx->siteId)->orderByDesc('created_at')->limit(100)->pluck('id')->all(),
+            ]))))),
             'permissions' => [
                 'edit' => Permissions::allows($role, 'page.edit'),
                 'publish' => Permissions::allows($role, 'page.publish'),
@@ -167,7 +177,7 @@ class PageService
 
     /**
      * Null for a valid draft. A draft stored before a rule was tightened (links with
-     * backslashes) is valid only under the recorded policy: it opens in recovery, listing
+     * backslashes; Columns widths that don't match the columns) is valid only under the recorded policy: it opens in recovery, listing
      * each stored value the editor must correct or remove before anything else saves.
      * Nothing is changed here; the stored draft stays as it is until the user's repair is
      * saved as a normal revision. A draft invalid in any other way is not recoverable this
@@ -186,8 +196,15 @@ class PageService
         foreach ($issues as $issue) {
             $node = $nodes[$issue['nodeId'] ?? ''] ?? null;
             $value = $node ? (Json::entries($node['props'])[$issue['path'] ?? ''] ?? null) : null;
-            // Only issues the recorded policy explains: an unsafe link stored as a string.
-            if ($node === null || $issue['message'] !== Rules::message('unsafeLink') || ! is_string($value)) {
+            // Only issues the recorded policy explains: an unsafe link stored as a string, or Columns
+            // widths that don't give one width per column (accepted before that rule existed).
+            if ($node !== null && $issue['message'] !== Rules::message('unsafeLink') && in_array($issue, DocumentValidator::widthIssues($node, $this->validator->definitionOf($node)->label, count($node['children'] ?? [])), true)) {
+                $screen = explode('.', (string) $issue['path'])[2];
+                $value = Json::entries(Json::entries(Json::entries(Json::entries($node['props'])['style'] ?? [])['root'] ?? [])[$screen] ?? [])['columns'] ?? null;
+            } elseif ($node === null || $issue['message'] !== Rules::message('unsafeLink')) {
+                return null;
+            }
+            if (! is_string($value)) {
                 return null;
             }
             $items[] = ['nodeId' => $node['id'], 'type' => $node['type'], 'path' => $issue['path'], 'value' => $value, 'message' => $issue['message']];
@@ -239,13 +256,25 @@ class PageService
     /** Renders the current draft exactly as it would be published (production mode). */
     public function renderPreview(SiteContext $ctx, string $pageId): string
     {
+        return $this->renderPreviewPage($ctx, $pageId)['html'];
+    }
+
+    /**
+     * The member preview: production HTML of the draft, and the animation runtime it loads
+     * (null when it has no "when scrolled into view" animations), for its script policy.
+     *
+     * @return array{html: string, runtime: string|null}
+     */
+    public function renderPreviewPage(SiteContext $ctx, string $pageId): array
+    {
         // Title and URL from the same moment as the document they are rendered with.
         return $this->readSnapshot(function () use ($ctx, $pageId) {
             $this->authorizer->authorize($ctx, 'page.view');
             $page = $this->store->loadPage($ctx->siteId, Input::id($pageId));
             $draft = $this->store->loadDraft($ctx->siteId, $page->id);
+            $out = $this->store->renderForSite($ctx->siteId, $page->title, $page->path, $this->store->document($draft->document), false);
 
-            return $this->store->renderForSite($ctx->siteId, $page->title, $page->path, $this->store->document($draft->document), false)['html'];
+            return ['html' => $out['html'], 'runtime' => $out['report']['motion']['runtime']];
         });
     }
 
@@ -267,17 +296,16 @@ class PageService
         $this->authorizer->authorize($ctx, 'page.view');
         $page = $this->store->loadPage($ctx->siteId, Input::id($pageId));
         $site = DB::table('sites')->where('id', $ctx->siteId)->first(['name']);
-        $media = [];
-        foreach ($this->media->mediaMap($ctx->siteId, $this->store->safeMediaRefs($document, pinned: $recorded)) as $id => $info) {
-            $media[$id] = [...$info, 'url' => $signer->signUrl($info['url'])];
-        }
+        $resources = $this->resources->published($ctx->siteId, $document);
+        $media = $this->media->signedMediaMap($ctx->siteId, $this->store->mediaIdsFor($document, $resources['components'], $recorded), $signer);
         try {
-            $out = $this->renderer->render($document, 'editor', ['title' => $page->title, 'path' => $page->path], ['name' => $site->name], $media, pinned: $recorded);
+            $out = $this->renderer->render($document, 'editor', ['title' => $page->title, 'path' => $page->path], ['name' => $site->name], $media, pinned: $recorded, resources: $resources);
         } catch (RenderException $error) {
             throw new ValidationException('The page could not be rendered', $error->issues);
         }
 
-        return ['body' => $out['body'], 'css' => $out['css']];
+        // Animations the renderer left off (they would hide the likely LCP), for the inspector to explain.
+        return ['body' => $out['body'], 'css' => $out['css'], 'motion' => ['protected' => (object) $out['report']['motion']['protected']]];
     }
 
     /**
@@ -293,7 +321,8 @@ class PageService
             ->whereNull('pg.deleted_at')
             ->where('l.site_id', $siteId)
             ->where('l.path', $path)
-            ->first(['p.id as publication_id', 'p.html']);
+            // The animation runtime the stored HTML loads, if any (its script policy allows exactly that file).
+            ->first(['p.id as publication_id', 'p.html', DB::raw("p.render_inputs->>'motion' AS motion_runtime")]);
     }
 
     /**
@@ -374,6 +403,7 @@ class PageService
             } catch (OperationException $error) {
                 throw new ValidationException($error->getMessage());
             }
+            ThemeService::assertAdditions($ctx->siteId, $this->store->document($draft->document), $next);
             $this->store->validateForSave($ctx->siteId, $next);
 
             $version = (int) $draft->version + 1;
@@ -533,7 +563,8 @@ class PageService
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?) RETURNING created_at',
                 [$publicationId, $ctx->siteId, $pageId, $revisionId, $meta->path, $rendered['html'], $epoch, $key, $fingerprint, Json::encode($rendered['inputs']), $ctx->userId],
             );
-            $this->store->recordPublicationMedia($ctx->siteId, $publicationId, $this->store->safeMediaRefs($doc));
+            $this->store->recordPublicationMedia($ctx->siteId, $publicationId, $rendered['mediaIds']);
+            $this->store->recordDependencies($ctx->siteId, $pageId, $publicationId, $rendered['inputs']);
 
             DB::statement(
                 'INSERT INTO live_pages (page_id, site_id, path, publication_id, epoch, updated_at) VALUES (?, ?, ?, ?, ?, now())
@@ -588,14 +619,64 @@ class PageService
         if ($publication->render_inputs === null) {
             return ['status' => 'legacy', 'matches' => null, 'html' => null, 'reason' => 'Published before render inputs were recorded'];
         }
+        // A compatibility record names the development build that made it (see publication_render_compat).
+        $build = DB::table('publication_render_compat')->where('publication_id', $publication->id)->value('renderer');
+        $html = $this->renderPublication($siteId, $publication, $build);
+        if (is_array($html)) {
+            return $html;
+        }
+
+        return ['status' => 'reproduced', 'matches' => $html === $publication->html, 'html' => $html, 'reason' => null, 'build' => $build];
+    }
+
+    /** @return string|array the reproduced HTML, or the "unavailable" result */
+    private function renderPublication(string $siteId, object $publication, ?string $build): string|array
+    {
         $revision = DB::table('page_revisions')->where('site_id', $siteId)->where('id', $publication->revision_id)->value('document');
         try {
-            $html = $this->renderer->reproduce(Json::decode($revision), Json::toArray(Json::decode($publication->render_inputs)))['html'];
+            $inputs = Json::toArray(Json::decode($publication->render_inputs));
+            $components = $this->resources->recordedComponents($siteId, array_map('intval', $inputs['reusable'] ?? []));
+
+            return $this->renderer->reproduce(Json::decode($revision), $inputs, $components, $build)['html'];
         } catch (RenderException $error) {
             return ['status' => 'unavailable', 'matches' => null, 'html' => null, 'reason' => $error->getMessage().': '.implode('; ', array_column($error->issues, 'message'))];
         }
+    }
 
-        return ['status' => 'reproduced', 'matches' => $html === $publication->html, 'html' => $html, 'reason' => null];
+    /**
+     * Records which development build of its renderer version produced a publication. Only
+     * when the recorded version does not reproduce it and the named build reproduces it byte
+     * for byte; append-only (one record per publication, never changed). The publication,
+     * its revision and its render inputs are not modified.
+     *
+     * @return array{recorded: bool, reason: string}
+     */
+    public function recordRenderCompat(string $publicationId, string $build, string $reason): array
+    {
+        if (! isset(PageRenderer::COMPAT_BUILDS[$build])) {
+            return ['recorded' => false, 'reason' => "Unknown renderer build {$build}"];
+        }
+        $publication = Uuid::isValid($publicationId) ? DB::table('publications')->where('id', $publicationId)->first() : null;
+        if ($publication === null || $publication->render_inputs === null) {
+            return ['recorded' => false, 'reason' => 'No publication with recorded render inputs has that id'];
+        }
+        if (DB::table('publication_render_compat')->where('publication_id', $publication->id)->exists()) {
+            return ['recorded' => false, 'reason' => 'This publication already has a compatibility record'];
+        }
+        $recorded = $this->renderPublication($publication->site_id, $publication, null);
+        if ($recorded === $publication->html) {
+            return ['recorded' => false, 'reason' => 'Its recorded renderer version already reproduces it'];
+        }
+        $candidate = $this->renderPublication($publication->site_id, $publication, $build);
+        if ($candidate !== $publication->html) {
+            return ['recorded' => false, 'reason' => "Renderer build {$build} does not reproduce it byte for byte either"];
+        }
+        DB::table('publication_render_compat')->insert([
+            'publication_id' => $publication->id, 'site_id' => $publication->site_id, 'page_id' => $publication->page_id,
+            'renderer' => $build, 'reason' => $reason,
+        ]);
+
+        return ['recorded' => true, 'reason' => "Recorded: rendered by {$build}"];
     }
 
     // ── Background re-render (internal: called by jobs, never directly from HTTP) ──
@@ -622,7 +703,7 @@ class PageService
 
             return [
                 'siteId' => $siteId, 'pageId' => $pageId, 'revisionId' => $live->revision_id, 'path' => $live->path,
-                'html' => $rendered['html'], 'inputs' => $rendered['inputs'], 'mediaIds' => $this->store->safeMediaRefs($doc, pinned: true),
+                'html' => $rendered['html'], 'inputs' => $rendered['inputs'], 'mediaIds' => $rendered['mediaIds'],
                 'epoch' => (int) $epoch,
             ];
         }, isolation: 'REPEATABLE READ', readOnly: true);
@@ -653,6 +734,7 @@ class PageService
                 return ['applied' => false];
             }
             $this->store->recordPublicationMedia($prepared['siteId'], $publicationId, $prepared['mediaIds']);
+            $this->store->recordDependencies($prepared['siteId'], $prepared['pageId'], $publicationId, $prepared['inputs']);
 
             // UPDATE only: a re-render must never re-publish a page that was unpublished meanwhile.
             $moved = DB::update(
@@ -661,7 +743,7 @@ class PageService
                 [$publicationId, $prepared['epoch'], $prepared['siteId'], $prepared['pageId'], $prepared['epoch']],
             );
 
-            return ['applied' => $moved > 0];
+            return ['applied' => $moved > 0, 'publicationId' => $publicationId];
         });
     }
 }

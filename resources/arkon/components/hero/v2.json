@@ -1,0 +1,153 @@
+{
+  "type": "hero",
+  "version": 2,
+  "label": "Hero",
+  "children": {
+    "allow": [
+      "button"
+    ],
+    "max": 4
+  },
+  "props": {
+    "heading": {
+      "type": "string",
+      "maxLength": 160
+    },
+    "headingLevel": {
+      "type": "enum",
+      "values": [
+        "h1",
+        "h2"
+      ],
+      "default": "h1"
+    },
+    "text": {
+      "type": "string",
+      "maxLength": 600,
+      "default": ""
+    },
+    "image": {
+      "type": "object",
+      "nullable": true,
+      "default": null,
+      "properties": {
+        "assetId": {
+          "type": "uuid"
+        },
+        "alt": {
+          "type": "string",
+          "maxLength": 300
+        }
+      }
+    },
+    "style": {
+      "type": "style",
+      "slots": {
+        "root": {
+          "label": "Hero",
+          "groups": [
+            "layout",
+            "spacing",
+            "size",
+            "background",
+            "border",
+            "effects"
+          ],
+          "properties": [
+            "color",
+            "textAlign"
+          ]
+        },
+        "content": {
+          "label": "Text column",
+          "groups": [
+            "layout",
+            "size",
+            "spacing",
+            "placement"
+          ],
+          "properties": [
+            "textAlign"
+          ]
+        },
+        "heading": {
+          "label": "Heading",
+          "groups": [
+            "typography"
+          ]
+        },
+        "text": {
+          "label": "Supporting text",
+          "groups": [
+            "typography"
+          ],
+          "properties": [
+            "maxWidth"
+          ]
+        },
+        "actions": {
+          "label": "Buttons",
+          "groups": [
+            "layout"
+          ]
+        },
+        "media": {
+          "label": "Image",
+          "groups": [
+            "size",
+            "image",
+            "border",
+            "effects",
+            "placement"
+          ]
+        }
+      },
+      "default": {
+        "root": {
+          "tablet": {
+            "direction": "column",
+            "align": "stretch"
+          }
+        }
+      }
+    }
+  },
+  "defaultProps": {
+    "heading": "Your headline",
+    "headingLevel": "h1",
+    "text": "",
+    "image": null,
+    "style": {
+      "root": {
+        "tablet": {
+          "direction": "column",
+          "align": "stretch"
+        }
+      }
+    }
+  },
+  "inlineFields": {
+    "heading": {
+      "kind": "line"
+    },
+    "text": {
+      "kind": "multiline"
+    }
+  },
+  "mediaRefs": [
+    "image.assetId"
+  ],
+  "publishChecks": [
+    {
+      "rule": "notBlank",
+      "prop": "heading",
+      "message": "Hero heading is empty"
+    },
+    {
+      "rule": "notBlank",
+      "prop": "image.alt",
+      "when": "image",
+      "message": "Hero image needs alternative text"
+    }
+  ]
+}

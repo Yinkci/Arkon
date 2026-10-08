@@ -191,8 +191,8 @@ class PagesTest extends DatabaseTestCase
         $this->publish(1);
         $publication = DB::table('publications')->where('page_id', $this->f['pageId'])->first();
         $inputs = json_decode($publication->render_inputs, true);
-        $this->assertSame('arkon-php-1', $inputs['renderer']);
-        $this->assertSame(['hero@1', 'page@2'], $inputs['components']);
+        $this->assertSame('arkon-php-2', $inputs['renderer']);
+        $this->assertSame(['hero@4', 'page@3'], $inputs['components']);
         $this->assertEquals(['name' => 'Test Site', 'lang' => 'en'], $inputs['site']);
 
         // Same revision + same recorded inputs → byte-identical HTML, even after the site was renamed.
@@ -213,7 +213,7 @@ class PagesTest extends DatabaseTestCase
         $this->save(1, $this->setHeading('Newest'));
         $newest = $this->publish(2);
 
-        $this->assertSame(['applied' => false], $this->pages->commitRerender($stale));
+        $this->assertSame(false, $this->pages->commitRerender($stale)['applied']);
         $live = $this->live();
         $this->assertSame($newest['publicationId'], $live->publication_id);
         $this->assertStringContainsString('Newest', $live->html);
@@ -225,8 +225,8 @@ class PagesTest extends DatabaseTestCase
         // A dependency publish elsewhere in the site advanced the epoch.
         DB::table('sites')->where('id', $this->f['siteId'])->increment('publish_epoch');
         $prepared = $this->pages->prepareRerender($this->f['siteId'], $this->f['pageId']);
-        $this->assertSame(['applied' => true], $this->pages->commitRerender($prepared));
-        $this->assertSame(['applied' => false], $this->pages->commitRerender($prepared));
+        $this->assertSame(true, $this->pages->commitRerender($prepared)['applied']);
+        $this->assertSame(false, $this->pages->commitRerender($prepared)['applied']);
         $this->assertSame(2, $this->publicationCount());
     }
 

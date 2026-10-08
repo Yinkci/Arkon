@@ -1,0 +1,43 @@
+{
+  "type": "theme-mysite-testimonial",
+  "version": 1,
+  "label": "Testimonial",
+  "children": false,
+  "props": {
+    "quote": { "type": "string", "maxLength": 2000 },
+    "author": { "type": "string", "maxLength": 120 },
+    "alignment": { "type": "enum", "values": ["left", "center"], "default": "left" },
+    "photo": {
+      "type": "object",
+      "nullable": true,
+      "default": null,
+      "properties": { "assetId": { "type": "uuid" }, "alt": { "type": "string", "maxLength": 300 } }
+    },
+    "style": {
+      "type": "style",
+      "default": {},
+      "slots": {
+        "root": { "label": "Testimonial card", "groups": ["spacing", "size", "placement", "background", "border", "effects", "motion"] },
+        "quote": { "label": "Quote text", "groups": ["typography", "spacing"] },
+        "author": { "label": "Author name", "groups": ["typography", "spacing"] },
+        "photo": { "label": "Author photo", "groups": ["size", "image", "border"] }
+      }
+    }
+  },
+  "defaultProps": { "quote": "Arkon makes our website easy to update.", "author": "Alex Morgan", "alignment": "left", "photo": null, "style": {} },
+  "editor": {
+    "fields": {
+      "quote": { "label": "Quote", "multiline": true },
+      "author": { "label": "Author" },
+      "alignment": { "label": "Alignment" },
+      "photo": { "label": "Author photo" }
+    }
+  },
+  "inlineFields": { "quote": { "kind": "multiline" }, "author": { "kind": "line" } },
+  "mediaRefs": ["photo.assetId"],
+  "publishChecks": [
+    { "rule": "notBlank", "prop": "quote", "message": "Testimonial needs a quote" },
+    { "rule": "notBlank", "prop": "author", "message": "Testimonial needs an author" },
+    { "rule": "notBlank", "prop": "photo.alt", "when": "photo", "message": "Author photo needs alternative text" }
+  ]
+}

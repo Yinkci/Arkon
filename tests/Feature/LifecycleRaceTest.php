@@ -164,6 +164,6 @@ class LifecycleRaceTest extends DatabaseTestCase
         DB::table('sites')->where('id', $this->f['siteId'])->increment('publish_epoch');
         $prepared = app(PageService::class)->prepareRerender($this->f['siteId'], $this->f['pageId']);
         DB::table('pages')->where('id', $this->f['pageId'])->update(['deleted_at' => now()]);
-        $this->assertSame(['applied' => false], app(PageService::class)->commitRerender($prepared));
+        $this->assertSame(false, app(PageService::class)->commitRerender($prepared)['applied']);
     }
 }
