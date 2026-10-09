@@ -6,6 +6,7 @@ use App\Arkon\Audit\AuditLog;
 use App\Arkon\Database\Transactions;
 use App\Arkon\Design\PageRefreshes;
 use App\Arkon\Errors\ConflictException;
+use App\Arkon\Errors\ForbiddenException;
 use App\Arkon\Errors\NotFoundException;
 use App\Arkon\Errors\StaleVersionException;
 use App\Arkon\Errors\ValidationException;
@@ -17,7 +18,6 @@ use App\Arkon\Support\Fingerprint;
 use App\Arkon\Support\Input;
 use App\Arkon\Support\Json;
 use App\Arkon\Support\Uuid;
-use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 
 final class FormService
@@ -26,6 +26,12 @@ final class FormService
 
     public static function validateDefinition(mixed $input): array
     {
+        if (is_array($input) && isset($input['schemaVersion']) && $input['schemaVersion'] !== 2) {
+            throw new ValidationException('This form schema version is not supported.');
+        }
+        if (is_array($input) && ($input['schemaVersion'] ?? null) === 2) {
+            return FormDefinition::validate($input);
+        }
         if (! is_array($input)) {
             throw new ValidationException('A form definition is required.');
         }
@@ -47,23 +53,32 @@ final class FormService
 
     public function list(SiteContext $ctx): array
     {
-        $role = $this->auth->authorize($ctx, 'page.view');
+        $role = $this->auth->authorize($ctx, 'form.view');
 
-        return DB::table('site_forms')->where('site_id', $ctx->siteId)->orderBy('name')->get()->map(fn ($row) => [
-            'id' => $row->id, 'version' => (int) $row->version, 'publishedVersion' => $row->published_version, 'definition' => Json::decode($row->draft),
-            'notificationEmail' => Permissions::allows($role, 'page.publish') ? $row->notification_email : null,
+        return DB::table('site_forms')->where('site_id', $ctx->siteId)->whereNull('archived_at')->orderBy('name')->get()->map(fn ($row) => [
+            'id' => $row->id, 'version' => (int) $row->version, 'publishedVersion' => $row->published_version, 'definition' => self::visibleDefinition(Json::decode($row->draft), $role),
+            'notificationEmail' => Permissions::allows($role, 'form.publish') ? $row->notification_email : null,
         ])->all();
+    }
+
+    private static function visibleDefinition(array $definition, string $role): array
+    {
+        if (! Permissions::allows($role, 'form.notifications')) {
+            $definition['notifications'] = [];
+        }
+
+        return $definition;
     }
 
     public function save(SiteContext $ctx, array $input): array
     {
-        $this->auth->authorize($ctx, 'page.edit');
+        $this->auth->authorize($ctx, 'form.edit');
         $v = Input::validate($input, ['id' => ['nullable', 'uuid'], 'baseVersion' => ['required', 'integer', 'min:0'], 'requestKey' => Input::requestKeyRule()]);
         $definition = self::validateDefinition($input['definition'] ?? null);
         $fingerprint = Fingerprint::of(['kind' => 'form.save', 'id' => $v['id'] ?? null, 'base' => $v['baseVersion'], 'definition' => $definition]);
 
         return $this->transactions->run(function () use ($ctx, $v, $definition, $fingerprint) {
-            $this->auth->authorize($ctx, 'page.edit');
+            $this->auth->authorize($ctx, 'form.edit');
             DB::select('SELECT pg_advisory_xact_lock(hashtextextended(?,0))', ['arkon.forms:'.$ctx->siteId]);
             if ($result = $this->replay($ctx, $v['requestKey'], $fingerprint)) {
                 return $result;
@@ -76,8 +91,23 @@ final class FormService
             if ((int) ($row?->version ?? 0) !== (int) $v['baseVersion']) {
                 throw new StaleVersionException((int) $v['baseVersion'], (int) ($row?->version ?? 0));
             }
+            if ($row?->archived_at) {
+                throw new ConflictException('This form is archived.');
+            }
+            $role = $this->auth->authorize($ctx, 'form.edit');
+            if (! Permissions::allows($role, 'form.notifications')) {
+                if (! empty($definition['notifications'])) {
+                    throw new ForbiddenException('Only owners and administrators can configure notifications.');
+                }
+                if (($definition['schemaVersion'] ?? null) === 2) {
+                    $definition['notifications'] = Json::decode($row?->draft ?? '{}')['notifications'] ?? [];
+                }
+            }
+            if (($definition['schemaVersion'] ?? null) === 2) {
+                $definition = FormDefinition::validate($definition);
+            }
             $version = (int) $v['baseVersion'] + 1;
-            $values = ['name' => $definition['name'], 'draft' => Json::encode($definition), 'version' => $version];
+            $values = ['name' => $definition['name'], 'draft' => Json::encode($definition), 'version' => $version, 'updated_at' => now()];
             if ($row) {
                 DB::table('site_forms')->where('id', $id)->update($values);
             } else {
@@ -95,7 +125,7 @@ final class FormService
         $v = Input::validate($input, ['expectedVersion' => ['required', 'integer', 'min:1'], 'requestKey' => Input::requestKeyRule()]);
         $fp = Fingerprint::of(['kind' => 'form.publish', 'id' => $id, 'version' => $v['expectedVersion']]);
         $result = $this->transactions->run(function () use ($ctx, $id, $v, $fp) {
-            $this->auth->authorize($ctx, 'page.publish');
+            $this->auth->authorize($ctx, 'form.publish');
             DB::select('SELECT pg_advisory_xact_lock(hashtextextended(?,0))', ['arkon.forms:'.$ctx->siteId]);
             if ($result = $this->replay($ctx, $v['requestKey'], $fp)) {
                 return $result;
@@ -103,6 +133,13 @@ final class FormService
             $row = DB::table('site_forms')->where('site_id', $ctx->siteId)->where('id', $id)->lockForUpdate()->first() ?? throw new NotFoundException('Form');
             if ((int) $row->version !== (int) $v['expectedVersion']) {
                 throw new StaleVersionException((int) $v['expectedVersion'], (int) $row->version);
+            }
+            if ($row->archived_at) {
+                throw new ConflictException('This form is archived.');
+            }
+            $definition = Json::decode($row->draft);
+            if (($definition['schemaVersion'] ?? 1) === 2 && ! array_filter($definition['fields'], fn ($f) => ! in_array($f['type'], ['section', 'divider'], true))) {
+                throw new ValidationException('Add at least one input field before publishing.');
             }
             $epoch = app(PageStore::class)->lockNextEpoch($ctx->siteId);
             $version = (int) ($row->published_version ?? 0) + 1;
@@ -124,7 +161,7 @@ final class FormService
     public static function assertReferences(string $siteId, mixed $doc): void
     {
         $ids = self::references($doc);
-        $found = DB::table('site_forms')->where('site_id', $siteId)->whereIn('id', $ids)->pluck('id')->all();
+        $found = DB::table('site_forms')->where('site_id', $siteId)->whereNull('archived_at')->whereIn('id', $ids)->pluck('id')->all();
         if (array_diff($ids, $found) !== []) {
             throw new ValidationException('A form on this page does not exist in this site.');
         }
@@ -132,26 +169,16 @@ final class FormService
 
     public function notifications(SiteContext $ctx, string $id, mixed $email): void
     {
-        $this->auth->authorize($ctx, 'page.publish');
+        $this->auth->authorize($ctx, 'form.notifications');
         Input::validate(['email' => $email], ['email' => ['nullable', 'email', 'max:254']]);
         if (! DB::table('site_forms')->where('site_id', $ctx->siteId)->where('id', $id)->exists()) {
             throw new NotFoundException('Form');
         }
         $this->transactions->run(function () use ($ctx, $id, $email) {
-            $this->auth->authorize($ctx, 'page.publish');
+            $this->auth->authorize($ctx, 'form.notifications');
             DB::table('site_forms')->where('site_id', $ctx->siteId)->where('id', $id)->update(['notification_email' => $email ?: null]);
             app(AuditLog::class)->forContext($ctx, 'form.notifications', 'form', $id, ['enabled' => (bool) $email]);
         });
-    }
-
-    public function submissions(SiteContext $ctx): array
-    {
-        $this->auth->authorize($ctx, 'page.publish');
-
-        return DB::table('form_submissions')->where('site_id', $ctx->siteId)->orderByDesc('created_at')->limit(100)->get()->map(fn ($r) => [
-            'id' => $r->id, 'formId' => $r->form_id, 'createdAt' => $r->created_at, 'notificationStatus' => $r->notification_status,
-            'values' => Json::decode(Crypt::decryptString($r->payload)),
-        ])->all();
     }
 
     public static function references(mixed $doc): array
@@ -175,7 +202,7 @@ final class FormService
             $ids = [...$ids, ...self::references($component['document'])];
         }
         $out = [];
-        foreach (DB::table('site_forms as f')->join('site_form_versions as v', fn ($j) => $j->on('v.form_id', '=', 'f.id')->on('v.site_id', '=', 'f.site_id')->on('v.version', '=', 'f.published_version'))->where('f.site_id', $siteId)->whereIn('f.id', array_unique($ids))->get(['f.id', 'v.version', 'v.definition']) as $r) {
+        foreach (DB::table('site_forms as f')->join('site_form_versions as v', fn ($j) => $j->on('v.form_id', '=', 'f.id')->on('v.site_id', '=', 'f.site_id')->on('v.version', '=', 'f.published_version'))->where('f.site_id', $siteId)->whereNull('f.archived_at')->whereIn('f.id', array_unique($ids))->get(['f.id', 'v.version', 'v.definition']) as $r) {
             $out[$r->id] = ['version' => (int) $r->version, 'definition' => Json::decode($r->definition)];
         }
 

@@ -13,6 +13,7 @@
 use App\Arkon\Ai\ProposalService;
 use App\Arkon\Design\TokenService;
 use App\Arkon\Errors\ArkonException;
+use App\Arkon\Forms\FormService;
 use App\Arkon\Pages\PageManagement;
 use App\Arkon\Pages\PageService;
 use App\Arkon\Sites\SiteContext;
@@ -47,6 +48,8 @@ usleep((int) (($job['delayMs'] ?? 0) * 1000));
 $ctx = new SiteContext($job['ctx']['siteId'], $job['ctx']['userId']);
 try {
     $result = match ($job['call']) {
+        'formSave' => app(FormService::class)->save($ctx, $job['input']),
+        'formPublish' => app(FormService::class)->publish($ctx, $job['input']['id'], $job['input']),
         'activateTheme' => app(ThemeService::class)->activate($ctx, $job['input']),
         'publishTheme' => app(ThemeService::class)->publish($ctx, $job['input']),
         'saveDraft' => app(PageService::class)->saveDraft($ctx, $job['input']),

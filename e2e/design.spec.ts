@@ -100,7 +100,8 @@ test('the design acceptance request: proposal, apply, reload, manual edit, previ
     const wide = await livePage(page, '/design-hero', 1280);
     expect(await heroGeometry(wide.live)).toEqual({ imageRight: true, imageBelow: false, imageAbove: false, height: 500, fit: 'cover' });
     const html = await wide.response!.text();
-    for (const forbidden of ['data-ak-', '<script', '/build/', 'contenteditable']) expect(html).not.toContain(forbidden);
+    expect(html).not.toMatch(/<script(?! type="application\/ld\+json")/i);
+    for (const forbidden of ['data-ak-', '/build/', 'contenteditable']) expect(html).not.toContain(forbidden);
     await wide.close();
     const narrow = await livePage(page, '/design-hero', 390);
     expect(await heroGeometry(narrow.live)).toMatchObject({ imageBelow: true, height: 500, fit: 'cover' });

@@ -180,7 +180,7 @@ class ThemeActivationTest extends DatabaseTestCase
         $this->get('/admin/themes')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->component('Admin/Themes')->where('manage', true));
         $response = $this->get('/admin/themes/mysite/preview')->assertOk();
         $this->assertStringContainsString('Alex Morgan', $response->getContent());
-        $this->assertStringNotContainsString('<script', $response->getContent());
+        $this->assertDoesNotMatchRegularExpression('/<script(?! type="application\/ld\+json")/i', $response->getContent());
         $this->assertStringContainsString("script-src 'none'", $response->headers->get('Content-Security-Policy'));
         $this->assertSame(0, DB::table('site_theme_sets')->count());
         $this->assertCount(1, ThemeStore::installed());

@@ -13,6 +13,7 @@ final class Permissions
         'page.delete',
         'media.view',
         'media.upload',
+        'form.view', 'form.edit', 'form.publish', 'form.manage', 'form.notifications', 'form.entries.view', 'form.entries.manage', 'form.entries.export',
     ];
 
     public const ROLES = ['owner', 'admin', 'editor', 'viewer'];
@@ -21,8 +22,8 @@ final class Permissions
         'owner' => self::ALL,
         'admin' => self::ALL,
         // Editors draft (including new pages, titles and URLs) but cannot change what is live.
-        'editor' => ['page.view', 'page.create', 'page.edit', 'media.view', 'media.upload'],
-        'viewer' => ['page.view', 'media.view'],
+        'editor' => ['form.view', 'form.edit', 'page.view', 'page.create', 'page.edit', 'media.view', 'media.upload'],
+        'viewer' => ['form.view', 'page.view', 'media.view'],
     ];
 
     public static function allows(?string $role, string $permission): bool

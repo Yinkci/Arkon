@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 2,
+  "maxFields": 40,
+  "maxChoices": 30,
+  "maxValueLength": 2000,
+  "maxNotifications": 10,
+  "maxConditions": 10,
+  "types": {
+    "text": {
+      "label": "Single line text",
+      "group": "Basic"
+    },
+    "textarea": {
+      "label": "Paragraph",
+      "group": "Basic"
+    },
+    "email": {
+      "label": "Email",
+      "group": "Basic"
+    },
+    "tel": {
+      "label": "Phone",
+      "group": "Basic"
+    },
+    "number": {
+      "label": "Number",
+      "group": "Basic"
+    },
+    "url": {
+      "label": "Website",
+      "group": "Basic"
+    },
+    "select": {
+      "label": "Dropdown",
+      "group": "Choices"
+    },
+    "radio": {
+      "label": "Radio buttons",
+      "group": "Choices"
+    },
+    "checkboxes": {
+      "label": "Checkboxes",
+      "group": "Choices"
+    },
+    "checkbox": {
+      "label": "Consent",
+      "group": "Choices"
+    },
+    "date": {
+      "label": "Date",
+      "group": "Basic"
+    },
+    "time": {
+      "label": "Time",
+      "group": "Basic"
+    },
+    "section": {
+      "label": "Section",
+      "group": "Layout"
+    },
+    "divider": {
+      "label": "Divider",
+      "group": "Layout"
+    }
+  }
+}

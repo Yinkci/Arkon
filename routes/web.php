@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\DesignApiController;
 use App\Http\Controllers\Api\EditorApiController;
 use App\Http\Controllers\Api\MediaApiController;
 use App\Http\Controllers\Api\PageApiController;
+use App\Http\Controllers\Api\SeoController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\PreviewController;
 use Illuminate\Support\Facades\Route;
@@ -30,6 +31,7 @@ Route::middleware(['auth', 'admin.site'])->group(function () {
     Route::get('/admin/pages', [PagesController::class, 'index']);
     Route::get('/admin/media', [SiteOverviewController::class, 'media']);
     Route::get('/admin/search', [SiteOverviewController::class, 'search']);
+    Route::get('/admin/seo/defaults', [SeoController::class, 'defaults']);
     Route::get('/admin/seo', [SiteOverviewController::class, 'seo']);
     Route::get('/admin/settings', [SiteOverviewController::class, 'settings']);
     Route::get('/admin/design/components', [DesignController::class, 'show']);
@@ -42,10 +44,16 @@ Route::middleware(['auth', 'admin.site'])->group(function () {
     Route::get('/admin/website/{proposal}/preview/{index}', [WebsiteController::class, 'preview'])->whereNumber('index');
     Route::get('/admin/navigation', [NavigationController::class, 'index']);
     Route::get('/admin/forms', [FormsController::class, 'index']);
+    Route::get('/admin/forms/{form}', [FormsController::class, 'show'])->whereUuid('form');
+    Route::get('/admin/forms/{form}/preview', [FormsController::class, 'preview'])->whereUuid('form');
+    Route::post('/admin/forms/{form}/preview', [FormsController::class, 'previewSubmit'])->whereUuid('form');
+    Route::get('/admin/forms/{form}/export', [FormsController::class, 'export'])->whereUuid('form');
     Route::get('/admin/design', [DesignController::class, 'show']);
     Route::get('/admin/components/{component}', [DesignController::class, 'component']);
 
     Route::prefix('admin/api')->group(function () {
+        Route::post('/seo/defaults/save', [SeoController::class, 'save']);
+        Route::post('/seo/defaults/publish', [SeoController::class, 'publish']);
         Route::get('/themes', [ThemesController::class, 'state']);
         Route::post('/themes/activate', [ThemesController::class, 'activate']);
         Route::post('/themes/publish', [ThemesController::class, 'publish']);
@@ -53,6 +61,7 @@ Route::middleware(['auth', 'admin.site'])->group(function () {
         Route::post('/pages/{page}/unpublish', [PageApiController::class, 'unpublish']);
         Route::post('/pages/{page}/delete', [PageApiController::class, 'destroy']);
 
+        Route::post('/pages/{page}/seo-analysis', [SeoController::class, 'analyze'])->middleware('throttle:120,1');
         Route::get('/pages/{page}/status', [EditorApiController::class, 'status']);
         Route::post('/pages/{page}/save', [EditorApiController::class, 'save']);
         Route::post('/pages/{page}/publish', [EditorApiController::class, 'publish']);
@@ -79,6 +88,11 @@ Route::middleware(['auth', 'admin.site'])->group(function () {
         Route::post('/forms/save', [FormsController::class, 'save']);
         Route::post('/forms/{form}/publish', [FormsController::class, 'publish']);
         Route::post('/forms/{form}/notifications', [FormsController::class, 'notifications']);
+        Route::post('/forms/{form}/duplicate', [FormsController::class, 'duplicate']);
+        Route::post('/forms/{form}/archive', [FormsController::class, 'archive']);
+        Route::get('/forms/{form}/entries', [FormsController::class, 'entries']);
+        Route::get('/forms/{form}/entries/{entry}', [FormsController::class, 'entry']);
+        Route::post('/forms/{form}/entries', [FormsController::class, 'changeEntries']);
         Route::post('/media', [MediaApiController::class, 'store']);
         Route::get('/media-library', [MediaApiController::class, 'search']);
         Route::get('/media/{asset}', [MediaApiController::class, 'show']);

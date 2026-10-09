@@ -162,6 +162,12 @@ final class Conformance
 
         $documents = [
             'valid' => self::doc(),
+            'valid: SEO overrides' => self::doc(overrides: ['seo' => ['focusTopic' => 'our work', 'pageType' => 'contact', 'canonical' => 'https://example.test/contact?lang=en', 'socialTitle' => 'Contact', 'socialDescription' => 'Talk to us', 'socialImage' => self::UUID, 'nofollow' => true, 'schemaType' => 'ContactPage']]),
+            'invalid: SEO purpose' => self::doc(overrides: ['seo' => ['pageType' => 'made-up']]),
+            'invalid: SEO schema' => self::doc(overrides: ['seo' => ['schemaType' => 'FakeAward']]),
+            'invalid: SEO canonical host missing' => self::doc(overrides: ['seo' => ['canonical' => 'https:///missing']]),
+            'invalid: SEO canonical backslash' => self::doc(overrides: ['seo' => ['canonical' => 'https://site.test/\\example']]),
+            'invalid: SEO social image' => self::doc(overrides: ['seo' => ['socialImage' => 'foreign']]),
             'valid: contact form reference' => self::doc(overrides: ['nodes' => ['root0001' => ['children' => ['hero0001', 'form0001']], 'form0001' => ['id' => 'form0001', 'type' => 'form', 'version' => 2, 'props' => ['form' => ['id' => self::UUID]]]]]),
             'valid: unconfigured contact form draft' => self::doc(overrides: ['nodes' => ['root0001' => ['children' => ['hero0001', 'form0001']], 'form0001' => ['id' => 'form0001', 'type' => 'form', 'version' => 2, 'props' => new stdClass]]]),
             'invalid: contact form reference uuid' => self::doc(overrides: ['nodes' => ['root0001' => ['children' => ['hero0001', 'form0001']], 'form0001' => ['id' => 'form0001', 'type' => 'form', 'version' => 2, 'props' => ['form' => ['id' => 'foreign-string']]]]]),
@@ -336,6 +342,7 @@ final class Conformance
             'updateProps unset everything' => [self::doc(['heading' => 'x']), '[{"op":"updateProps","nodeId":"hero0001","set":{},"unset":["heading"]}]'],
             'updateProps style' => [self::doc(), '[{"op":"updateProps","nodeId":"hero0001","set":{"style":{"root":{"mobile":{"direction":"column"}},"media":{"base":{"height":"500px","objectFit":"cover"}}}}}]'],
             'updateProps invalid style' => [self::doc(), '[{"op":"updateProps","nodeId":"hero0001","set":{"style":{"media":{"base":{"height":"9000px"}}}}}]'],
+            'SEO advanced update and reset' => [self::doc(overrides: ['seo' => ['canonical' => 'https://site.test/', 'pageType' => 'contact']]), '[{"op":"updateSeo","set":{"focusTopic":"contact","socialTitle":"Talk to us"},"unset":["canonical","pageType"]}]'],
             'updateSeo' => [self::doc(overrides: ['seo' => ['title' => 'Old']]), '[{"op":"updateSeo","set":{"description":"Desc"},"unset":["title"]}]'],
             'updateSeo to empty' => [self::doc(overrides: ['seo' => ['title' => 'Old']]), '[{"op":"updateSeo","set":{},"unset":["title"]}]'],
             'insertNode' => [self::doc(), '[{"op":"insertNode","parentId":"root0001","index":1,"nodes":[{"id":"newh0001","type":"hero","version":4,"props":{"heading":"N"},"children":[]}]}]'],

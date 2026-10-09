@@ -235,7 +235,8 @@ class StructuralEditingTest extends DatabaseTestCase
         $this->assertMatchesRegularExpression('#@media \(max-width:899px\)\{[^@]*\.'.$m[1].'\{grid-template-columns:repeat\(1,minmax\(0,1fr\)\)\}#', $html);
         $this->assertMatchesRegularExpression('#<figure class="ak-img2 ak-flow"><img class="ak-img2__media" src="/media/[0-9a-f-]+\.png" alt="A dot" width="1" height="1" decoding="async" loading="lazy"><figcaption class="ak-img2__caption">Dot</figcaption></figure>#', $html);
         $this->assertStringContainsString('<a class="ak-btn3 ak-btn3--responsive ak-btn3--secondary" href="https://example.com/" target="_blank" rel="noopener noreferrer">External</a>', $html);
-        foreach (['data-ak-', '<script', 'contenteditable', 'ak-image__empty', 'Empty column', 'draggable', '/build/'] as $forbidden) {
+        $this->assertDoesNotMatchRegularExpression('/<script(?! type="application\/ld\+json")/i', $html);
+        foreach (['data-ak-', 'contenteditable', 'ak-image__empty', 'Empty column', 'draggable', '/build/'] as $forbidden) {
             $this->assertStringNotContainsStringIgnoringCase($forbidden, $html);
         }
         $this->assertSame(['button@6', 'column@6', 'columns@3', 'hero@5', 'image@6', 'page@6', 'text@3'], json_decode(DB::table('publications')->value('render_inputs'), true)['components']);

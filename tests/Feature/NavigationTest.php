@@ -94,7 +94,7 @@ final class NavigationTest extends DatabaseTestCase
         $row = DB::table('publications')->where('id', $pub['publicationId'])->first();
         $this->assertStringContainsString('<nav', $row->html);
         $this->assertStringContainsString('<details', $row->html);
-        $this->assertStringNotContainsString('<script', $row->html);
+        $this->assertDoesNotMatchRegularExpression('/<script(?! type="application\/ld\+json")/i', $row->html);
         $this->assertStringNotContainsString('data-ak-', $row->html);
         $this->assertArrayHasKey($menu['id'], Json::decode($row->render_inputs)['menus']);
         $s->save($f['ctx'], ['id' => $menu['id'], 'baseVersion' => 1, 'requestKey' => self::key(), 'definition' => $this->definition($f, 'New Home')]);

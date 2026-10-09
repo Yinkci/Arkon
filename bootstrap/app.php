@@ -1,6 +1,7 @@
 <?php
 
 use App\Arkon\Errors\ArkonException;
+use App\Http\Middleware\AdminSecurityHeaders;
 use App\Http\Middleware\EnsureSafeRuntime;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ResolveAdminSite;
@@ -29,7 +30,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->prepend(EnsureSafeRuntime::class);
-        $middleware->web(append: [HandleInertiaRequests::class]);
+        $middleware->web(append: [HandleInertiaRequests::class, AdminSecurityHeaders::class]);
         $middleware->alias(['admin.site' => ResolveAdminSite::class]);
         $middleware->redirectGuestsTo(fn (Request $request) => '/login?next='.urlencode($request->getRequestUri()));
         $middleware->redirectUsersTo('/admin');

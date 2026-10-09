@@ -13,6 +13,78 @@
             "mediaRefs": null
         },
         {
+            "name": "valid: SEO overrides",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":6,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":4,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null},\"children\":[]}},\"seo\":{\"focusTopic\":\"our work\",\"pageType\":\"contact\",\"canonical\":\"https://example.test/contact?lang=en\",\"socialTitle\":\"Contact\",\"socialDescription\":\"Talk to us\",\"socialImage\":\"01890a5d-ac96-774b-bcce-b302099a8057\",\"nofollow\":true,\"schemaType\":\"ContactPage\"}}",
+            "issues": [
+                {
+                    "nodeId": "hero0001",
+                    "message": "Unsupported hero version 4"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: SEO purpose",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":6,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":4,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null},\"children\":[]}},\"seo\":{\"pageType\":\"made-up\"}}",
+            "issues": [
+                {
+                    "path": "seo.pageType",
+                    "message": "Expected one of: standard, home, landing, article, contact, about"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: SEO schema",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":6,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":4,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null},\"children\":[]}},\"seo\":{\"schemaType\":\"FakeAward\"}}",
+            "issues": [
+                {
+                    "path": "seo.schemaType",
+                    "message": "Expected one of: Auto, WebPage, AboutPage, ContactPage, Article, BlogPosting, None"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: SEO canonical host missing",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":6,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":4,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null},\"children\":[]}},\"seo\":{\"canonical\":\"https:///missing\"}}",
+            "issues": [
+                {
+                    "path": "seo.canonical",
+                    "message": "Use a valid SEO value"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: SEO canonical backslash",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":6,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":4,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null},\"children\":[]}},\"seo\":{\"canonical\":\"https://site.test/\\\\example\"}}",
+            "issues": [
+                {
+                    "path": "seo.canonical",
+                    "message": "Use a valid SEO value"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
+            "name": "invalid: SEO social image",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":6,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":4,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null},\"children\":[]}},\"seo\":{\"socialImage\":\"foreign\"}}",
+            "issues": [
+                {
+                    "path": "seo.socialImage",
+                    "message": "Use a valid SEO value"
+                }
+            ],
+            "publishIssues": null,
+            "mediaRefs": null
+        },
+        {
             "name": "valid: contact form reference",
             "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":6,\"props\":{},\"children\":[\"hero0001\",\"form0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":4,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null},\"children\":[]},\"form0001\":{\"id\":\"form0001\",\"type\":\"form\",\"version\":2,\"props\":{\"form\":{\"id\":\"01890a5d-ac96-774b-bcce-b302099a8057\"}}}},\"seo\":{}}",
             "issues": [
@@ -2790,6 +2862,19 @@
                     "path": "style.media.base.height",
                     "message": "Height: use 0 to 4000px"
                 },
+                {
+                    "nodeId": "hero0001",
+                    "message": "Unsupported hero version 4"
+                }
+            ]
+        },
+        {
+            "name": "SEO advanced update and reset",
+            "document": "{\"schemaVersion\":1,\"root\":\"root0001\",\"nodes\":{\"root0001\":{\"id\":\"root0001\",\"type\":\"page\",\"version\":6,\"props\":{},\"children\":[\"hero0001\"]},\"hero0001\":{\"id\":\"hero0001\",\"type\":\"hero\",\"version\":4,\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"text\":\"\",\"image\":null},\"children\":[]}},\"seo\":{\"canonical\":\"https://site.test/\",\"pageType\":\"contact\"}}",
+            "operations": "[{\"op\":\"updateSeo\",\"set\":{\"focusTopic\":\"contact\",\"socialTitle\":\"Talk to us\"},\"unset\":[\"canonical\",\"pageType\"]}]",
+            "result": "{\"nodes\":{\"hero0001\":{\"children\":[],\"id\":\"hero0001\",\"props\":{\"heading\":\"Hello\",\"headingLevel\":\"h1\",\"image\":null,\"text\":\"\"},\"type\":\"hero\",\"version\":4},\"root0001\":{\"children\":[\"hero0001\"],\"id\":\"root0001\",\"props\":{},\"type\":\"page\",\"version\":6}},\"root\":\"root0001\",\"schemaVersion\":1,\"seo\":{\"focusTopic\":\"contact\",\"socialTitle\":\"Talk to us\"}}",
+            "error": null,
+            "issues": [
                 {
                     "nodeId": "hero0001",
                     "message": "Unsupported hero version 4"

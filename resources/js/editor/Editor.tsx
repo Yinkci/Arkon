@@ -1,3 +1,4 @@
+import { SeoPanel, useSeoAnalysis } from './SeoPanel';
 import { uploadMedia } from '@/lib/mediaUpload';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Issue } from '@/arkon/rules';
@@ -37,6 +38,7 @@ import { LayersPanel } from './LayersPanel';
 import { StructureBar } from './StructureBar';
 import { PageSettings } from './PageSettings';
 import { RecoveryPanel } from './RecoveryPanel';
+import { applyOperations as applySeoOperations } from '@/arkon/schema/operations';
 import { AiPanel } from './AiPanel';
 import type { Protection } from './AnimationPanel';
 import { isDeleteKey, isTyping, useBlockActions } from './blockActions';
@@ -108,12 +110,12 @@ export function Editor({ init }: { init: EditorInit }) {
     }, []);
     const { theme } = useTheme();
     const [viewport, setViewport] = useState<Viewport>('desktop');
-    const [tab, setTab] = useState<PanelKey>('inspect');
+    const [tab, setTab] = useState<PanelKey>(() => (new URLSearchParams(window.location.search).get('panel') === 'seo' ? 'seo' : 'inspect'));
     // The outline panel's own tab on wide screens (where Properties is always beside the canvas).
     const [leftTab, setLeftTab] = useState<PanelKey>('layers');
     const chooseTab = useCallback((value: PanelKey) => {
         setTab(value);
-        if (value !== 'inspect') setLeftTab(value);
+        if (value !== 'inspect' && value !== 'seo') setLeftTab(value);
     }, []);
     const wide = useWideLayout();
     const [outlineOpen, setOutlineOpen] = useOutlinePreference();
@@ -123,6 +125,7 @@ export function Editor({ init }: { init: EditorInit }) {
     const [revisions, setRevisions] = useState<Revision[]>(init.revisions);
     const [media, setMedia] = useState<MediaInfo[]>(init.media);
     const [pageMeta, setPageMeta] = useState({ title: init.page.title, path: init.page.path });
+    const seoAnalysis = useSeoAnalysis(pageId, doc.document);
     const settingsAttempt = useRef<{ key: string; title: string; path: string; version: number } | null>(null);
     const publishing = useRef(false);
     const intentRef = useRef<PublishIntent | null>(null);
@@ -154,6 +157,15 @@ export function Editor({ init }: { init: EditorInit }) {
 
     const { edit: canEdit, publish: canPublish, upload: canUpload } = init.permissions;
     const unsaved = hasUnsavedChanges(doc);
+    const proposedSeoDocument = useMemo(() => {
+        if (!proposal?.prompt.startsWith('ARKON_SEO_METADATA_ONLY:') || !proposal.canvas) return null;
+        try {
+            return applySeoOperations(doc.document, proposal.operations).doc;
+        } catch {
+            return null;
+        }
+    }, [proposal, doc.document]);
+    const projectedSeo = useSeoAnalysis(pageId, proposedSeoDocument, proposedSeoDocument !== null);
     const locked = conflict || activity === 'restoring' || recovery !== null || proposal !== null;
 
     // ── Canvas: editor-mode HTML from the server's renderer (the one that publishes) ──
@@ -373,7 +385,7 @@ export function Editor({ init }: { init: EditorInit }) {
             if (entries.length === 0) return false;
             const [key, first] = entries[0]!;
             setSelectedId(first.nodeId);
-            setTab('inspect');
+            setTab(first.prop === 'seoCanonical' ? 'seo' : 'inspect');
             setNotice(
                 unresolvedNotice(
                     entries.map(([, field]) => field),
@@ -930,6 +942,9 @@ export function Editor({ init }: { init: EditorInit }) {
                     }
                     end={
                         <>
+                            <Button variant="ghost" size="sm" onClick={() => chooseTab('seo')} data-testid="seo-status">
+                                SEO {seoAnalysis.report?.score ?? '…'}
+                            </Button>
                             <span className="mr-1 inline-flex min-w-0 max-md:hidden">
                                 <SaveStatus state={state} testId="save-status" />
                             </span>
@@ -1017,6 +1032,7 @@ export function Editor({ init }: { init: EditorInit }) {
                     }
                     tabs={[
                         { value: 'inspect', label: 'Properties', icon: 'sliders' },
+                        { value: 'seo', label: 'SEO', icon: 'globe' },
                         { value: 'layers', label: 'Layers', icon: 'layers' },
                         { value: 'history', label: 'History', icon: 'history' },
                         {
@@ -1079,7 +1095,22 @@ export function Editor({ init }: { init: EditorInit }) {
                         </>
                     }
                     render={(panel) =>
-                        panel === 'layers' ? (
+                        panel === 'seo' ? (
+                            <SeoPanel
+                                document={doc.document}
+                                {...seoAnalysis}
+                                canEdit={canEdit && !locked}
+                                canAsk={canEdit && !locked && init.ai.available && aiConnection.ready && !sending}
+                                onChange={(ops, key) => apply(ops, { coalesceKey: key })}
+                                onAsk={(prompt) => {
+                                    chooseTab('ai');
+                                    void askAi(prompt);
+                                }}
+                                media={media}
+                                unresolved={unresolved}
+                                onUnresolved={setUnresolved}
+                            />
+                        ) : panel === 'layers' ? (
                             <LayersPanel
                                 document={doc.document}
                                 selectedId={selectedId}
@@ -1092,6 +1123,7 @@ export function Editor({ init }: { init: EditorInit }) {
                             />
                         ) : panel === 'inspect' ? (
                             <Inspector
+                                onOpenSeo={() => chooseTab('seo')}
                                 document={doc.document}
                                 selected={selectedNode}
                                 part={selectedPart}
@@ -1147,6 +1179,11 @@ export function Editor({ init }: { init: EditorInit }) {
                             <HistoryPanel revisions={revisions} canRestore={canEdit && !locked && !busy} onRestore={(r) => void restore(r)} />
                         ) : (
                             <AiPanel
+                                seoScores={
+                                    proposedSeoDocument && seoAnalysis.report && projectedSeo.report && !projectedSeo.pending
+                                        ? { before: seoAnalysis.report.score, after: projectedSeo.report.score }
+                                        : undefined
+                                }
                                 available={init.ai.available && !conflict}
                                 unavailableReason={conflict ? 'Reload the page to continue.' : init.ai.reason}
                                 promptMax={init.ai.promptMax}

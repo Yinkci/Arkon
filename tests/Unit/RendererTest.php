@@ -78,7 +78,7 @@ class RendererTest extends TestCase
         $html = $this->render($doc)['html'];
         $this->assertStringContainsString('<title>Custom</title>', $html);
         $this->assertStringContainsString('<meta name="description" content="About &quot;us&quot;">', $html);
-        $this->assertStringContainsString('<meta name="robots" content="noindex">', $html);
+        $this->assertStringContainsString('<meta name="robots" content="noindex,follow">', $html);
     }
 
     public function test_omits_an_empty_text_paragraph_and_lazy_loads_images_below_the_first_two_blocks(): void

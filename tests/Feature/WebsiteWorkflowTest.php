@@ -99,7 +99,7 @@ final class WebsiteWorkflowTest extends DatabaseTestCase
         $this->assertStringContainsString('<nav', $html);
         $this->assertStringContainsString('<form', $html);
         $this->assertStringNotContainsString('data-ak-', $html);
-        $this->assertStringNotContainsString('<script', $html);
+        $this->assertDoesNotMatchRegularExpression('/<script(?! type="application\/ld\+json")/i', $html);
         $this->post('http://website.test/_arkon/forms/'.$applied['form']['id'].'/1', ['fields' => ['name' => 'Visitor', 'email' => 'visitor@example.com', 'message' => 'A garden project']])->assertOk();
         $this->assertSame(1, DB::table('form_submissions')->count());
     }

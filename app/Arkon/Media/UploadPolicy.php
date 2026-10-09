@@ -5,9 +5,12 @@ namespace App\Arkon\Media;
 /** Shared byte policy; PHP limits describe the serving process, never the browser's guess. */
 final class UploadPolicy
 {
+    private static ?array $rules = null;
+
+    /** resources/arkon/media.json, read once per process. */
     public static function rules(): array
     {
-        return json_decode(file_get_contents(resource_path('arkon/media.json')), true, flags: JSON_THROW_ON_ERROR);
+        return self::$rules ??= json_decode(file_get_contents(resource_path('arkon/media.json')), true, flags: JSON_THROW_ON_ERROR);
     }
 
     public static function iniBytes(string $value): int

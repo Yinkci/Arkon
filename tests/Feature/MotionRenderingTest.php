@@ -113,14 +113,14 @@ class MotionRenderingTest extends DatabaseTestCase
     {
         // No entrance: no script, script-src 'none'.
         $live = $this->publish();
-        $this->assertStringNotContainsString('<script', $live->html);
+        $this->assertDoesNotMatchRegularExpression('/<script(?! type="application\/ld\+json")/i', $live->html);
         $this->assertStringContainsString("script-src 'none'", $this->publicGet('/')->headers->get('Content-Security-Policy'));
 
         // On page load (motion-3): the entrance is CSS; the runtime only keeps focused content shown.
         $this->addSection('sect0001', ['base' => ['animation' => 'fade', 'animationTrigger' => 'load']]);
         $live = $this->publish();
         $this->assertMatchesRegularExpression('#<section class="ak-section ak-anim (ak-m[0-9a-f]{10})">#', $live->html);
-        $this->assertSame(1, substr_count($live->html, '<script'));
+        $this->assertSame(1, preg_match_all('/<script(?! type="application\/ld\+json")/i', $live->html));
         $this->assertStringContainsString(Motion::scriptTag('motion-3'), $live->html);
         $this->assertStringContainsString('script-src http://motion.test/_arkon/motion-3.js;', $this->publicGet('/')->headers->get('Content-Security-Policy'));
         $this->assertSame('motion-3', json_decode(DB::table('publications')->where('id', $live->publication_id)->value('render_inputs'), true)['motion']);
@@ -128,7 +128,7 @@ class MotionRenderingTest extends DatabaseTestCase
         // When scrolled into view: exactly the runtime, deferred, pinned by integrity, allowed by URL.
         $this->save([['op' => 'updateProps', 'nodeId' => 'sect0001', 'set' => ['style' => ['root' => ['base' => ['animation' => 'fade-up', 'animationTrigger' => 'view']]]]]]);
         $live = $this->publish();
-        $this->assertSame(1, substr_count($live->html, '<script'));
+        $this->assertSame(1, preg_match_all('/<script(?! type="application\/ld\+json")/i', $live->html));
         $this->assertStringContainsString(Motion::scriptTag('motion-3'), $live->html);
         $response = $this->publicGet('/')->assertOk();
         $csp = $response->headers->get('Content-Security-Policy');
@@ -266,7 +266,7 @@ class MotionRenderingTest extends DatabaseTestCase
         $publication = DB::table('publications')->where('id', $live->publication_id)->first();
         $inputs = json_decode($publication->render_inputs, true);
         $old = app(PageRenderer::class)->reproduce(Json::decode($this->revisionDocument($publication->revision_id)), [...$inputs, 'motion' => 'motion-2']);
-        $this->assertStringNotContainsString('<script', $old['html']);
+        $this->assertDoesNotMatchRegularExpression('/<script(?! type="application\/ld\+json")/i', $old['html']);
         $this->assertStringContainsString('.ak-anim.ak-wait:focus-within,.ak-anim.ak-shown{animation-name:none;opacity:1}', $old['html']);
         $this->assertStringNotContainsString('.ak-anim:focus-within{opacity:1!important}', $old['html']);
         $owner = MigrationConfig::connect('test');

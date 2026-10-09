@@ -169,6 +169,31 @@ final class MenuService
         ])->all();
     }
 
+    /**
+     * Pages a menu item can point to, with the section anchors of each page's draft.
+     *
+     * @return list<array{id: string, title: string, path: string, anchors: list<string>}>
+     */
+    public function destinations(SiteContext $ctx): array
+    {
+        $this->auth->authorize($ctx, 'page.view');
+
+        return DB::table('pages as p')->join('page_drafts as d', 'd.page_id', '=', 'p.id')
+            ->where('p.site_id', $ctx->siteId)->whereNull('p.deleted_at')->orderBy('p.title')
+            ->get(['p.id', 'p.title', 'p.path', 'd.document'])
+            ->map(function ($p) {
+                $anchors = [];
+                foreach (Json::entries(Json::decode($p->document)['nodes']) as $node) {
+                    $anchor = $node['type'] === 'section' ? (Json::entries($node['props'])['anchor'] ?? '') : '';
+                    if ($anchor !== '') {
+                        $anchors[] = $anchor;
+                    }
+                }
+
+                return ['id' => $p->id, 'title' => $p->title, 'path' => $p->path, 'anchors' => $anchors];
+            })->all();
+    }
+
     public function save(SiteContext $ctx, array $input): array
     {
         $this->auth->authorize($ctx, 'page.edit');

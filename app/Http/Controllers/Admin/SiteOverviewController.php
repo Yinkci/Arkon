@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Arkon\Media\MediaLibrary;
 use App\Arkon\Pages\PublicPages;
+use App\Arkon\Seo\SeoDashboard;
 use App\Arkon\Sites\Authorizer;
 use App\Arkon\Support\Json;
 use App\Http\AdminContext;
@@ -49,20 +50,11 @@ class SiteOverviewController extends Controller
         return Inertia::render('Admin/SiteOverview', ['section' => 'settings', 'identity' => $this->identity($ctx->siteId), 'origin' => $public->origin($ctx->siteId), 'domains' => DB::table('site_domains')->where('site_id', $ctx->siteId)->orderBy('hostname')->pluck('hostname')->all()]);
     }
 
-    public function seo(Request $r, Authorizer $auth)
+    public function seo(Request $r, Authorizer $auth, SeoDashboard $seo)
     {
         $ctx = AdminContext::of($r)->ctx();
         $auth->authorize($ctx, 'page.view');
-        $page = (int) max(1, min(100000, (int) $r->query('page', 1)));
-        $query = DB::table('pages as p')->join('page_drafts as d', 'd.page_id', '=', 'p.id')->leftJoin('live_pages as l', 'l.page_id', '=', 'p.id')->leftJoin('publications as pub', 'pub.id', '=', 'l.publication_id')->leftJoin('page_revisions as rev', 'rev.id', '=', 'pub.revision_id')->where('p.site_id', $ctx->siteId)->whereNull('p.deleted_at');
-        $total = (clone $query)->count();
-        $rows = $query->orderBy('p.title')->offset(($page - 1) * 50)->limit(50)->get(['p.id', 'p.title', 'p.path', 'd.document', 'rev.document as live_document', 'l.path as live_path'])->map(function ($p) {
-            $draft = Json::entries(Json::decode($p->document)['seo']);
-            $live = $p->live_document ? Json::entries(Json::decode($p->live_document)['seo']) : null;
 
-            return ['id' => $p->id, 'title' => $p->title, 'path' => $p->path, 'livePath' => $p->live_path, 'description' => $draft['description'] ?? '', 'liveDescription' => $live['description'] ?? null, 'noindex' => $draft['noindex'] ?? false, 'liveNoindex' => $p->live_path ? (bool) ($live['noindex'] ?? false) : null];
-        })->all();
-
-        return Inertia::render('Admin/SiteOverview', ['section' => 'seo', 'rows' => $rows, 'page' => $page, 'total' => $total]);
+        return Inertia::render('Admin/SeoDashboard', $seo->overview($ctx->siteId, (int) $r->query('page', 1)));
     }
 }

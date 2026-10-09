@@ -14,7 +14,6 @@ use App\Arkon\Style\Tokens;
 use App\Arkon\Support\Fingerprint;
 use App\Arkon\Support\Input;
 use App\Arkon\Support\Json;
-use App\Arkon\Support\Time;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -198,14 +197,5 @@ class TokenService
         DB::statement('INSERT INTO site_token_sets (site_id) VALUES (?) ON CONFLICT (site_id) DO NOTHING', [$siteId]);
 
         return DB::table('site_token_sets')->where('site_id', $siteId)->lockForUpdate()->first();
-    }
-
-    /** @return list<array{version: int, publishedAt: string}> */
-    public function versions(SiteContext $ctx): array
-    {
-        $this->authorizer->authorize($ctx, 'page.view');
-
-        return DB::table('site_token_versions')->where('site_id', $ctx->siteId)->orderByDesc('version')->limit(50)->get(['version', 'created_at'])
-            ->map(fn ($r) => ['version' => (int) $r->version, 'publishedAt' => Time::iso($r->created_at)])->all();
     }
 }

@@ -41,10 +41,13 @@ async function drop(page: Page, source: Locator, target: Locator, where: 'inside
     await target.scrollIntoViewIfNeeded();
     await source.scrollIntoViewIfNeeded();
     const s = (await source.boundingBox())!;
-    const t = (await target.boundingBox())!;
+    let t = (await target.boundingBox())!;
     const y = where === 'inside' ? t.height / 2 : where === 'before' ? t.height * 0.15 : t.height * 0.85;
     await page.mouse.move(s.x + Math.min(40, s.width / 2), s.y + s.height / 2);
     await page.mouse.down();
+    await page.mouse.move(s.x + Math.min(40, s.width / 2) + 12, s.y + s.height / 2, { steps: 2 });
+    // Activation compacts the palette; follow the target at its current on-screen position.
+    t = (await target.boundingBox())!;
     await page.mouse.move(t.x + t.width / 3, t.y + y, { steps: 6 });
     await page.mouse.up();
 }
@@ -140,9 +143,10 @@ test('build a layout with the palette, layers, drag and drop and undo/redo, then
     const live = await publicHtml(page, '/builder');
     expect(live.status).toBe(200);
     expect(live.html).toMatch(
-        /<div class="ak-cols ak-flow ak-cols--n2 ak-s[0-9a-f]{10}"><div class="ak-col"><p class="ak-action2 ak-flow"><a class="ak-btn2 ak-btn2--primary" href="\/contact">Contact us<\/a><\/p>/,
+        /<div class="ak-cols ak-flow ak-cols--n2 ak-s[0-9a-f]{10}"><div class="ak-col"><p class="ak-action2 ak-flow"><a class="ak-btn3 ak-btn3--responsive ak-btn3--primary" href="\/contact">Contact us<\/a><\/p>/,
     );
-    for (const forbidden of ['data-ak-', '<script', 'contenteditable', 'draggable', 'Empty column', 'ak-image__empty', '/build/']) {
+    expect(live.html).not.toMatch(/<script(?! type="application\/ld\+json")/i);
+    for (const forbidden of ['data-ak-', 'contenteditable', 'draggable', 'Empty column', 'ak-image__empty', '/build/']) {
         expect(live.html).not.toContain(forbidden);
     }
 });
@@ -283,7 +287,7 @@ test('a link made invalid while Publish waits for its save blocks the publicatio
     await expect(notice(page)).toContainText('Published');
     expect(await publicationCount(id)).toBe(1);
     const live = await publicHtml(page, '/held-publish');
-    expect(live.html).toContain('<a class="ak-btn2 ak-btn2--primary" href="https://example.com/">Get in touch</a>');
+    expect(live.html).toContain('<a class="ak-btn3 ak-btn3--responsive ak-btn3--primary" href="https://example.com/">Get in touch</a>');
 });
 
 test('a link made invalid while Preview waits for its save closes the preview instead of showing it', async ({ page }) => {

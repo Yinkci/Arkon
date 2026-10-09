@@ -1,5 +1,5 @@
 import { patterns, createPattern } from '@/arkon/editor/patterns';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useId, useRef, useState } from 'react';
 import type { ReusableComponentInfo } from '@/types';
 import { currentDefinition } from '@/arkon/components/registry';
 import { addableTypes, canRemove, createNodes, insertOps, insertionFor, moveWithinParent, nodeLabel } from '@/arkon/editor/structure';
@@ -13,6 +13,7 @@ import { Icon, type IconName } from '@/Components/Icon';
 import { Button } from '@/Components/ui';
 import { ColumnsPicker } from './ColumnsPicker';
 import type { DragSource, DropZone } from './drag/controller';
+import { placementAnimation } from './drag/visuals';
 import { useDragController, useDragState } from './drag/DragProvider';
 
 const TYPE_ICON: Record<string, IconName> = {
@@ -68,6 +69,20 @@ export function LayersPanel({ document: doc, selectedId, canEdit, onSelect, onSt
     const drag = useDragState();
     const treeRef = useRef<HTMLElement>(null);
     const indicatorRef = useRef<HTMLDivElement>(null);
+    const rowFeedback = useRef(new Map<HTMLElement, { translate: string; transition: string }>());
+    const feedbackSlot = useRef('');
+    const beforeDrop = useRef<Map<string, DOMRect> | null>(null);
+    const rowAnimations = useRef<Animation[]>([]);
+    const clearRows = () => {
+        for (const [el, saved] of rowFeedback.current) {
+            el.style.transition = 'none';
+            el.style.translate = saved.translate;
+            void el.offsetWidth;
+            el.style.transition = saved.transition;
+        }
+        rowFeedback.current.clear();
+        feedbackSlot.current = '';
+    };
     const docRef = useRef(doc);
     docRef.current = doc;
 
@@ -78,14 +93,63 @@ export function LayersPanel({ document: doc, selectedId, canEdit, onSelect, onSt
         onStructure(insertOps(placement, nodes), nodes[0]!.id);
     };
 
+    useEffect(
+        () =>
+            controller.onFinish((_session, committed) => {
+                clearRows();
+                if (committed)
+                    beforeDrop.current = new Map(
+                        Array.from(treeRef.current?.querySelectorAll<HTMLElement>('[data-testid="layer"]') ?? []).map((el) => [
+                            el.dataset.nodeId!,
+                            el.getBoundingClientRect(),
+                        ]),
+                    );
+            }),
+        [controller],
+    );
+    useLayoutEffect(() => {
+        const before = beforeDrop.current;
+        beforeDrop.current = null;
+        if (!before) return;
+        rowAnimations.current.forEach((a) => a.cancel());
+        rowAnimations.current = [];
+        for (const el of treeRef.current?.querySelectorAll<HTMLElement>('[data-testid="layer"]') ?? []) {
+            const old = before.get(el.dataset.nodeId!),
+                r = el.getBoundingClientRect();
+            if (!old) continue;
+            if (Math.hypot(old.left - r.left, old.top - r.top) < 1) continue;
+            const a = placementAnimation(el, [{ translate: old.left - r.left + 'px ' + (old.top - r.top) + 'px' }, { translate: '0px 0px' }]);
+            if (a) rowAnimations.current.push(a);
+        }
+    }, [doc]);
+    useEffect(
+        () => () => {
+            clearRows();
+            rowAnimations.current.forEach((a) => a.cancel());
+        },
+        [],
+    );
+
     // ── Drop zone: the outline ──
     useEffect(() => {
-        const rows = (): TreeRow[] =>
-            [...(treeRef.current?.querySelectorAll<HTMLElement>('[data-testid="layer"]') ?? [])].map((row) => ({
+        const rows = (): TreeRow[] => {
+            // Measure layout positions, never the temporary visual displacement.
+            for (const [el, saved] of rowFeedback.current) {
+                el.style.transition = 'none';
+                el.style.translate = saved.translate;
+            }
+            const rows = [...(treeRef.current?.querySelectorAll<HTMLElement>('[data-testid="layer"]') ?? [])].map((row) => ({
                 id: row.dataset.nodeId!,
                 depth: Number(row.dataset.depth),
                 rect: row.getBoundingClientRect(),
             }));
+            for (const el of rowFeedback.current.keys()) {
+                el.style.translate = '0px 10px';
+                void el.offsetWidth;
+                el.style.transition = 'translate 160ms ease-out';
+            }
+            return rows;
+        };
         const visible = () => {
             const section = treeRef.current?.getBoundingClientRect();
             const scroller = scrollParent(treeRef.current)?.getBoundingClientRect();
@@ -120,7 +184,28 @@ export function LayersPanel({ document: doc, selectedId, canEdit, onSelect, onSt
                 if (!el || !tree) return;
                 if (session.zone !== 'layers' || !result || result === 'pending' || !result.indicator) {
                     el.style.display = 'none';
+                    clearRows();
                     return;
+                }
+                const key = result.kind === 'place' ? result.parentId + ':' + result.index : '';
+                if (key !== feedbackSlot.current) {
+                    clearRows();
+                    feedbackSlot.current = key;
+                    if (result.kind === 'place' && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                        const ids = docRef.current.nodes[result.parentId]?.children?.slice(result.index) ?? [];
+                        const descendants = new Set<string>();
+                        const collect = (id: string) => {
+                            descendants.add(id);
+                            docRef.current.nodes[id]?.children?.forEach(collect);
+                        };
+                        ids.filter((id) => id !== session.source.nodeId).forEach(collect);
+                        for (const el of treeRef.current?.querySelectorAll<HTMLElement>('[data-testid="layer"]') ?? []) {
+                            if (!descendants.has(el.dataset.nodeId!)) continue;
+                            rowFeedback.current.set(el, { translate: el.style.translate, transition: el.style.transition });
+                            el.style.transition = 'translate 160ms ease-out';
+                            el.style.translate = '0px 10px';
+                        }
+                    }
                 }
                 const r = result.indicator.rect;
                 el.style.display = 'block';
@@ -130,7 +215,12 @@ export function LayersPanel({ document: doc, selectedId, canEdit, onSelect, onSt
                 el.style.width = `${Math.round(r.width)}px`;
                 el.style.height = `${Math.round(r.height)}px`;
             },
+            begin() {
+                rowAnimations.current.forEach((a) => a.cancel());
+                rowAnimations.current = [];
+            },
             end() {
+                clearRows();
                 if (indicatorRef.current) indicatorRef.current.style.display = 'none';
             },
         };
@@ -167,7 +257,7 @@ export function LayersPanel({ document: doc, selectedId, canEdit, onSelect, onSt
                         () => onSelect(id),
                     )}
                     className={`group relative flex h-8 items-center gap-1 rounded-md pr-1 text-ui select-none ${selected ? 'bg-accent-soft text-fg' : 'hover:bg-hover'} ${
-                        dragging?.nodeId === id ? 'opacity-40' : ''
+                        dragging?.nodeId === id ? 'opacity-40 outline-1 outline-dashed outline-accent' : ''
                     } ${canEdit ? 'cursor-grab' : ''}`}
                     style={{ paddingLeft: `${0.375 + depth * 0.875}rem` }}
                 >

@@ -2,9 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Arkon\Forms\FormManagement;
 use App\Arkon\Forms\FormService;
 use App\Arkon\Pages\PageService;
 use App\Arkon\Support\Json;
+use App\Arkon\Support\Uuid;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
@@ -18,7 +20,7 @@ final class FormsTest extends DatabaseTestCase
         $def = ['name' => 'Enquiry', 'submitLabel' => 'Send', 'successMessage' => 'Thank you', 'fields' => [['id' => 'email', 'label' => 'Email', 'type' => 'email', 'required' => true], ['id' => 'message', 'label' => 'Message', 'type' => 'textarea', 'required' => true]]];
         $s = app(FormService::class);
         $form = $s->save($f['ctx'], ['baseVersion' => 0, 'requestKey' => self::key(), 'definition' => $def]);
-        $formNode = ['id' => 'form_123', 'type' => 'form', 'version' => 3, 'props' => ['form' => ['id' => $form['id']], 'style' => new \stdClass]];
+        $formNode = ['id' => 'form_123', 'type' => 'form', 'version' => 4, 'props' => ['form' => ['id' => $form['id']], 'style' => new \stdClass]];
         $ops = [['op' => 'insertNode', 'parentId' => $f['document']['root'], 'index' => 1, 'nodes' => [$formNode]]];
         app(PageService::class)->saveDraft($f['ctx'], ['pageId' => $f['pageId'], 'baseVersion' => 1, 'saveKey' => self::key(), 'operations' => Json::decode(Json::encode($ops))]);
 
@@ -62,6 +64,42 @@ final class FormsTest extends DatabaseTestCase
     {
         app(FormService::class)->publish($f['ctx'], $form['id'], ['expectedVersion' => 1, 'requestKey' => self::key()]);
         app(PageService::class)->publish($f['ctx'], ['pageId' => $f['pageId'], 'expectedVersion' => 2, 'idempotencyKey' => self::key()]);
+    }
+
+    public function test_the_forms_list_reports_status_and_entries_with_a_fixed_number_of_queries(): void
+    {
+        [$f, $published] = $this->setupForm();
+        $this->publish($f, $published);
+        $s = app(FormService::class);
+        $draft = $s->save($f['ctx'], ['baseVersion' => 0, 'requestKey' => self::key(), 'definition' => ['name' => 'Draft only', 'submitLabel' => 'Send', 'successMessage' => 'Thanks', 'fields' => [['id' => 'name', 'label' => 'Name', 'type' => 'text', 'required' => true]]]]);
+        foreach (['inbox', 'inbox', 'trash'] as $status) {
+            DB::table('form_submissions')->insert(['id' => Uuid::v7(), 'site_id' => $f['siteId'], 'form_id' => $published['id'], 'form_version' => 1, 'payload' => Crypt::encryptString('{}'),
+                'search_tokens' => '{}', 'notification_status' => 'disabled', 'status' => $status]);
+        }
+        $forms = app(FormManagement::class);
+
+        $items = array_column($forms->browse($f['ctx'], '')['items'], null, 'id');
+        $this->assertSame(['Active', false, 2], [$items[$published['id']]['status'], $items[$published['id']]['hasDraftChanges'], $items[$published['id']]['entries']]);
+        $this->assertSame(['Draft', true, 0], [$items[$draft['id']]['status'], $items[$draft['id']]['hasDraftChanges'], $items[$draft['id']]['entries']]);
+        $this->assertSame(2, $forms->detail($f['ctx'], $published['id'])['entries']);
+        // Roles without entry access see no counts.
+        $viewer = $this->addMember($f['siteId'], 'viewer');
+        $this->assertNull($forms->browse($viewer, '')['items'][0]['entries']);
+
+        // More forms on the page do not mean more queries.
+        $count = function () use ($forms, $f) {
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            $forms->browse($f['ctx'], '');
+            DB::disableQueryLog();
+
+            return count(DB::getQueryLog());
+        };
+        $before = $count();
+        foreach (['Third', 'Fourth', 'Fifth'] as $name) {
+            $s->save($f['ctx'], ['baseVersion' => 0, 'requestKey' => self::key(), 'definition' => ['name' => $name, 'submitLabel' => 'Send', 'successMessage' => 'Thanks', 'fields' => [['id' => 'name', 'label' => 'Name', 'type' => 'text', 'required' => true]]]]);
+        }
+        $this->assertSame($before, $count());
     }
 
     public function test_draft_form_cannot_receive_public_submissions(): void

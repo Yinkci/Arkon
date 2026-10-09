@@ -85,6 +85,8 @@ final class ProposalSchema
                 'changes' => [
                     'type' => 'array',
                     'items' => ['anyOf' => [
+                        ['type' => 'object', 'additionalProperties' => false, 'required' => ['action', 'nodeId', 'value'], 'properties' => ['action' => ['type' => 'string', 'const' => 'alt'], 'nodeId' => ['type' => 'string'], 'value' => ['type' => 'string', 'maxLength' => 300]]],
+                        ['type' => 'object', 'additionalProperties' => false, 'required' => ['action', 'field', 'value'], 'properties' => ['action' => ['type' => 'string', 'const' => 'seo'], 'field' => ['type' => 'string', 'enum' => ['title', 'description', 'focusTopic', 'socialTitle', 'socialDescription']], 'value' => ['type' => 'string', 'maxLength' => 320]]],
                         [
                             'type' => 'object', 'additionalProperties' => false, 'required' => ['action', 'parent', 'index', 'ref', 'block'],
                             'properties' => [

@@ -30,6 +30,7 @@ test('draft, preview, history and publish keep the live page safe', async ({ pag
         secure: false,
         randomUUID: 'undefined',
     });
+    await page.goto('/admin/pages');
     const homeRow = page.getByTestId('page-row').filter({ has: page.getByText('Home', { exact: true }) });
     await expect(homeRow.getByText('Not published', { exact: true })).toBeVisible();
     expect((await live(anonymous)).status).toBe(404);
@@ -60,7 +61,7 @@ test('draft, preview, history and publish keep the live page safe', async ({ pag
     expect(published.html).toContain('<h1 class="ak-hero3__heading">Hello from the canvas</h1>');
     // No editor attributes, scripts, framework bundles or editor assets on the public page.
     expect(published.html).not.toContain('data-ak-');
-    expect(published.html).not.toMatch(/<script/i);
+    expect(published.html).not.toMatch(/<script(?! type="application\/ld\+json")/i);
     expect(published.html).not.toContain('/build/');
     expect(published.html).not.toContain('data-page');
     expect(published.html).not.toContain('contenteditable');
@@ -100,7 +101,7 @@ test('draft, preview, history and publish keep the live page safe', async ({ pag
     await expect(revisions.first()).toContainText('#4 Restored from #2');
     expect((await live(anonymous)).html).toBe(published.html);
 
-    // ── Image: upload, alt text is required to publish ──
+    // ── Image: private upload, explicit decorative empty alt, then a useful description ──
     await page.getByRole('tab', { name: 'Properties' }).click();
     await page.getByTestId('part-media').click();
     await page.getByLabel('Upload image').setInputFiles({ name: 'dot.png', mimeType: 'image/png', buffer: PNG_1X1 });
@@ -112,11 +113,13 @@ test('draft, preview, history and publish keep the live page safe', async ({ pag
     await expect.poll(() => canvas.locator('img.ak-hero3__media').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(1);
     expect((await anonymous.get(canvasSrc!.split('?')[0]!)).status()).toBe(404);
     await page.getByRole('button', { name: 'Publish' }).click();
-    await expect(page.getByTestId('notice')).toContainText('Hero image needs alternative text');
-    expect((await live(anonymous)).html).toBe(published.html);
+    await expect(page.getByTestId('notice')).toContainText('Published');
+    expect((await live(anonymous)).html).toContain('alt=""');
 
     await page.getByLabel(/Alternative text/).fill('A single pixel');
+    const imagePublished = page.waitForResponse((r) => r.url().endsWith('/publish') && r.request().method() === 'POST');
     await page.getByRole('button', { name: 'Publish' }).click();
+    expect((await imagePublished).ok()).toBe(true);
     await expect(page.getByTestId('notice')).toContainText('Published');
     const withImage = await live(anonymous);
     expect(withImage.html).toMatch(/<img class="ak-hero3__media" src="\/media\/[0-9a-f-]+\.png" alt="A single pixel" width="1" height="1"/);

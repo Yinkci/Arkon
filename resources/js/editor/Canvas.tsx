@@ -6,7 +6,7 @@ import { removalOf } from '@/arkon/editor/remove';
 import { Icon } from '@/Components/Icon';
 import type { PageDocument } from '@/arkon/schema/document';
 import { BRIDGE_SCRIPT, CANVAS_CSS } from './bridge';
-import type { DragSource, DropZone, Session } from './drag/controller';
+import type { DragSource, DropZone, Session, DragSnapshot } from './drag/controller';
 import { useDragController, useDragState } from './drag/DragProvider';
 
 export type Viewport = 'desktop' | 'tablet' | 'mobile';
@@ -97,6 +97,7 @@ export function Canvas(props: CanvasProps) {
     const indicatorRef = useRef<HTMLDivElement>(null);
     const indicatorLabelRef = useRef<HTMLSpanElement>(null);
     const sourceRef = useRef<HTMLDivElement>(null);
+    const feedbackKey = useRef('');
     const [ready, setReady] = useState(false);
     const [boxes, setBoxes] = useState<{ selected: Box | null; hover: Box | null; empty: { id: string; rect: Rect }[] }>({
         selected: null,
@@ -191,9 +192,10 @@ export function Canvas(props: CanvasProps) {
             begin(session) {
                 zone.current.session = session.id;
                 zone.current.geometry = null;
-                post({ type: 'measure', session: session.id });
+                post({ type: 'measure', session: session.id, nodeId: session.source.nodeId });
             },
             end() {
+                feedbackKey.current = '';
                 post({ type: 'unmeasure', session: zone.current.session });
                 zone.current.session = null;
                 zone.current.geometry = null;
@@ -220,6 +222,8 @@ export function Canvas(props: CanvasProps) {
         // The zone reads everything through refs.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [controller]);
+
+    useEffect(() => controller.onFinish((_session, committed) => post({ type: 'drop-feedback', committed })), [controller]);
 
     // A render finished while dragging: the geometry that follows it makes the zone current again.
     useEffect(() => {
@@ -248,6 +252,20 @@ export function Canvas(props: CanvasProps) {
         if (moved) place(source, moved.rect);
         else source.style.display = 'none';
         const result = session.result;
+        const key = session.zone === 'canvas' && result && result !== 'pending' && result.kind === 'place' ? result.parentId + ':' + result.index : '';
+        if (key !== feedbackKey.current) {
+            feedbackKey.current = key;
+            const place = key && result && result !== 'pending' && result.kind === 'place' ? result : null;
+            const parent = place ? latest.current.document?.nodes[place.parentId] : null;
+            const layout = place ? g.nodes[place.parentId]?.layout : null;
+            post({
+                type: 'drag-feedback',
+                session: session.id,
+                ids: parent?.children?.slice(place?.index ?? 0).filter((id) => id !== session.source.nodeId) ?? [],
+                axis: layout?.axis ?? 'y',
+                reversed: layout?.reversed ?? false,
+            });
+        }
         const shown: Indicator | undefined =
             session.zone === 'canvas' && result && result !== 'pending' ? (result.kind === 'invalid' ? result.indicator : result.indicator) : undefined;
         if (!shown) {
@@ -302,6 +320,21 @@ export function Canvas(props: CanvasProps) {
                         if (!document.hasFocus()) controller.cancel('blur');
                     }, 0);
                     break;
+                case 'drag-preview': {
+                    if (msg.session !== zone.current.session) break;
+                    const preview = msg.preview as DragSnapshot;
+                    const frame = frameRef.current?.getBoundingClientRect();
+                    const session = controller.getState().session;
+                    if (frame && session?.source.origin === 'canvas' && preview?.rect)
+                        controller.setPreview(session.id, {
+                            ...preview,
+                            rect:
+                                session.source.origin === 'canvas'
+                                    ? { ...preview.rect, left: preview.rect.left + frame.left, top: preview.rect.top + frame.top }
+                                    : session.origin.rect,
+                        });
+                    break;
+                }
                 case 'geometry': {
                     // Only for the drag in progress: replies to ended drags are ignored.
                     if (msg.session !== zone.current.session || msg.session === null) break;
@@ -399,7 +432,7 @@ export function Canvas(props: CanvasProps) {
     const startDrag = (nodeId: string) => (event: React.PointerEvent<HTMLButtonElement>) => {
         if (!canDrag || props.renderPending) return;
         event.preventDefault();
-        controller.press(sourceFor(nodeId), event, event.currentTarget);
+        controller.press(sourceFor(nodeId), event, event.currentTarget, () => latest.current.onSelect(nodeId));
     };
 
     return (

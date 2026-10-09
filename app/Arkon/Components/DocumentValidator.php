@@ -7,6 +7,7 @@ use App\Arkon\Schema\DocumentStructure;
 use App\Arkon\Style\StyleSchema;
 use App\Arkon\Support\Json;
 use App\Arkon\Support\Rules;
+use App\Arkon\Support\Uuid;
 
 /**
  * Full validation of a page document: shape, tree structure, known component
@@ -209,6 +210,10 @@ final class DocumentValidator
     public function mediaRefs(array $doc): array
     {
         $ids = [];
+        $social = Json::entries($doc['seo'] ?? [])['socialImage'] ?? '';
+        if (is_string($social) && $social !== '') {
+            $ids[] = $social;
+        }
         foreach (Json::entries($doc['nodes']) as $node) {
             $definition = $this->definitionOf($node);
             array_push($ids, ...$definition->mediaRefsOf($definition->props->parseValid($node['props'])));
@@ -234,6 +239,10 @@ final class DocumentValidator
     public function mediaRefsLenient(mixed $doc): array
     {
         $ids = [];
+        $social = is_array($doc) ? (Json::entries($doc['seo'] ?? [])['socialImage'] ?? '') : '';
+        if (Uuid::isValid($social)) {
+            $ids[] = $social;
+        }
         $skipped = 0;
         $nodes = is_array($doc) ? ($doc['nodes'] ?? null) : null;
         if (! Json::isObject($nodes)) {

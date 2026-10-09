@@ -132,15 +132,3 @@ export function mediaRefs(doc: PageDocument): string[] {
     }
     return [...ids];
 }
-
-/** Which inline fields keep line breaks, by component type (sent to the canvas bridge). */
-export function multilineFields(types: string[]): Record<string, string[]> {
-    return Object.fromEntries(
-        types.map((type) => [
-            type,
-            Object.entries(currentDefinition(type)?.inlineFields ?? {})
-                .filter(([, field]) => field.kind === 'multiline')
-                .map(([key]) => key),
-        ]),
-    );
-}

@@ -5,6 +5,7 @@ import { Icon } from '@/Components/Icon';
 import { Button, Notice, Spinner, StatusPill } from '@/Components/ui';
 
 export interface AiPanelProps {
+    seoScores?: { before: number; after: number };
     /** Whether this user may use AI on this page (edit permission). */
     available: boolean;
     unavailableReason: string | null;
@@ -160,10 +161,17 @@ export function AiPanel(props: AiPanelProps) {
                             {proposal.status === 'empty' ? 'No changes proposed' : 'Proposal (preview only)'}
                         </h2>
                         <p className="mt-0.5 text-2xs text-muted">
-                            “{proposal.prompt}” · based on draft version {proposal.baseVersion}
+                            “{proposal.prompt.replace(/^ARKON_SEO_METADATA_ONLY:[A-Za-z]+\n/, '')}” · based on draft version {proposal.baseVersion}
                         </p>
                     </div>
                     <p className="text-ui leading-relaxed">{proposal.summary}</p>
+                    {props.seoScores && (
+                        <p data-testid="seo-projection" className="rounded-md border border-line p-3 text-sm">
+                            SEO before: {props.seoScores.before} / 100 · Proposed: {props.seoScores.after} / 100
+                            <br />
+                            <span className="text-xs text-muted">Calculated from the proposed output. Nothing is applied or published yet.</span>
+                        </p>
+                    )}
 
                     {proposal.changes.length > 0 && (
                         <div className="rounded-md border border-line">

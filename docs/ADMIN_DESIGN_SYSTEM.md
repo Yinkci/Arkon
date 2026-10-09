@@ -103,3 +103,10 @@ titles, 36 px controls. Change the scale in `app.css`, never per component. Buil
 4. Group with spacing and a hairline before reaching for a bordered box. Never put a panel
    inside a panel.
 5. Check light, dark, 1280 px and 390 px: `$env:SCREENSHOTS='label'; npx playwright test e2e/screenshots.spec.ts`.
+
+
+## Compact management tables
+
+Use the shared `ui-management-list` and `ui-management-table` pattern for lists with a primary name, compact status/count columns and lightweight management links. Semantic captions, column scopes and row-name scopes remain intact. The name opens the editor; numeric counts link to the matching data view. Short columns have intentional widths and numeric headers/data share right alignment. Row padding is 10px vertically, using existing surface, line, status and typography tokens. Lists cap at 72rem so extra-wide screens do not create oversized name columns.
+
+Container queries adapt to the actual panel width: below 1000px Preview moves into overflow; below 850px the desktop Updated column is hidden; below 650px Settings moves into overflow. Below 520px rows stack as cards with their date and direct Settings link restored. Header information remains available to assistive technology. Overflow is reserved for secondary actions; do not expose nonexistent Delete operations. Forms links to its protected Archive settings instead. Hide an otherwise empty wide-screen overflow for read-only users.

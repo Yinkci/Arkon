@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Arkon\Sites\Authorizer;
-use App\Arkon\Sites\Permissions;
 use App\Arkon\Themes\ThemeCatalogue;
 use App\Arkon\Themes\ThemeService;
 use App\Http\AdminContext;
@@ -18,7 +17,7 @@ class ThemesController extends Controller
     {
         $admin = AdminContext::of($request);
 
-        return Inertia::render('Admin/Themes', ['init' => $themes->state($admin->ctx()), 'manage' => Permissions::allows($admin->role, 'page.publish')]);
+        return Inertia::render('Admin/Themes', ['init' => $themes->state($admin->ctx()), 'manage' => $admin->can('page.publish')]);
     }
 
     public function state(Request $request, ThemeService $themes)

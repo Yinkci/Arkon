@@ -13,7 +13,7 @@ use stdClass;
  */
 final class Operations
 {
-    public const SEO_KEYS = ['title', 'description', 'noindex'];
+    public const SEO_KEYS = ['title', 'description', 'noindex', 'focusTopic', 'pageType', 'canonical', 'nofollow', 'socialTitle', 'socialDescription', 'socialImage', 'schemaType'];
 
     /**
      * Validates the shape of operations sent by a client and returns them in

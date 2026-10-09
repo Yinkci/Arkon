@@ -92,6 +92,21 @@ class HttpTest extends DatabaseTestCase
         $this->post('/login', ['email' => 'owner@test.local', 'password' => 'owner-password-123', 'next' => '//evil.example/x'])->assertRedirect('/admin');
     }
 
+    public function test_the_signed_in_surface_cannot_be_framed_by_other_sites(): void
+    {
+        $responses = [
+            $this->get('/login'),
+            $this->actingAs($this->owner)->get('/admin'),
+            $this->actingAs($this->owner)->get('/admin/editor/'.$this->f['pageId']),
+            $this->api('GET', $this->page().'/status'),
+        ];
+        foreach ($responses as $response) {
+            $response->assertHeader('X-Frame-Options', 'SAMEORIGIN')->assertHeader('X-Content-Type-Options', 'nosniff')->assertHeader('Referrer-Policy', 'same-origin');
+        }
+        // The member preview keeps its own policy (framed by the editor, same origin only).
+        $this->actingAs($this->owner)->get('/preview/'.$this->f['pageId'])->assertHeader('X-Frame-Options', 'SAMEORIGIN');
+    }
+
     public function test_there_is_no_public_sign_up(): void
     {
         $this->post('/register', ['email' => 'x@test.local', 'password' => 'whatever-123456'])->assertStatus(405);
@@ -246,7 +261,8 @@ class HttpTest extends DatabaseTestCase
         $response = $this->publicGet('/')->assertOk();
         $html = $response->getContent();
         $this->assertStringContainsString('<h1 class="ak-hero3__heading">Original heading</h1>', $html);
-        foreach (['data-ak-', '<script', '/build/', 'inertia', 'data-page', 'contenteditable'] as $forbidden) {
+        $this->assertDoesNotMatchRegularExpression('/<script(?! type="application\/ld\+json")/i', $response->getContent());
+        foreach (['data-ak-', '/build/', 'inertia', 'data-page', 'contenteditable'] as $forbidden) {
             $this->assertStringNotContainsStringIgnoringCase($forbidden, $html);
         }
         $this->assertSame([], $response->headers->getCookies());

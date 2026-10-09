@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Arkon\Forms\FormRuntime;
 use App\Arkon\Pages\PublicPages;
 use App\Arkon\Renderer\Motion;
 use App\Arkon\Renderer\Widgets;
@@ -27,6 +28,12 @@ class PublicPageController extends Controller
         $widgets = Widgets::scriptSrc($html, $origin);
         if ($widgets !== '') {
             $script = ($script === "'none'" ? '' : $script.' ').$widgets;
+        }
+
+        foreach ([1, 2] as $formRuntime) {
+            if (str_contains($html, FormRuntime::tag($formRuntime))) {
+                $script = ($script === "'none'" ? '' : $script.' ').$origin.'/_arkon/forms-'.$formRuntime.'.js';
+            }
         }
 
         return "default-src 'self'; script-src ".$script."; style-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'self'";

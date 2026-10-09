@@ -52,7 +52,7 @@ export function nodeIssues(node: unknown, at: string): PathIssue[] {
 
 export function seoIssues(seo: unknown, at: string): PathIssue[] {
     if (!isPlainObject(seo)) return [{ path: at, message: message('expectedObject') }];
-    const fields = rules.seo as Record<string, { type: string; maxLength?: number }>;
+    const fields = rules.seo as Record<string, { type: string; maxLength?: number; values?: string[]; pattern?: string }>;
     const issues = unknownKeys(seo, Object.keys(fields), at);
     for (const [key, field] of Object.entries(fields)) {
         if (!(key in seo)) continue;
@@ -60,6 +60,10 @@ export function seoIssues(seo: unknown, at: string): PathIssue[] {
             if (typeof seo[key] !== 'boolean') issues.push({ path: `${at}.${key}`, message: message('expectedBoolean') });
         } else {
             issues.push(...stringIssues(seo[key], field.maxLength!, `${at}.${key}`));
+            if (typeof seo[key] === 'string' && field.values && !field.values.includes(seo[key]))
+                issues.push({ path: `${at}.${key}`, message: message('oneOf', { values: field.values.join(', ') }) });
+            if (typeof seo[key] === 'string' && field.pattern && !new RegExp(field.pattern).test(seo[key]))
+                issues.push({ path: `${at}.${key}`, message: 'Use a valid SEO value' });
         }
     }
     return issues;

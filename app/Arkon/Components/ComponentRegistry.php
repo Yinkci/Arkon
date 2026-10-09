@@ -14,6 +14,7 @@ use App\Arkon\Components\Render\ComponentRenderer;
 use App\Arkon\Components\Render\FormV1;
 use App\Arkon\Components\Render\FormV2;
 use App\Arkon\Components\Render\FormV3;
+use App\Arkon\Components\Render\FormV4;
 use App\Arkon\Components\Render\FragmentV1;
 use App\Arkon\Components\Render\GroupV1;
 use App\Arkon\Components\Render\GroupV2;
@@ -131,6 +132,7 @@ final class ComponentRegistry
         'slider@8' => SliderV8::class,
         'image@5' => ImageV4::class,
         'form@3' => FormV3::class,
+        'form@4' => FormV4::class,
         'button@6' => ButtonV3::class,
         'section@6' => SectionV3::class,
         'slide@1' => SlideV1::class,
@@ -196,6 +198,7 @@ final class ComponentRegistry
             'logo@1' => fn (array $props) => $props,
             'image@5' => fn (array $props) => $props,
             'hero@4' => fn (array $props) => $props,
+            'form@3' => fn (array $props) => $props,
             'form@2' => fn (array $props) => $props,
             'image@4' => fn (array $props) => $props,
             'button@5' => fn (array $props) => $props,
@@ -314,12 +317,6 @@ final class ComponentRegistry
     public function currentDefinitions(): array
     {
         return array_map(fn (array $versions) => end($versions), $this->definitions);
-    }
-
-    /** @return array<string, int> type → current version */
-    public function currentVersions(): array
-    {
-        return array_map(fn (array $versions) => array_key_last($versions), $this->definitions);
     }
 
     public function renderer(string $type, int $version): ComponentRenderer

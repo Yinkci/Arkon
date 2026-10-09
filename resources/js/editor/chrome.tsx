@@ -156,7 +156,7 @@ export function SidebarTabs<T extends string>({ tabs, value, onChange, aside }: 
                             onClick={() => onChange(t.value)}
                             className={`relative flex min-w-0 items-center gap-1.5 text-xs font-medium whitespace-nowrap transition-colors ${tabs.length === 1 ? 'justify-start px-2' : 'flex-auto justify-center px-1.5'} ${active ? 'text-fg' : 'text-muted hover:text-fg'}`}
                         >
-                            <Icon name={t.icon} className={`size-3.5 ${active ? 'text-accent' : ''}`} />
+                            {tabs.length < 5 && <Icon name={t.icon} className={`size-3.5 ${active ? 'text-accent' : ''}`} />}
                             <span className="truncate">{t.label}</span>
                             {t.badge}
                             {active && <span aria-hidden className="absolute inset-x-1 -bottom-px h-0.5 rounded-full bg-accent" />}
@@ -207,7 +207,7 @@ export function useOutlinePreference(): [boolean, (open: boolean) => void] {
     return [open, update];
 }
 
-export type PanelKey = 'inspect' | 'layers' | 'history' | 'ai';
+export type PanelKey = 'inspect' | 'layers' | 'history' | 'ai' | 'seo';
 
 /**
  * Canvas plus panels. Wide screens get a three-pane workspace: the outline (Layers, and
@@ -235,7 +235,7 @@ export function EditorWorkspace<T extends PanelKey>({
     outlineOpen?: boolean;
 }) {
     const wide = useWideLayout();
-    const leftTabs = tabs.filter((t) => t.value !== 'inspect');
+    const leftTabs = tabs.filter((t) => t.value !== 'inspect' && t.value !== 'seo');
     const inspectTab = tabs.find((t) => t.value === 'inspect')!;
     const panelClass = 'flex min-h-0 shrink-0 flex-col border-line bg-surface';
 
@@ -256,9 +256,13 @@ export function EditorWorkspace<T extends PanelKey>({
                 <aside className={`${panelClass} w-[19rem] border-l`} aria-label="Sidebar">
                     {replaceSidebar ?? (
                         <>
-                            <SidebarTabs<T> value={'inspect' as T} onChange={onTab} tabs={[inspectTab]} />
+                            <SidebarTabs<T>
+                                value={(tab === 'seo' ? 'seo' : 'inspect') as T}
+                                onChange={onTab}
+                                tabs={tabs.filter((t) => t.value === 'inspect' || t.value === 'seo')}
+                            />
                             <div className="ui-dense ak-scroll min-h-0 flex-1 overflow-x-hidden" data-testid="inspector-body">
-                                {render('inspect' as T)}
+                                {render((tab === 'seo' ? 'seo' : 'inspect') as T)}
                             </div>
                         </>
                     )}

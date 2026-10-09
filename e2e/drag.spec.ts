@@ -470,3 +470,23 @@ test('touch: the Move handle drags with a finger', async ({ browser }) => {
     await expect.poll(() => texts(page)).toEqual(['Tap two', 'Tap three', 'Tap one']);
     await context.close();
 });
+
+test('canvas preview shows the actual component and cancels without writes', async ({ page }) => {
+    const { writes } = await openPage(page, [text('Actual component preview'), text('Destination')]);
+    await select(page, 'Actual component preview');
+    const start = await handleCenter(page);
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(start.x + 80, start.y + 100, { steps: 5 });
+    const preview = page.frameLocator('iframe[title="Dragged component preview"]');
+    await expect(preview.locator('body')).toContainText('Actual component preview');
+    await expect(page.locator('iframe[title="Dragged component preview"]')).toHaveAttribute('sandbox', '');
+    await page.screenshot({
+        path: 'C:/Users/jacob/Documents/Codex/2026-10-06/referenced-chatgpt-conversation-this-is-an/outputs/page-builder-drag-active.png',
+    });
+    await page.keyboard.press('Escape');
+    await page.mouse.up();
+    await expect(page.getByTestId('drag-preview')).toHaveCount(0);
+    expect(await texts(page)).toEqual(['Actual component preview', 'Destination']);
+    expect(writes).toEqual([]);
+});

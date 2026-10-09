@@ -51,12 +51,3 @@ export function parseTokens(value: unknown): { value: TokenSet | null; issues: {
     }
     return { value: issues.length === 0 ? out : null, issues };
 }
-
-/** Defaults with a token set applied. */
-export function resolveTokens(values: TokenSet | null | undefined): TokenSet {
-    const out = tokenDefaults();
-    for (const [group, names] of Object.entries(values ?? {})) {
-        for (const [name, value] of Object.entries(names)) if (out[group] && Object.hasOwn(out[group], name)) out[group][name] = value;
-    }
-    return out;
-}

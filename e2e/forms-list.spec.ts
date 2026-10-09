@@ -1,0 +1,44 @@
+import { expect, test } from '@playwright/test';
+test('compact forms list exposes direct actions and adapts without horizontal overflow', async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await page.goto('/admin/forms');
+    await page.getByRole('button', { name: 'New form', exact: true }).click();
+    const name = 'Customer enquiries and project consultation requests';
+    await page.getByLabel('Form name', { exact: true }).fill(name);
+    await page.getByRole('button', { name: 'Create form', exact: true }).click();
+    await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
+    await page.goto('/admin/forms');
+    const row = page.getByRole('row').filter({ has: page.getByRole('link', { name, exact: true }) });
+    await expect(row.getByRole('link', { name: 'Settings', exact: true })).toBeVisible();
+    await expect(row.getByRole('link', { name: 'Preview', exact: true })).toBeVisible();
+    await expect(row.getByRole('link', { name: 'Entries', exact: true })).toBeVisible();
+    const positions = await row
+        .locator('th,td')
+        .evaluateAll((es) => es.map((e) => ({ left: e.getBoundingClientRect().left, width: e.getBoundingClientRect().width })));
+    expect(positions[0]!.width).toBeLessThan(500);
+    expect(positions[2]!.width).toBeLessThan(100);
+    await page.screenshot({ path: 'C:/Users/jacob/Documents/Codex/2026-10-06/referenced-chatgpt-conversation-this-is-an/outputs/forms-list-desktop.png' });
+    await row.getByRole('link', { name: '0 entries for ' + name }).click();
+    await expect(page.getByRole('heading', { name: 'Entries', exact: true })).toBeVisible();
+    await page.goto('/admin/forms');
+    await row.getByRole('link', { name: 'Settings', exact: true }).click();
+    await expect(page.getByLabel('Form name', { exact: true })).toHaveValue(name);
+    await page.goto('/admin/forms');
+    await page.setViewportSize({ width: 1000, height: 900 });
+    await expect(row.locator('.ui-direct-preview')).toBeHidden();
+    await row.getByLabel('More actions for ' + name).click();
+    await expect(row.locator('.ui-overflow-preview')).toBeVisible();
+    await page.screenshot({ path: 'C:/Users/jacob/Documents/Codex/2026-10-06/referenced-chatgpt-conversation-this-is-an/outputs/forms-list-tablet.png' });
+    await row.getByLabel('More actions for ' + name).click();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(row.locator('.ui-direct-settings')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await row.getByLabel('More actions for ' + name).click();
+    await expect(row.getByRole('button', { name: 'Duplicate', exact: true })).toBeVisible();
+    await expect(row.getByRole('link', { name: 'Archive settings', exact: true })).toBeVisible();
+    await page.screenshot({ path: 'C:/Users/jacob/Documents/Codex/2026-10-06/referenced-chatgpt-conversation-this-is-an/outputs/forms-list-mobile.png' });
+    await page.evaluate(() => localStorage.setItem('arkon.theme', 'dark'));
+    await page.reload();
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await page.screenshot({ path: 'C:/Users/jacob/Documents/Codex/2026-10-06/referenced-chatgpt-conversation-this-is-an/outputs/forms-list-dark.png' });
+});

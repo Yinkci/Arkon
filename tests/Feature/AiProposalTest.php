@@ -228,7 +228,8 @@ class AiProposalTest extends DatabaseTestCase
         $html = $this->pages()->livePage($this->f['siteId'], '/')->html;
         $this->assertStringContainsString('<h1 class="ak-hero3__heading">Gardens that grow with you</h1>', $html);
         $this->assertStringContainsString('<a class="ak-btn3 ak-btn3--responsive ak-btn3--primary" href="/contact">Contact us</a>', $html);
-        foreach (['data-ak-', '<script', 'contenteditable'] as $forbidden) {
+        $this->assertDoesNotMatchRegularExpression('/<script(?! type="application\/ld\+json")/i', $html);
+        foreach (['data-ak-', 'contenteditable'] as $forbidden) {
             $this->assertStringNotContainsString($forbidden, $html);
         }
     }

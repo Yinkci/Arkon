@@ -43,7 +43,14 @@ export interface DropZone {
     ready?(timeoutMs: number): Promise<boolean>;
 }
 
+export interface DragSnapshot {
+    html: string;
+    css: string;
+    rect: { left: number; top: number; width: number; height: number };
+}
 export interface Session {
+    origin: { element: HTMLElement; x: number; y: number; rect: { left: number; top: number; width: number; height: number } };
+    preview?: DragSnapshot;
     id: number;
     source: DragSource;
     pointerType: string;
@@ -79,6 +86,7 @@ const THRESHOLD = { mouse: 4, pen: 4, touch: 8 } as Record<string, number>;
 export class DragController {
     private zones = new Map<DropZone['id'], DropZone>();
     private listeners = new Set<() => void>();
+    private endListeners = new Set<(session: Session, committed: boolean) => void>();
     private frameListeners = new Set<(session: Session) => void>();
     private state: DragState = { phase: 'idle', session: null };
     private pressed: {
@@ -119,6 +127,13 @@ export class DragController {
         this.frameListeners.add(listener);
         return () => {
             this.frameListeners.delete(listener);
+        };
+    }
+
+    onFinish(listener: (session: Session, committed: boolean) => void) {
+        this.endListeners.add(listener);
+        return () => {
+            this.endListeners.delete(listener);
         };
     }
 
@@ -221,9 +236,28 @@ export class DragController {
         this.dirty = true;
     }
 
+    setPreview(id: number, preview: DragSnapshot) {
+        if (
+            this.session?.id !== id ||
+            !preview ||
+            typeof preview.html !== 'string' ||
+            typeof preview.css !== 'string' ||
+            preview.html.length > 160000 ||
+            preview.css.length > 500000 ||
+            !preview.rect ||
+            !Object.values(preview.rect).every(Number.isFinite) ||
+            preview.rect.width <= 0 ||
+            preview.rect.height <= 0
+        )
+            return;
+        this.session.preview = preview;
+        this.setState({ phase: this.state.phase, session: { ...this.session } });
+    }
+
     private start(x: number, y: number) {
         const pressed = this.pressed!;
         this.session = {
+            origin: { element: pressed.element, x: pressed.startX, y: pressed.startY, rect: pressed.element.getBoundingClientRect() },
             id: this.nextId++,
             source: pressed.source,
             pointerType: pressed.pointerType,
@@ -317,6 +351,7 @@ export class DragController {
         this.suppressClick = true;
         this.cleanup();
         this.options.onEnd?.({ committed, reason, session });
+        for (const listener of this.endListeners) listener(session, committed);
     }
 
     private cleanup() {
@@ -345,6 +380,7 @@ export class DragController {
         this.cancel('unmount');
         this.listeners.clear();
         this.frameListeners.clear();
+        this.endListeners.clear();
     }
 
     private setState(state: DragState) {

@@ -90,7 +90,11 @@ final class ProposalCompiler
                 continue;
             }
             $previous = $operations === [] ? null : $operations[array_key_last($operations)];
-            if ($op['op'] === 'updateProps' && $previous && $previous['op'] === 'updateProps' && $previous['nodeId'] === $op['nodeId']) {
+            if ($op['op'] === 'updateSeo' && $previous && $previous['op'] === 'updateSeo') {
+                // The editor merges consecutive metadata edits into one save operation. Review and save must match exactly.
+                $operations[array_key_last($operations)]['set'] = [...Json::entries($previous['set']), ...Json::entries($op['set'])];
+                $descriptions[array_key_last($descriptions)] .= '; '.$description;
+            } elseif ($op['op'] === 'updateProps' && $previous && $previous['op'] === 'updateProps' && $previous['nodeId'] === $op['nodeId']) {
                 // One update per block in a row, as the editor would batch them.
                 $operations[array_key_last($operations)]['set'] = [...Json::entries($previous['set']), ...Json::entries($op['set'])];
                 $descriptions[array_key_last($descriptions)] = $description;
@@ -255,6 +259,23 @@ final class ProposalCompiler
     {
         $nodes = Json::entries($doc['nodes']);
         switch ($change['action'] ?? null) {
+            case 'alt':
+                $id = $change['nodeId'] ?? '';
+                $node = Json::entries($doc['nodes'])[$id] ?? null;
+                $image = $node ? Json::entries(Json::entries($node['props'])['image'] ?? []) : [];
+                if (! $node || ! isset($image['assetId']) || ! is_string($change['value'] ?? null)) {
+                    throw new ProposalProblem('Choose an existing image block for alt text.');
+                }
+
+                return [['op' => 'updateProps', 'nodeId' => $id, 'set' => ['image' => [...$image, 'alt' => $change['value']]]], 'Image alt text: '.($image['alt'] ?? '(empty)').' → '.$change['value']];
+            case 'seo':
+                $field = $change['field'] ?? '';
+                $value = $change['value'] ?? null;
+                if (! in_array($field, ['title', 'description', 'focusTopic', 'socialTitle', 'socialDescription'], true) || ! is_string($value)) {
+                    throw new ProposalProblem('Use an editable SEO text field');
+                }
+
+                return [['op' => 'updateSeo', 'set' => [$field => $value]], 'SEO '.$field.': '.(Json::entries($doc['seo'])[$field] ?? '(default)').' → '.$value];
             case 'add':
                 $parentId = $this->parent($doc, $change['parent'] ?? null);
                 $children = $nodes[$parentId]['children'];

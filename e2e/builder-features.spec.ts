@@ -294,7 +294,7 @@ test.describe('entrance animations', () => {
         ]);
         await publish(page);
         const { html, csp } = await publicGet(page, path);
-        expect(html.match(/<script/g)).toHaveLength(1);
+        expect(html.match(/<script(?! type="application\/ld\+json")/g)).toHaveLength(1);
         expect(html).toContain('<script src="/_arkon/motion-3.js" integrity="sha384-');
         expect(html).toContain('ak-anim');
         expect(csp).toMatch(/script-src [^;]*\/_arkon\/motion-3\.js;/);

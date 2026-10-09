@@ -1,0 +1,14 @@
+[
+ {"name":"no condition","condition":null,"values":{},"expected":true},
+ {"name":"exact value","condition":{"mode":"all","rules":[{"fieldId":"service","operator":"is","value":"design"}]},"values":{"service":"design"},"expected":true},
+ {"name":"checkbox member","condition":{"mode":"all","rules":[{"fieldId":"service","operator":"is","value":"design"}]},"values":{"service":["seo","design"]},"expected":true},
+ {"name":"checkbox absent","condition":{"mode":"all","rules":[{"fieldId":"service","operator":"is_not","value":"design"}]},"values":{"service":["seo"]},"expected":true},
+ {"name":"unicode contains","condition":{"mode":"all","rules":[{"fieldId":"text","operator":"contains","value":"café"}]},"values":{"text":"Visit the café"},"expected":true},
+ {"name":"does not contain","condition":{"mode":"all","rules":[{"fieldId":"text","operator":"not_contains","value":"dog"}]},"values":{"text":"cat"},"expected":true},
+ {"name":"number comparison","condition":{"mode":"all","rules":[{"fieldId":"budget","operator":"greater","value":"25"}]},"values":{"budget":"100"},"expected":true},
+ {"name":"empty number is not zero","condition":{"mode":"all","rules":[{"fieldId":"budget","operator":"less","value":"25"}]},"values":{"budget":""},"expected":false},
+ {"name":"empty checkbox group","condition":{"mode":"all","rules":[{"fieldId":"service","operator":"empty","value":""}]},"values":{"service":[]},"expected":true},
+ {"name":"missing input","condition":{"mode":"all","rules":[{"fieldId":"service","operator":"not_empty","value":""}]},"values":{},"expected":false},
+ {"name":"any rule","condition":{"mode":"any","rules":[{"fieldId":"service","operator":"is","value":"design"},{"fieldId":"service","operator":"is","value":"seo"}]},"values":{"service":"seo"},"expected":true},
+ {"name":"all rules","condition":{"mode":"all","rules":[{"fieldId":"service","operator":"is","value":"design"},{"fieldId":"budget","operator":"greater","value":"100"}]},"values":{"service":"design","budget":"50"},"expected":false}
+]

@@ -112,6 +112,12 @@ final class DocumentShape
                 }
             } else {
                 array_push($issues, ...self::stringIssues($seo[$key], $field['maxLength'], "{$at}.{$key}"));
+                if (is_string($seo[$key]) && isset($field['values']) && ! in_array($seo[$key], $field['values'], true)) {
+                    $issues[] = ['path' => "{$at}.{$key}", 'message' => Rules::message('oneOf', ['values' => implode(', ', $field['values'])])];
+                }
+                if (is_string($seo[$key]) && isset($field['pattern']) && preg_match('~'.$field['pattern'].'~D', $seo[$key]) !== 1) {
+                    $issues[] = ['path' => "{$at}.{$key}", 'message' => 'Use a valid SEO value'];
+                }
             }
         }
 

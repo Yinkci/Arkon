@@ -33,7 +33,7 @@ class AdminUxTest extends DatabaseTestCase
 
     public function test_navigation_destinations_preserve_old_routes_and_separate_design_sections(): void
     {
-        foreach (['/admin/pages' => 'Admin/Pages', '/admin/media' => 'Admin/Media', '/admin/navigation' => 'Admin/Navigation', '/admin/seo' => 'Admin/SiteOverview', '/admin/settings' => 'Admin/SiteOverview'] as $route => $component) {
+        foreach (['/admin/pages' => 'Admin/Pages', '/admin/media' => 'Admin/Media', '/admin/navigation' => 'Admin/Navigation', '/admin/seo' => 'Admin/SeoDashboard', '/admin/settings' => 'Admin/SiteOverview'] as $route => $component) {
             $this->get($route)->assertOk()->assertInertia(fn (Assert $p) => $p->component($component));
         }
         foreach (['/admin/design' => 'styles', '/admin/design/components' => 'components', '/admin/performance' => 'performance'] as $route => $section) {
@@ -71,6 +71,6 @@ class AdminUxTest extends DatabaseTestCase
         $doc = $this->f['document'];
         $doc['seo'] = (object) ['description' => 'Draft description', 'noindex' => true];
         DB::table('page_drafts')->where('page_id', $this->f['pageId'])->update(['document' => Json::encode($doc)]);
-        $this->get('/admin/seo')->assertOk()->assertInertia(fn (Assert $p) => $p->has('rows', 1)->where('rows.0.description', 'Draft description')->where('rows.0.liveDescription', null)->where('rows.0.noindex', true)->where('rows.0.liveNoindex', false));
+        $this->get('/admin/seo')->assertOk()->assertInertia(fn (Assert $p) => $p->has('rows', 1)->where('rows.0.draft.description', 'Draft description')->where('rows.0.published.description', '')->where('rows.0.draft.noindex', true)->where('rows.0.published.noindex', false));
     }
 }

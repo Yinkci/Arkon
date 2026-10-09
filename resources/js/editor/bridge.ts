@@ -4,11 +4,13 @@
  * rectangles so the parent can draw selection chrome *outside* the page DOM, and
  * runs inline text editing. It talks to the parent only through postMessage.
  */
+import { BRIDGE_DRAG_SCRIPT } from './bridgeDrag';
 import sliderResponsive from '../../arkon/slider-responsive.js?raw';
 
 export const BRIDGE_SCRIPT = String.raw`(() => {
   "use strict";
   ${sliderResponsive}
+  ${BRIDGE_DRAG_SCRIPT}
   for(const q of ['(max-width:899px)','(max-width:599px)']) matchMedia(q).addEventListener('change',()=>{document.querySelectorAll('[data-slider-responsive]').forEach(applySliderScreen);stopEditorPlayback();});
   const send = (msg) => parent.postMessage(Object.assign({ source: "arkon-canvas" }, msg), "*");
   let selectedId = null;
@@ -252,6 +254,8 @@ export const BRIDGE_SCRIPT = String.raw`(() => {
     if (msg.type === "ping") {
       send({ type: "ready" });
     } else if (msg.type === "render") {
+      const beforeDrag = animateNextDragRender ? captureDragRects() : null;
+      animateNextDragRender = false;
       stopEditorPlayback();
       stopReplay();
       stopEditing();
@@ -259,6 +263,7 @@ export const BRIDGE_SCRIPT = String.raw`(() => {
       document.getElementById("ak-page-css").textContent = msg.css;
       document.body.innerHTML = msg.body;
       initEditorSliders();
+      animateDragRender(beforeDrag);
       observer.disconnect();
       observed = new WeakSet();
       markMultiline(msg.multiline);
@@ -283,8 +288,16 @@ export const BRIDGE_SCRIPT = String.raw`(() => {
       // A drag started (driven by the parent): report every block's geometry now, and again
       // whenever layout changes, until "unmeasure". The parent resolves drops from it locally.
       measuring = msg.session;
+      dragSourceNode = msg.nodeId ?? null;
+      const snapshot = dragSourceNode ? dragSnapshot(dragSourceNode) : null;
+      if(snapshot) send({type:"drag-preview",session:msg.session,preview:snapshot});
       measure();
+    } else if (msg.type === "drag-feedback") {
+      if(msg.session===measuring) showDragFeedback(msg.ids ?? [],msg.axis,msg.reversed);
+    } else if (msg.type === "drop-feedback") {
+      clearDragFeedback(); animateNextDragRender = msg.committed === true;
     } else if (msg.type === "unmeasure") {
+      clearDragFeedback();
       if (msg.session === measuring) { measuring = null; reportRects(); }
     } else if (msg.type === "scroll-to") {
       window.scrollTo(msg.x, msg.y);
@@ -347,6 +360,7 @@ export const BRIDGE_SCRIPT = String.raw`(() => {
     return { axis, reversed, wrap, box };
   }
   function measure() {
+    stopDragAnimations(); pauseDragFeedback();
     if (!observed.has(document.documentElement)) { observed.add(document.documentElement); observer.observe(document.documentElement); }
     const nodes = [];
     for (const el of document.querySelectorAll("[data-ak-id]")) {
@@ -359,6 +373,7 @@ export const BRIDGE_SCRIPT = String.raw`(() => {
         layout: layoutOf(el),
       });
     }
+    resumeDragFeedback();
     const root = document.scrollingElement || document.documentElement;
     send({
       type: "geometry", session: measuring, generation: ++generation, renderToken, seq: scrollSeq, nodes,

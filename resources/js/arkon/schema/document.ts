@@ -17,6 +17,14 @@ export interface PageSeo {
     title?: string;
     description?: string;
     noindex?: boolean;
+    nofollow?: boolean;
+    focusTopic?: string;
+    pageType?: 'standard' | 'home' | 'landing' | 'article' | 'contact' | 'about';
+    canonical?: string;
+    socialTitle?: string;
+    socialDescription?: string;
+    socialImage?: string;
+    schemaType?: 'Auto' | 'WebPage' | 'AboutPage' | 'ContactPage' | 'Article' | 'BlogPosting' | 'None';
 }
 
 export interface PageDocument {

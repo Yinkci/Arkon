@@ -8,7 +8,10 @@ test('theme component is editable, saved and published without theme JavaScript'
     await page.getByRole('article', { name: 'MySite', exact: true }).getByRole('button', { name: 'Activate for editing', exact: true }).click();
     await expect(page.getByRole('status')).toContainText('Theme activated for editing');
     await page.getByRole('link', { name: 'Pages', exact: true }).click();
-    await page.locator(`a[href="/admin/editor/${id}"]`).click();
+    await page
+        .locator(`a[href="/admin/editor/${id}"]`)
+        .filter({ hasText: /^Edit$/ })
+        .click();
 
     await page.getByRole('tab', { name: 'Layers' }).click();
     await page.getByRole('button', { name: 'Add Testimonial', exact: true }).click();
@@ -19,7 +22,12 @@ test('theme component is editable, saved and published without theme JavaScript'
     await page.getByLabel('Author', { exact: true }).fill('Jamie Rivera');
     await page.getByLabel('Alignment', { exact: true }).selectOption('center');
     await expect(canvas.getByText('Jamie Rivera', { exact: true })).toBeVisible();
-    await page.getByLabel('Upload image').setInputFiles({ name: 'portrait.png', mimeType: 'image/png', buffer: PNG_1X1 });
+    await page
+        .locator('p.ui-label')
+        .filter({ hasText: /^Author photo$/ })
+        .locator('..')
+        .getByLabel('Upload image', { exact: true })
+        .setInputFiles({ name: 'portrait.png', mimeType: 'image/png', buffer: PNG_1X1 });
     await expect(canvas.locator('figure.at-theme-mysite-testimonial-v1 img')).toBeVisible();
     await page.getByLabel('Author photo alternative text (required to publish)').fill('Portrait of Jamie');
     await page.getByTestId('part-quote').click();
@@ -55,7 +63,7 @@ test('theme component is editable, saved and published without theme JavaScript'
         expect(html).toContain('Jamie Rivera, designer');
         expect(html).toContain('alt="Portrait of Jamie"');
         expect(html).toContain('at-theme-mysite-testimonial-v1');
-        expect(html).not.toMatch(/<script|data-ak-|data-field|\/build\/assets/);
+        expect(html).not.toMatch(/<script(?! type="application\/ld\+json")|data-ak-|data-field|\/build\/assets/);
     } finally {
         await context.close();
     }

@@ -1,6 +1,7 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from 'react';
+import { previewTransform } from './visuals';
 import { Icon } from '@/Components/Icon';
-import { DragController, type ControllerOptions, type DragState } from './controller';
+import { DragController, type ControllerOptions, type DragState, type Session } from './controller';
 
 const Context = createContext<DragController | null>(null);
 
@@ -57,12 +58,22 @@ function DragFeedback({ controller }: { controller: DragController }) {
     useEffect(
         () =>
             controller.onFrame((session) => {
-                if (preview.current) preview.current.style.transform = `translate(${Math.round(session.x + 14)}px, ${Math.round(session.y + 16)}px)`;
+                if (preview.current)
+                    preview.current.style.transform = previewTransform(session.x, session.y, {
+                        ...session.origin,
+                        rect: session.preview?.rect ?? session.origin.rect,
+                        scale: session.preview
+                            ? Math.min(1, (window.innerWidth - 32) / Math.max(1, session.preview.rect.width), 320 / Math.max(1, session.preview.rect.height))
+                            : 1,
+                    });
             }),
         [controller],
     );
     const session = state.session;
     if (!session) return null;
+    const snapshot = session.preview;
+    const scale = snapshot ? Math.min(1, (window.innerWidth - 32) / Math.max(1, snapshot.rect.width), 320 / Math.max(1, snapshot.rect.height)) : 1;
+    const origin = { ...session.origin, rect: snapshot?.rect ?? session.origin.rect, scale };
     const result = session.result;
     const text =
         state.phase === 'resolving' || result === 'pending'
@@ -86,11 +97,35 @@ function DragFeedback({ controller }: { controller: DragController }) {
                 ref={preview}
                 aria-hidden
                 data-testid="drag-preview"
-                className="pointer-events-none fixed top-0 left-0 z-50 flex items-center gap-1.5 rounded-md border border-accent bg-surface px-2 py-1 text-xs font-medium text-fg shadow-pop"
-                style={{ transform: `translate(${session.x + 14}px, ${session.y + 16}px)` }}
+                className="pointer-events-none fixed top-0 left-0 z-50 overflow-hidden rounded-md border border-accent bg-surface text-xs font-medium text-fg shadow-pop"
+                style={{
+                    transform: previewTransform(session.x, session.y, origin),
+                    width: snapshot ? snapshot.rect.width * scale : undefined,
+                    height: snapshot ? snapshot.rect.height * scale : undefined,
+                }}
             >
-                <Icon name="move" className="size-3.5 text-accent" />
-                {session.source.nodeId ? 'Move' : 'Add'} {session.source.label}
+                {snapshot ? (
+                    <iframe
+                        title="Dragged component preview"
+                        sandbox=""
+                        tabIndex={-1}
+                        className="pointer-events-none border-0"
+                        style={{ width: snapshot.rect.width, height: snapshot.rect.height, transform: 'scale(' + scale + ')', transformOrigin: 'top left' }}
+                        srcDoc={
+                            '<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src &apos;none&apos;; img-src ' +
+                            window.location.origin +
+                            ' data:; style-src &apos;unsafe-inline&apos;; font-src ' +
+                            window.location.origin +
+                            '; base-uri &apos;none&apos;; form-action &apos;none&apos;"><style>' +
+                            snapshot.css.replace(/<\/style/gi, '<\\/style') +
+                            'html,body{margin:0;padding:0;overflow:hidden}*{animation:none!important;transition:none!important}</style></head><body>' +
+                            snapshot.html +
+                            '</body></html>'
+                        }
+                    />
+                ) : (
+                    <SourcePreview session={session} />
+                )}
             </div>
             <div
                 role="status"
@@ -102,5 +137,35 @@ function DragFeedback({ controller }: { controller: DragController }) {
                 {text}
             </div>
         </>
+    );
+}
+
+/** Parent UI previews are inert clones; canvas markup remains in a separate sandbox. */
+function SourcePreview({ session }: { session: Session }) {
+    const ref = useRef<HTMLDivElement>(null);
+    useLayoutEffect(() => {
+        if (session.source.origin === 'canvas' || !ref.current) return;
+        const clone = session.origin.element.cloneNode(true) as HTMLElement;
+        clone.inert = true;
+        clone.style.opacity = '1';
+        clone.classList.remove('outline-1', 'outline-dashed', 'outline-accent');
+        clone.querySelectorAll('[data-row-action]').forEach((el) => el.remove());
+        clone.setAttribute('aria-hidden', 'true');
+        for (const el of [clone, ...clone.querySelectorAll('*')]) {
+            el.removeAttribute('id');
+            el.removeAttribute('data-testid');
+        }
+        clone.style.width = session.origin.rect.width + 'px';
+        clone.style.margin = '0';
+        ref.current.replaceChildren(clone);
+        return () => ref.current?.replaceChildren();
+    }, [session.id]);
+    return session.source.origin === 'canvas' ? (
+        <div className="flex items-center gap-1.5 px-2 py-1">
+            <Icon name="move" className="size-3.5 text-accent" />
+            Move {session.source.label}
+        </div>
+    ) : (
+        <div ref={ref} />
     );
 }

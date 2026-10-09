@@ -72,7 +72,7 @@ class ThemeComponentsTest extends DatabaseTestCase
         $this->assertStringContainsString('.at-theme-mysite-testimonial-v1', $row->html);
         $this->assertStringNotContainsString('data-field', $row->html);
         $this->assertStringNotContainsString('data-ak-', $row->html);
-        $this->assertStringNotContainsString('<script', $row->html);
+        $this->assertDoesNotMatchRegularExpression('/<script(?! type="application\/ld\+json")/i', $row->html);
         $this->assertContains('theme-mysite-testimonial@1', json_decode($row->render_inputs, true)['components']);
         $this->assertTrue(app(PageService::class)->reproducePublication($this->f['siteId'], $row->id)['matches']);
     }

@@ -45,7 +45,7 @@ test('typing in the same heading during a slow save is kept and saved', async ({
 test('undo and SEO edits made during a slow save are saved in order', async ({ page }) => {
     const id = await createPage('/race-seo', 'SEO race');
     await openEditor(page, id);
-    await page.getByRole('button', { name: 'Page settings' }).click();
+    await page.getByRole('tab', { name: 'SEO', exact: true }).click();
     await page.getByLabel('SEO title').fill('Title A');
 
     const slow = await interceptNext(page, 'save', 'delay');
@@ -61,7 +61,7 @@ test('undo and SEO edits made during a slow save are saved in order', async ({ p
     await expect(status(page)).toHaveText('Draft saved');
 
     await page.reload();
-    await page.getByRole('button', { name: 'Page settings' }).click();
+    await page.getByRole('tab', { name: 'SEO', exact: true }).click();
     await expect(page.getByLabel('SEO title')).toHaveValue('');
     await expect(page.getByLabel('Meta description')).toHaveValue('Desc B');
 });

@@ -10,6 +10,7 @@ use App\Arkon\Errors\ValidationException;
 use App\Arkon\Media\MediaSigner;
 use App\Arkon\Pages\PageService;
 use App\Arkon\Renderer\PageRenderer;
+use App\Arkon\Seo\SeoDefaults;
 use App\Arkon\Sites\SiteContext;
 use App\Arkon\Support\Json;
 use Illuminate\Support\Facades\DB;
@@ -89,7 +90,7 @@ class PagesTest extends DatabaseTestCase
         $this->publish(1);
         $html = $this->live()->html;
         $this->assertStringNotContainsString('data-ak-', $html);
-        $this->assertDoesNotMatchRegularExpression('/<script/i', $html);
+        $this->assertDoesNotMatchRegularExpression('/<script(?! type="application\/ld\+json")/i', $html);
         $this->assertStringNotContainsString('contenteditable', $html);
         $this->assertStringNotContainsString('/build/', $html);
         $this->assertStringNotContainsString('inertia', strtolower($html));
@@ -191,9 +192,9 @@ class PagesTest extends DatabaseTestCase
         $this->publish(1);
         $publication = DB::table('publications')->where('page_id', $this->f['pageId'])->first();
         $inputs = json_decode($publication->render_inputs, true);
-        $this->assertSame('arkon-php-5', $inputs['renderer']);
+        $this->assertSame(PageRenderer::VERSION, $inputs['renderer']);
         $this->assertSame(['hero@5', 'page@6'], $inputs['components']);
-        $this->assertEquals(['name' => 'Test Site', 'lang' => 'en'], $inputs['site']);
+        $this->assertEquals(['name' => 'Test Site', 'lang' => 'en', 'seoDefaults' => ['version' => 0, 'values' => SeoDefaults::defaults()]], $inputs['site']);
 
         // Same revision + same recorded inputs → byte-identical HTML, even after the site was renamed.
         DB::table('sites')->where('id', $this->f['siteId'])->update(['name' => 'Renamed later']);

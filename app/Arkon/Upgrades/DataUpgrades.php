@@ -3,9 +3,11 @@
 namespace App\Arkon\Upgrades;
 
 use App\Arkon\Components\DocumentValidator;
+use App\Arkon\Forms\EntryIndex;
 use App\Arkon\Pages\PageManagement;
 use App\Arkon\Support\Json;
 use Closure;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -24,6 +26,7 @@ class DataUpgrades
         return [
             '2026-10-06-backfill-publication-media' => fn () => $this->backfillPublicationMedia(),
             '2026-10-08-backfill-page-request-fingerprints' => fn () => $this->backfillPageRequestFingerprints(),
+            '2026-10-10-index-form-entries' => fn () => $this->indexFormEntries(),
         ];
     }
 
@@ -37,6 +40,21 @@ class DataUpgrades
      *
      * @return array{pages: int, backfilled: int, withoutFirstRevision: int}
      */
+    public function indexFormEntries(): array
+    {
+        $count = 0;
+        DB::table('form_submissions')->orderBy('id')->chunkById(100, function ($rows) use (&$count) {
+            foreach ($rows as $row) {
+                $values = Json::decode(Crypt::decryptString($row->payload));
+                $tokens = EntryIndex::tokens($values);
+                DB::table('form_submissions')->where('id', $row->id)->update(['search_tokens' => '{'.implode(',', $tokens).'}']);
+                $count++;
+            }
+        });
+
+        return ['entries' => $count];
+    }
+
     public function backfillPageRequestFingerprints(): array
     {
         $report = ['pages' => 0, 'backfilled' => 0, 'withoutFirstRevision' => 0];

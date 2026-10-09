@@ -129,6 +129,9 @@ final class DesignResources
             return []; // rendered before tokens existed (renderer arkon-php-1): depends on nothing shared
         }
         $rows = [['kind' => 'tokens', 'resource_id' => $siteId, 'version' => (int) (Json::entries($inputs['tokens'])['version'] ?? 0)]];
+        if (isset($inputs['site']['seoDefaults'])) {
+            $rows[] = ['kind' => 'seo', 'resource_id' => $siteId, 'version' => (int) ($inputs['site']['seoDefaults']['version'] ?? 0)];
+        }
         foreach (Json::entries($inputs['reusable'] ?? []) as $id => $version) {
             $rows[] = ['kind' => 'component', 'resource_id' => (string) $id, 'version' => (int) $version];
         }

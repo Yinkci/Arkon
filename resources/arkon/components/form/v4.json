@@ -1,0 +1,141 @@
+{
+  "type": "form",
+  "version": 4,
+  "label": "Form",
+  "children": false,
+  "props": {
+    "form": {
+      "type": "object",
+      "nullable": true,
+      "default": null,
+      "properties": {
+        "id": {
+          "type": "uuid"
+        }
+      }
+    },
+    "style": {
+      "type": "style",
+      "slots": {
+        "root": {
+          "label": "Form",
+          "groups": [
+            "spacing",
+            "size",
+            "placement",
+            "background",
+            "border",
+            "typography",
+            "effects",
+            "interaction",
+            "motion"
+          ]
+        }
+      },
+      "default": {}
+    },
+    "layout": {
+      "type": "enum",
+      "values": [
+        "stacked",
+        "inline"
+      ],
+      "default": "stacked"
+    },
+    "purpose": {
+      "type": "enum",
+      "values": [
+        "contact",
+        "newsletter"
+      ],
+      "default": "contact"
+    },
+    "notice": {
+      "type": "string",
+      "maxLength": 300,
+      "default": "Your email is collected by this website."
+    },
+    "responsive": {
+      "type": "object",
+      "properties": {
+        "tablet": {
+          "type": "object",
+          "properties": {
+            "layout": {
+              "type": "enum",
+              "values": [
+                "inherit",
+                "stacked",
+                "inline"
+              ],
+              "default": "inherit"
+            }
+          },
+          "default": {
+            "layout": "inherit"
+          }
+        },
+        "mobile": {
+          "type": "object",
+          "properties": {
+            "layout": {
+              "type": "enum",
+              "values": [
+                "inherit",
+                "stacked",
+                "inline"
+              ],
+              "default": "inherit"
+            }
+          },
+          "default": {
+            "layout": "inherit"
+          }
+        }
+      },
+      "default": {
+        "tablet": {
+          "layout": "inherit"
+        },
+        "mobile": {
+          "layout": "stacked"
+        }
+      }
+    }
+  },
+  "defaultProps": {
+    "form": null,
+    "style": {},
+    "layout": "stacked",
+    "purpose": "contact",
+    "notice": "Your email is collected by this website.",
+    "responsive": {
+      "tablet": {
+        "layout": "inherit"
+      },
+      "mobile": {
+        "layout": "stacked"
+      }
+    }
+  },
+  "publishChecks": [
+    {
+      "rule": "present",
+      "prop": "form",
+      "message": "Choose a contact form"
+    }
+  ],
+  "editor": {
+    "fields": {
+      "layout": {
+        "label": "Form layout"
+      },
+      "purpose": {
+        "label": "Form purpose"
+      },
+      "notice": {
+        "label": "Newsletter notice"
+      }
+    }
+  }
+}

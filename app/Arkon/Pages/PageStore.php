@@ -14,6 +14,7 @@ use App\Arkon\Media\MediaService;
 use App\Arkon\Navigation\MenuService;
 use App\Arkon\Renderer\PageRenderer;
 use App\Arkon\Renderer\RenderException;
+use App\Arkon\Seo\SeoDefaults;
 use App\Arkon\Sites\SiteContext;
 use App\Arkon\Support\Json;
 use App\Arkon\Support\Uuid;
@@ -168,11 +169,17 @@ class PageStore
         $settings = Json::entries(Json::decode($site->settings));
         $resources = $this->resources->published($siteId, $doc);
         $mediaIds = $this->mediaIdsFor($doc, $resources['components'], $pinned);
+        $seoDefaults = SeoDefaults::published($siteId);
+        $social = $seoDefaults['values']['socialImage'] ?? '';
+        if ($social !== '') {
+            $mediaIds = array_values(array_unique([...$mediaIds, $social]));
+        }
         $media = $this->media->mediaMap($siteId, $mediaIds);
         try {
             $rendered = $this->renderer->render($doc, 'production', ['title' => $title, 'path' => $path], [
                 'name' => $site->name,
                 'origin' => $this->origin($siteId),
+                'seoDefaults' => $seoDefaults,
                 'lang' => is_string($settings['lang'] ?? null) ? $settings['lang'] : 'en',
             ], $media, $strict, $pinned, resources: $resources);
             $themeVersion = DB::table('site_theme_sets')->where('site_id', $siteId)->value('published_version');

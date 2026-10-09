@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Admin;
 use App\Arkon\Design\ComponentService;
 use App\Arkon\Design\TokenService;
 use App\Arkon\Media\MediaSigner;
-use App\Arkon\Sites\Permissions;
 use App\Http\AdminContext;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -24,7 +23,7 @@ class DesignController extends Controller
             'section' => $request->is('admin/performance') ? 'performance' : ($request->is('admin/design/components') ? 'components' : 'styles'),
             'tokens' => $tokens->state($ctx),
             'components' => $components->list($ctx),
-            'permissions' => ['edit' => Permissions::allows($admin->role, 'page.edit'), 'publish' => Permissions::allows($admin->role, 'page.publish')],
+            'permissions' => ['edit' => $admin->can('page.edit'), 'publish' => $admin->can('page.publish')],
         ]);
     }
 

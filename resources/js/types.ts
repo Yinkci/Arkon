@@ -16,6 +16,8 @@ export interface PageRow {
 }
 
 export interface MediaInfo {
+    /** Site-authorized small preview, separate from the public publication URL. */
+    previewUrl?: string;
     optimizationWarning?: string | null;
     id: string;
     url: string;

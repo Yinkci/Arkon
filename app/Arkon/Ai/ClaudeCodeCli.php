@@ -119,9 +119,17 @@ final class ClaudeCodeCli implements ClaudeRunner
         try {
             $instructions = $dir.DIRECTORY_SEPARATOR.'instructions.txt';
             file_put_contents($instructions, $request->instructions);
+            $schemaJson = json_encode($request->schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+            // Windows limits the complete process command line. Share identical rules without weakening them.
+            if (PHP_OS_FAMILY === 'Windows' && strlen($schemaJson) > 24000) {
+                $schemaJson = json_encode(SchemaCompactor::compact($request->schema), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+            }
+            if (PHP_OS_FAMILY === 'Windows' && (strlen($schemaJson) + 1500) * 1.1 > 32000) {
+                throw new AiException(AiException::INVALID_OUTPUT, 'The registered component schema exceeds the local CLI transport limit. No model request was started.');
+            }
             $args = [
                 '-p', '--output-format', 'json',
-                '--json-schema', json_encode($request->schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+                '--json-schema', $schemaJson,
                 '--system-prompt-file', $instructions,
                 '--tools', '', '--restricted', '--strict-mcp-config', '--disallowedTools', 'mcp__*',
                 '--permission-mode', 'dontAsk', '--permission-prompts', 'none',

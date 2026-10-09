@@ -374,7 +374,7 @@ The conditional, integrity-checked components-1 runtime is approximately 4.9 KB 
 
 Renderer 4 uses managed responsive background variants and viewport-specific preloads for the first main-content background. Header logos do not consume the main image priority. Backgrounds still need suitable image dimensions and compressed assets; these mechanisms cannot guarantee field Core Web Vitals for arbitrary content. See docs/PERFORMANCE.md for measured local results.
 
-**Newsletter:** create an email-only form using **Forms → + Newsletter form**, save and publish its definition, then select it in a Form block. The inline layout, submit label and notice are editable. Submissions use the existing validation, honeypot, rate limiting, encrypted entry storage and site permissions. This collects signups locally; it does not send newsletters or connect an email marketing provider. Do not tell visitors they are subscribed to an external list unless that integration exists.
+**Newsletter:** create an email-only form using **Forms → New form → Newsletter**, save and publish its definition, then select it in a Form block. The inline layout, submit label and notice are editable. Submissions use the existing validation, honeypot, rate limiting, encrypted entry storage and site permissions. This collects signups locally; it does not send newsletters or connect an email marketing provider. Do not tell visitors they are subscribed to an external list unless that integration exists.
 
 Both Claude Code paths receive the new component/style catalogue and layout guidance. Form IDs are validated against the published forms in the supplied site context, independently of media IDs; unknown form references are rejected before review. The sandboxed helper receives explicit schema/context rather than unrestricted repository access. No real model request is used by the regression tests. Restart your existing helper and MCP server to refresh their cached catalogue; nothing is automatically published.
 
@@ -444,3 +444,15 @@ Images are limited to 12,000 pixels per dimension and 40 million total pixels. O
 Serving PHP must use `display_errors=Off` and `log_errors=On`: PHP can emit a POST-size warning before Laravel runs. Printing that warning corrupts the API JSON envelope; logging retains diagnostics. The browser harness applies these flags explicitly.
 
 Image details also lists **Optimized WebP links**: every generated size shows dimensions, bytes, its permanent URL, and Copy/Open controls. Original PNG/JPEG links remain available. Variant links share the original asset's private-until-published access rules; copying a link does not make a private image public. The builder continues to select responsive sizes automatically.
+
+
+## Forms workspace redesign
+
+Forms has a dedicated library and per-form Build, Settings, Confirmations, Notifications and Entries workspace. Schema version 2 adds stable field identities, visual rows/columns, conditional fields, confirmations and multiple notifications. Existing schema-1 definitions and encrypted entries remain supported. Migration `2026_10_17_000001_forms_management` and the idempotent entry-index data upgrade preserve existing data. Form component version 4 and renderer versions 6/7 render modern definitions without rewriting old page revisions. Renderer 6 keeps immutable `forms-1.js`; renderer 7 uses `forms-2.js` for immutable public submission retries. Legacy renderer output remains reproducible.
+
+See [the Forms guide](docs/FORMS_REDESIGN.md) for capabilities, permissions, native submission fallback, mail configuration, security and deferred features. Entry search matches whole words/full email addresses through keyed tokens. Notifications are synchronous best effort, not a durable delivery queue. Run normal migrations after updating; do not reset existing forms or entries.
+
+
+## Page and site SEO
+
+Open the page editor’s **SEO** tab (or its toolbar score) for search/social previews, metadata, explainable live checks and reviewed Claude Code suggestions. Open **Site management → SEO** for separate draft/live scores and versioned inherited defaults. Save stays private; publish is explicit. Restart the helper/MCP after updating. See [SEO review and workflow](docs/SEO_REVIEW.md) for scoring, safety and limits.

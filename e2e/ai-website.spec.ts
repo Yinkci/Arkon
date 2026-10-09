@@ -35,9 +35,10 @@ test('one brief produces four editable pages with shared navigation and a workin
         await anonymous.close();
     }
     await page.goto('/admin/forms');
+    await page.getByRole('link', { name: 'Entries', exact: true }).filter({ visible: true }).last().click();
     await expect(page.getByText('browser@example.com', { exact: true })).toBeVisible();
     const { rows } = await db.query("SELECT p.html FROM live_pages l JOIN publications p ON p.id=l.publication_id WHERE l.path='/website-contact'");
-    expect(rows[0].html).not.toMatch(/data-ak-|<script|\/build\/assets/);
+    expect(rows[0].html).not.toMatch(/data-ak-|<script(?! type="application\/ld\+json")|\/build\/assets/);
     expect(rows[0].html).toContain('rel="canonical"');
 });
 

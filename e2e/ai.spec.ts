@@ -175,8 +175,9 @@ test('panel: prompt → helper → preview → apply → undo/redo → follow-up
     await expect(notice(page)).toContainText('Published');
     const live = await publicHtml(page, '/ai-landscaping');
     expect(live.html).toContain('<h1 class="ak-hero3__heading">Gardens that grow</h1>');
-    expect(live.html).toContain('<a class="ak-btn2 ak-btn2--primary" href="/contact">Contact us</a>');
-    for (const forbidden of ['data-ak-', '<script', 'contenteditable']) expect(live.html).not.toContain(forbidden);
+    expect(live.html).toContain('<a class="ak-btn3 ak-btn3--responsive ak-btn3--primary" href="/contact">Contact us</a>');
+    expect(live.html).not.toMatch(/<script(?! type="application\/ld\+json")/i);
+    for (const forbidden of ['data-ak-', 'contenteditable']) expect(live.html).not.toContain(forbidden);
 });
 
 test('panel: cancelling stops a running request, edits made meanwhile are never replaced, discard changes nothing', async ({ page }) => {

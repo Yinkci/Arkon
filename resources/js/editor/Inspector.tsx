@@ -65,6 +65,7 @@ export interface InspectorProps {
     pageSettings?: ReactNode;
     /** What the page document is called in the breadcrumb ("Page", or "Component" in the component editor). */
     rootName?: string;
+    onOpenSeo?(): void;
     /** Blocks the page keeps still (they hold its likely LCP: an image or the main heading), by node id, from the last canvas render. */
     motion?: { protected?: Record<string, Protection> };
     /** Plays a block's entrance animation once on the canvas (after the render showing its settings). */
@@ -1371,7 +1372,14 @@ function GenericBody(props: NodeInspectorProps & { only?: string[]; sectionTitle
                                     />
                                     {image && (
                                         <TextField
-                                            label={label + ' alternative text (empty for decorative images)'}
+                                            label={
+                                                label +
+                                                (currentDefinition(props.node.type)?.publishChecks?.some(
+                                                    (check) => check.prop === key + '.alt' && check.rule === 'notBlank',
+                                                )
+                                                    ? ' alternative text (required to publish)'
+                                                    : ' alternative text (empty for decorative images)')
+                                            }
                                             value={image.alt}
                                             max={field.properties.alt?.type === 'string' ? (field.properties.alt.maxLength ?? 300) : 300}
                                             disabled={!props.canEdit}
@@ -1442,8 +1450,13 @@ function FormBody(props: NodeInspectorProps) {
                     ))}
                 </select>
             </label>
-            <a href="/admin/forms" target="_blank" rel="noopener noreferrer" className="ui-link inline-flex text-xs">
-                Manage forms and enquiries
+            <a
+                href={selected?.id ? `/admin/forms/${selected.id}` : '/admin/forms'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ui-link inline-flex text-xs"
+            >
+                Edit selected form in Forms
             </a>
             <GenericBody {...props} />
             <p className="text-xs text-muted">
@@ -1637,10 +1650,7 @@ function PageInspector(props: InspectorProps) {
     const { document, canEdit, onChange, rootName = 'Page' } = props;
     const root = document.nodes[document.root]!;
     const field = styleFieldOf(root.type);
-    const seo = document.seo;
     const isPage = root.type === 'page';
-    const set = (values: PageDocument['seo'], key?: string) => onChange([{ op: 'updateSeo', set: values }], key && `seo:${key}`);
-    const ids = { noindex: useId() };
     const part: Part = { slot: 'root', label: rootName, noun: rootName };
     return (
         <div className="pb-8">
@@ -1658,35 +1668,12 @@ function PageInspector(props: InspectorProps) {
                 </div>
             </div>
             {props.pageSettings}
-            {isPage && (
-                <PanelSection title="Search engines">
-                    <TextField
-                        label="SEO title"
-                        value={seo.title ?? ''}
-                        max={120}
-                        disabled={!canEdit}
-                        placeholder="Defaults to “Page title · Site name”"
-                        onChange={(v) => set({ title: v }, 'title')}
-                    />
-                    <TextField
-                        label="Meta description"
-                        rows={3}
-                        value={seo.description ?? ''}
-                        max={320}
-                        disabled={!canEdit}
-                        onChange={(v) => set({ description: v }, 'description')}
-                    />
-                    <label htmlFor={ids.noindex} className="flex items-center gap-2 text-ui">
-                        <input
-                            id={ids.noindex}
-                            type="checkbox"
-                            className="size-4 accent-[var(--ak-accent)]"
-                            disabled={!canEdit}
-                            checked={seo.noindex ?? false}
-                            onChange={(e) => set({ noindex: e.target.checked })}
-                        />
-                        Hide from search engines (noindex)
-                    </label>
+            {isPage && props.onOpenSeo && (
+                <PanelSection title="SEO">
+                    <Button icon="globe" onClick={props.onOpenSeo}>
+                        Open page SEO
+                    </Button>
+                    <p className="text-xs text-muted">Search metadata, social previews and analysis.</p>
                 </PanelSection>
             )}
             {field && (

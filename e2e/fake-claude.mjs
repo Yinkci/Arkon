@@ -47,6 +47,22 @@ process.stdin.on('end', async () => {
         process.exit(0);
     };
 
+    if (request.startsWith('ARKON_SEO_METADATA_ONLY:')) {
+        const field = /ARKON_SEO_METADATA_ONLY:([A-Za-z]+)/.exec(request)?.[1] ?? 'all';
+        const values = {
+            title: 'Services and enquiries',
+            description: 'Explore our services and contact the team to discuss your requirements.',
+            focusTopic: 'services',
+            socialTitle: 'Services and enquiries',
+            socialDescription: 'Learn about our services and get in touch.',
+        };
+        reply({
+            summary: 'Review accurate search metadata.',
+            notes: [],
+            tokenChanges: [],
+            changes: (field === 'all' ? Object.keys(values) : [field]).map((field) => ({ action: 'seo', field, value: values[field] })),
+        });
+    }
     const websiteText = /<website>([\s\S]*?)<\/website>/.exec(stdin)?.[1];
     if (websiteText) {
         const context = JSON.parse(websiteText);

@@ -43,16 +43,14 @@ class PageRefreshes
      */
     public function enqueue(string $siteId, string $kind, string $resourceId, int $version): int
     {
-        $pageIds = DB::table('live_pages as l')
-            ->join('publication_dependencies as d', 'd.publication_id', '=', 'l.publication_id')
+        $pages = DB::table('live_pages as l')
             ->join('pages as p', fn ($j) => $j->on('p.site_id', '=', 'l.site_id')->on('p.id', '=', 'l.page_id'))
             ->whereNull('p.deleted_at')
-            ->where('l.site_id', $siteId)
-            ->where('d.kind', $kind)
-            ->where('d.resource_id', $resourceId)
-            ->distinct()
-            ->pluck('l.page_id')
-            ->all();
+            ->where('l.site_id', $siteId);
+        if ($kind !== 'seo') {
+            $pages->join('publication_dependencies as d', 'd.publication_id', '=', 'l.publication_id')->where('d.kind', $kind)->where('d.resource_id', $resourceId);
+        }
+        $pageIds = $pages->distinct()->pluck('l.page_id')->all();
         if ($pageIds === []) {
             return 0;
         }

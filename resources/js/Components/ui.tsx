@@ -179,15 +179,6 @@ export function Segmented<T extends string>({
 
 export type Tone = 'neutral' | 'live' | 'changed' | 'danger' | 'accent' | 'ai' | 'site';
 
-const TONE_TEXT: Record<Tone, string> = {
-    neutral: 'text-muted',
-    live: 'text-live',
-    changed: 'text-changed',
-    danger: 'text-danger',
-    accent: 'text-accent',
-    ai: 'text-ai',
-    site: 'text-site',
-};
 const TONE_BG: Record<Tone, string> = {
     neutral: 'bg-sunken text-muted',
     live: 'bg-live-soft text-live',
@@ -220,10 +211,6 @@ export function StatusPill({
             <span className="truncate">{children}</span>
         </span>
     );
-}
-
-export function toneText(tone: Tone) {
-    return TONE_TEXT[tone];
 }
 
 /** A banner for outcomes and problems: icon, message, optional details and actions. */

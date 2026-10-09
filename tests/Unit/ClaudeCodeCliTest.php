@@ -6,6 +6,7 @@ use App\Arkon\Ai\AiException;
 use App\Arkon\Ai\AiRequest;
 use App\Arkon\Ai\ClaudeCodeCli;
 use App\Arkon\Ai\ProposalSchema;
+use App\Arkon\Ai\SchemaCompactor;
 use Tests\TestCase;
 
 /**
@@ -79,8 +80,11 @@ class ClaudeCodeCliTest extends TestCase
         $schema = app(ProposalSchema::class)->schema(['01890a5d-ac96-774b-bcce-b302099a8057']);
         $tricky = ['type' => 'object', 'description' => 'quotes " \\" backslash \\ percent %PATH% bang !x! caret ^ amp & pipe | <>'];
         $out = $this->cli()->run(new AiRequest('i', 'p', [...$schema, '$defs' => [...$schema['$defs'], 'tricky' => $tricky]]), fn () => true)->output;
-        $this->assertSame(json_decode(json_encode($schema), true)['$defs']['block_columns'], $out['schema']['$defs']['block_columns']);
-        $this->assertSame($tricky, $out['schema']['$defs']['tricky']);
+        $sent = [...$schema, '$defs' => [...$schema['$defs'], 'tricky' => $tricky]];
+        $json = json_encode($sent, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $expected = PHP_OS_FAMILY === 'Windows' && strlen($json) > 24000 ? SchemaCompactor::compact($sent) : $sent;
+        $this->assertSame(json_decode(json_encode($expected), true), $out['schema']);
+        $this->assertContains($tricky, array_values($out['schema']['$defs']));
     }
 
     public function test_the_child_gets_no_database_settings_app_key_or_anthropic_credentials(): void

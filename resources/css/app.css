@@ -608,3 +608,166 @@ html.ak-dragging * {
         cursor: not-allowed;
     }
 }
+
+/* Forms-only drag feedback. Collision geometry is measured before these transforms. */
+.ak-form-drag-preview {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 100;
+    pointer-events: none;
+    overflow: hidden;
+    box-shadow: var(--shadow-pop);
+    border: 1px solid var(--color-accent);
+    background: var(--color-surface);
+    color: var(--color-fg);
+    will-change: transform;
+}
+.ak-form-drag-source {
+    opacity: 0.3;
+    border-style: dashed;
+}
+.ak-form-drop-marker {
+    position: fixed;
+    z-index: 99;
+    pointer-events: none;
+    background: var(--color-accent);
+    border-radius: 2px;
+}
+.ak-form-row,
+.ak-form-field {
+    transition: transform 160ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+    .ak-form-row,
+    .ak-form-field {
+        transition: none;
+    }
+}
+
+.ak-form-drag-preview {
+    transition: none;
+}
+
+/* Shared compact management-table pattern. Breakpoints follow available panel width. */
+.ui-management-list {
+    container-type: inline-size;
+    max-width: 72rem;
+}
+.ui-management-table {
+    table-layout: fixed;
+}
+.ui-management-table :is(th, td) {
+    padding: 0.625rem 1rem;
+    vertical-align: middle;
+}
+.ui-management-table .ui-col-status {
+    width: 9rem;
+}
+.ui-management-table .ui-col-count {
+    width: 5rem;
+}
+.ui-management-table .ui-col-date {
+    width: 12rem;
+}
+.ui-management-table .ui-col-actions {
+    width: 20rem;
+}
+.ui-management-table .ui-cell-count {
+    text-align: right;
+}
+.ui-management-table .ui-cell-date {
+    white-space: nowrap;
+}
+.ui-management-table .ui-mobile-label,
+.ui-management-table .ui-overflow-preview,
+.ui-management-table .ui-overflow-settings {
+    display: none;
+}
+.ui-row-overflow {
+    list-style: none;
+    font-weight: 600;
+}
+.ui-row-overflow::-webkit-details-marker {
+    display: none;
+}
+@container (max-width:1000px) {
+    .ui-management-table .ui-col-actions {
+        width: 15rem;
+    }
+    .ui-management-table .ui-col-date {
+        width: 11rem;
+    }
+    .ui-management-table .ui-direct-preview {
+        display: none;
+    }
+    .ui-management-table .ui-overflow-preview {
+        display: block;
+    }
+}
+@container (max-width:850px) {
+    .ui-management-table .ui-col-date,
+    .ui-management-table .ui-cell-date {
+        display: none;
+    }
+}
+@container (max-width:650px) {
+    .ui-management-table .ui-col-actions {
+        width: 9rem;
+    }
+    .ui-management-table .ui-direct-settings {
+        display: none;
+    }
+    .ui-management-table .ui-overflow-settings {
+        display: block;
+    }
+}
+@container (max-width:520px) {
+    .ui-management-table,
+    .ui-management-table tbody {
+        display: block;
+    }
+    .ui-management-table colgroup {
+        display: none;
+    }
+    .ui-management-table thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+    }
+    .ui-management-table tr {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        padding: 0.5rem;
+    }
+    .ui-management-table :is(th, td) {
+        padding: 0.375rem 0.5rem;
+    }
+    .ui-management-table .ui-cell-name {
+        grid-column: 1/-1;
+        min-width: 0;
+    }
+    .ui-management-table .ui-cell-date {
+        display: block;
+        grid-column: 1/-1;
+        white-space: normal;
+    }
+    .ui-management-table .ui-cell-actions {
+        grid-column: 1/-1;
+    }
+    .ui-management-table .ui-direct-settings,
+    .ui-management-table .ui-mobile-label {
+        display: inline;
+    }
+    .ui-management-table .ui-overflow-settings {
+        display: none;
+    }
+}
+
+@container (min-width:1001px) {
+    .ui-management-table .ui-responsive-overflow {
+        display: none;
+    }
+}

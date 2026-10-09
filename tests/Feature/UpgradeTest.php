@@ -103,7 +103,7 @@ class UpgradeTest extends DatabaseTestCase
 
         // Recorded once, and safe to run again.
         $recorded = $db->table('data_upgrades')->orderBy('name')->get();
-        $this->assertSame(['2026-10-06-backfill-publication-media', '2026-10-08-backfill-page-request-fingerprints'], $recorded->pluck('name')->all());
+        $this->assertSame(['2026-10-06-backfill-publication-media', '2026-10-08-backfill-page-request-fingerprints', '2026-10-10-index-form-entries'], $recorded->pluck('name')->all());
         // Legacy pages were created without request keys: nothing to backfill.
         $this->assertSame(['pages' => 0, 'backfilled' => 0, 'withoutFirstRevision' => 0], json_decode($recorded[1]->details, true));
         $details = json_decode($recorded[0]->details, true);

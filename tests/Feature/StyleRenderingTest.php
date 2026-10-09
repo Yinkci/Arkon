@@ -110,7 +110,7 @@ class StyleRenderingTest extends DatabaseTestCase
         // Clean markup: no inline styles, no editor attributes, no scripts, no unused component CSS.
         $this->assertStringNotContainsString(' style=', $html);
         $this->assertStringNotContainsString('data-ak-', $html);
-        $this->assertStringNotContainsString('<script', $html);
+        $this->assertDoesNotMatchRegularExpression('/<script(?! type="application\/ld\+json")/i', $html);
         $this->assertStringNotContainsString('.ak-section', $html);
         $this->assertStringNotContainsString('.ak-btn2', $html);
 

@@ -15,7 +15,7 @@ use RuntimeException;
 class SchemaMigrator
 {
     /** History tables: the runtime role may read and insert, never update or delete. */
-    public const APPEND_ONLY_TABLES = ['page_revisions', 'publications', 'publication_media', 'audit_logs', 'site_token_versions', 'reusable_component_versions', 'publication_dependencies', 'media_variants', 'publication_render_compat', 'site_theme_versions', 'site_theme_requests', 'site_form_versions', 'site_menu_versions', 'site_resource_requests', 'website_applications', 'media_metadata_saves'];
+    public const APPEND_ONLY_TABLES = ['page_revisions', 'publications', 'publication_media', 'audit_logs', 'site_token_versions', 'reusable_component_versions', 'publication_dependencies', 'media_variants', 'publication_render_compat', 'site_theme_versions', 'site_theme_requests', 'site_form_versions', 'site_menu_versions', 'site_resource_requests', 'website_applications', 'media_metadata_saves', 'site_seo_versions'];
 
     /** Tables the runtime role must not touch at all. */
     public const MIGRATION_ONLY_TABLES = ['data_upgrades', 'migrations'];

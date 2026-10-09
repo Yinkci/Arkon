@@ -1,117 +1,74 @@
-import { Head, router } from '@inertiajs/react';
-import { useRef, useState } from 'react';
-import { AdminPageHeader } from '@/Components/AdminPageHeader';
+import { Head, Link, router } from '@inertiajs/react';
+import { useEffect, useRef, useState } from 'react';
 import { AdminLayout } from '@/Components/AdminLayout';
-import { Icon } from '@/Components/Icon';
-import { buttonClass, EmptyState, Notice, SectionHeader } from '@/Components/ui';
+import { AdminPageHeader } from '@/Components/AdminPageHeader';
+import { Button, ButtonLink, EmptyState, Notice } from '@/Components/ui';
 import { api, newRequestKey } from '@/lib/api';
-type Field = { id: string; label: string; type: 'text' | 'email' | 'tel' | 'textarea' | 'select' | 'checkbox'; required: boolean; options?: string[] };
-type Definition = { name: string; submitLabel: string; successMessage: string; fields: Field[] };
-type FormRow = { id: string; version: number; publishedVersion: number | null; definition: Definition; notificationEmail: string | null };
-const defaults: Definition = {
-    name: 'Contact enquiry',
-    submitLabel: 'Send enquiry',
-    successMessage: 'Thank you. Your enquiry has been received.',
-    fields: [
-        { id: 'name', label: 'Your name', type: 'text', required: true },
-        { id: 'email', label: 'Email address', type: 'email', required: true },
-        { id: 'message', label: 'How can we help?', type: 'textarea', required: true },
-    ],
-};
-const newsletter: Definition = {
-    name: 'Newsletter signup',
-    submitLabel: 'Subscribe',
-    successMessage: 'Thank you. Your signup has been recorded.',
-    fields: [{ id: 'email', label: 'Email address', type: 'email', required: true }],
-};
-const control = 'ui-input';
+import { template, type FormRow, type Permissions } from '@/forms/schema';
+import { fullDate } from '@/lib/time';
 export default function Forms({
-    forms,
-    submissions,
+    library,
     permissions,
 }: {
-    forms: FormRow[];
-    submissions: { id: string; formId: string; createdAt: string; notificationStatus: string; values: Record<string, string> }[];
-    permissions: { edit: boolean; publish: boolean };
+    library: { items: FormRow[]; total: number; page: number; pages: number; q: string };
+    permissions: Permissions;
 }) {
-    const [selected, setSelected] = useState<FormRow | null>(forms[0] ?? null),
-        [draft, setDraft] = useState<Definition>(() => structuredClone(forms[0]?.definition ?? defaults)),
-        [email, setEmail] = useState(forms[0]?.notificationEmail ?? ''),
+    const [q, setQ] = useState(library.q),
+        [creating, setCreating] = useState(false),
+        [name, setName] = useState('Contact form'),
+        [kind, setKind] = useState('contact'),
         [busy, setBusy] = useState(false),
-        [notice, setNotice] = useState(''),
-        [saveUnconfirmed, setSaveUnconfirmed] = useState(false);
-    const saveAttempt = useRef<{ body: string; key: string } | null>(null),
-        publishAttempt = useRef<{ id: string; version: number; key: string } | null>(null);
-    const dirty = JSON.stringify(draft) !== JSON.stringify(selected?.definition ?? null);
-    const select = (f: FormRow | null) => {
-        if (busy || saveUnconfirmed) return;
-        if (dirty && !confirm('Discard unsaved form edits?')) return;
-        setSelected(f);
-        setDraft(structuredClone(f?.definition ?? defaults));
-        setEmail(f?.notificationEmail ?? '');
-        setNotice('');
-    };
-    const newNewsletter = () => {
-        if (busy || saveUnconfirmed) return;
-        if (dirty && !confirm('Discard unsaved form edits?')) return;
-        setSelected(null);
-        setDraft(structuredClone(newsletter));
-        setEmail('');
-        setNotice('Newsletter signups are saved here. Connect a mailing-list service separately before promising email delivery.');
-    };
-    const update = (i: number, values: Partial<Field>) => setDraft((d) => ({ ...d, fields: d.fields.map((f, n) => (n === i ? { ...f, ...values } : f)) }));
-    const save = async () => {
+        [error, setError] = useState('');
+    const dialog = useRef<HTMLDialogElement>(null),
+        intent = useRef<{ body: unknown; key: string } | null>(null),
+        actionKeys = useRef<Record<string, string>>({});
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (q !== library.q) router.get('/admin/forms', { q }, { preserveState: true, preserveScroll: true });
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [q, library.q]);
+    useEffect(() => {
+        if (creating) dialog.current?.showModal();
+        else dialog.current?.close();
+    }, [creating]);
+    const create = async () => {
         if (busy) return;
         setBusy(true);
-        const body = { id: selected?.id ?? null, baseVersion: selected?.version ?? 0, definition: structuredClone(draft) };
-        const json = JSON.stringify(body);
-        const a = saveAttempt.current?.body === json ? saveAttempt.current : { body: json, key: newRequestKey() };
-        saveAttempt.current = a;
+        setError('');
+        const a = intent.current ?? { key: newRequestKey(), body: { baseVersion: 0, definition: template(name, kind) } };
+        intent.current = a;
         try {
-            const r = await api<{ id: string; version: number }>('/forms/save', { body: { ...body, requestKey: a.key } });
-            if (!r.ok) {
-                setNotice(r.message);
+            const result = await api<{ id: string }>('/forms/save', { body: { ...(a.body as object), requestKey: a.key } });
+            if (!result.ok) {
+                intent.current = null;
+                setError(result.message);
                 return;
             }
-            saveAttempt.current = null;
-            setSaveUnconfirmed(false);
-            setSelected({
-                id: r.data.id,
-                version: r.data.version,
-                definition: body.definition,
-                publishedVersion: selected?.publishedVersion ?? null,
-                notificationEmail: email,
-            });
-            setNotice('Form draft saved. Publish it when ready.');
-            router.reload({ only: ['forms'] });
+            intent.current = null;
+            router.visit(`/admin/forms/${result.data.id}`);
         } catch {
-            setSaveUnconfirmed(true);
-            setNotice('Save could not be confirmed. Retry Save before editing or switching forms.');
+            setError('Creation could not be confirmed. Retry Create form with the same request.');
         } finally {
             setBusy(false);
         }
     };
-    const publish = async () => {
-        if (!selected || dirty || busy || saveUnconfirmed) return;
-        if (!confirm('Publish this form? Live pages that use it will be refreshed.')) return;
+    const duplicate = async (f: FormRow) => {
+        if (busy) return;
         setBusy(true);
-        const a =
-            publishAttempt.current?.id === selected.id && publishAttempt.current.version === selected.version
-                ? publishAttempt.current
-                : { id: selected.id, version: selected.version, key: newRequestKey() };
-        publishAttempt.current = a;
+        const key = actionKeys.current[f.id] ?? newRequestKey();
+        actionKeys.current[f.id] = key;
         try {
-            const r = await api<{ publishedVersion: number }>(`/forms/${selected.id}/publish`, { body: { expectedVersion: a.version, requestKey: a.key } });
-            if (!r.ok) {
-                setNotice(r.message);
-                return;
+            const r = await api<{ id: string }>(`/forms/${f.id}/duplicate`, { body: { requestKey: key } });
+            if (r.ok) {
+                delete actionKeys.current[f.id];
+                router.visit(`/admin/forms/${r.data.id}`);
+            } else {
+                delete actionKeys.current[f.id];
+                setError(r.message);
             }
-            publishAttempt.current = null;
-            setSelected({ ...selected, publishedVersion: r.data.publishedVersion });
-            setNotice('Form published. Add Contact form in the page builder.');
-            router.reload({ only: ['forms'] });
         } catch {
-            setNotice('Publish could not be confirmed. Retry to check the same publication.');
+            setError('Duplication could not be confirmed. Retry to check the same copy.');
         } finally {
             setBusy(false);
         }
@@ -119,245 +76,225 @@ export default function Forms({
     return (
         <AdminLayout>
             <Head title="Forms" />
-            <div className="ak-page space-y-8">
+            <div className="ak-page space-y-6">
                 <AdminPageHeader
-                    title="Forms & enquiries"
-                    description="Build a form once, publish it, and select it in any page. Enquiries are saved even if email delivery fails."
+                    title="Forms"
+                    description="Build reusable forms, configure their behavior, and manage entries."
+                    actions={
+                        permissions.edit ? (
+                            <Button variant="primary" icon="plus" disabled={busy || !!intent.current} onClick={() => setCreating(true)}>
+                                New form
+                            </Button>
+                        ) : undefined
+                    }
                 />
-                {notice && (
-                    <Notice tone="info">
-                        <p>{notice}</p>
-                    </Notice>
-                )}
-                <div className="grid items-start gap-6 md:grid-cols-[14rem_minmax(0,1fr)]">
-                    <aside className="space-y-1" aria-label="Forms">
-                        <p className="mb-2 px-3 t-eyebrow">Forms</p>
-                        {forms.map((f) => (
-                            <button
-                                aria-current={selected?.id === f.id ? 'true' : undefined}
-                                className={`block w-full rounded-md px-3 py-2 text-left text-ui font-medium transition-colors ${selected?.id === f.id ? 'bg-accent-soft text-fg ring-1 ring-accent-line ring-inset' : 'hover:bg-hover'}`}
-                                key={f.id}
-                                disabled={busy || saveUnconfirmed}
-                                onClick={() => select(f)}
-                            >
-                                {f.definition.name}
-                                <span className="mt-0.5 flex items-center gap-1.5 text-xs font-normal text-muted">
-                                    <span aria-hidden="true" className={`size-1.5 rounded-full ${f.publishedVersion ? 'bg-live' : 'bg-draft'}`} />
-                                    {f.publishedVersion ? 'Published' : 'Draft'}
-                                </span>
-                            </button>
-                        ))}
-                        {permissions.edit && (
-                            <div className="pt-2">
-                                <button
-                                    disabled={busy || saveUnconfirmed}
-                                    className={buttonClass('ghost', 'sm', 'w-full justify-start')}
-                                    onClick={() => select(null)}
-                                >
-                                    <Icon name="plus" className="size-3.5" />
-                                    New form
-                                </button>
-                            </div>
-                        )}
-                        <button
-                            className={buttonClass('ghost', 'sm', 'w-full justify-start')}
-                            disabled={!permissions.edit || busy || saveUnconfirmed}
-                            onClick={newNewsletter}
-                        >
-                            <Icon name="plus" className="size-3.5" />
-                            Newsletter form
-                        </button>
-                    </aside>
-                    <section className="space-y-5 rounded-lg border border-line p-5 shadow-hairline">
-                        <fieldset disabled={!permissions.edit || busy || saveUnconfirmed} className="space-y-4">
-                            <label className="ui-field">
-                                Form name
-                                <input className={control} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
-                            </label>
-                            {draft.fields.map((f, i) => (
-                                <div key={i} className="space-y-3 rounded-lg border border-line bg-raised p-4">
-                                    <div className="flex items-center justify-between">
-                                        <strong className="t-title">Field {i + 1}</strong>
-                                        <div className="flex gap-1 text-xs">
-                                            <button
-                                                className={buttonClass('ghost', 'sm')}
-                                                disabled={i === 0}
-                                                onClick={() =>
-                                                    setDraft({
-                                                        ...draft,
-                                                        fields: draft.fields.map((v, n) => (n === i - 1 ? f : n === i ? draft.fields[i - 1]! : v)),
-                                                    })
-                                                }
-                                            >
-                                                Move up
-                                            </button>
-                                            <button
-                                                className={buttonClass('quiet-danger', 'sm')}
-                                                disabled={draft.fields.length <= 1}
-                                                onClick={() => setDraft({ ...draft, fields: draft.fields.filter((_, n) => n !== i) })}
-                                            >
-                                                Remove
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div className="grid gap-3 sm:grid-cols-2">
-                                        <label className="ui-field">
-                                            Label
-                                            <input className={control} value={f.label} onChange={(e) => update(i, { label: e.target.value })} />
-                                        </label>
-                                        <label className="ui-field">
-                                            Type
-                                            <select
-                                                className={control}
-                                                value={f.type}
-                                                onChange={(e) =>
-                                                    update(i, {
-                                                        type: e.target.value as Field['type'],
-                                                        options: e.target.value === 'select' ? ['Option one', 'Option two'] : undefined,
-                                                    })
-                                                }
-                                            >
-                                                {['text', 'email', 'tel', 'textarea', 'select', 'checkbox'].map((t) => (
-                                                    <option key={t}>{t}</option>
-                                                ))}
-                                            </select>
-                                        </label>
-                                    </div>
-                                    <label className="ui-field">
-                                        Field key (letters, numbers and underscores)
-                                        <input className={control} value={f.id} onChange={(e) => update(i, { id: e.target.value })} />
-                                    </label>
-                                    {f.type === 'select' && (
-                                        <label className="ui-field">
-                                            Options, one per line
-                                            <textarea
-                                                className={control}
-                                                value={f.options?.join('\n') ?? ''}
-                                                onChange={(e) => update(i, { options: e.target.value.split('\n') })}
-                                            />
-                                        </label>
-                                    )}
-                                    <label className="ui-check">
-                                        <input type="checkbox" checked={f.required} onChange={(e) => update(i, { required: e.target.checked })} />
-                                        Required
-                                    </label>
-                                </div>
-                            ))}
-                            <button
-                                className={buttonClass('secondary', 'sm')}
-                                disabled={draft.fields.length >= 20}
-                                onClick={() =>
-                                    setDraft({
-                                        ...draft,
-                                        fields: [
-                                            ...draft.fields,
-                                            { id: `field_${Date.now().toString(36)}`, label: 'New field', type: 'text', required: false },
-                                        ],
-                                    })
-                                }
-                            >
-                                <Icon name="plus" className="size-3.5" />
-                                Add field
-                            </button>
-                            <label className="ui-field">
-                                Submit button
-                                <input className={control} value={draft.submitLabel} onChange={(e) => setDraft({ ...draft, submitLabel: e.target.value })} />
-                            </label>
-                            <label className="ui-field">
-                                Confirmation message
-                                <textarea
-                                    className={control}
-                                    value={draft.successMessage}
-                                    onChange={(e) => setDraft({ ...draft, successMessage: e.target.value })}
-                                />
-                            </label>
-                        </fieldset>
-                        <div className="flex flex-wrap gap-2 border-t border-line pt-4">
-                            {permissions.edit && (
-                                <button disabled={busy} className={buttonClass('primary')} onClick={() => void save()}>
-                                    Save draft
-                                </button>
-                            )}
-                            {permissions.publish && (
-                                <button
-                                    disabled={busy || saveUnconfirmed || dirty || !selected}
-                                    className={buttonClass('secondary')}
-                                    onClick={() => void publish()}
-                                >
-                                    Publish form
-                                </button>
-                            )}
-                        </div>
-                        {permissions.publish && (
-                            <>
-                                <div className="space-y-2 border-t border-line pt-4">
-                                    <label className="ui-field">
-                                        Notification email (optional)
-                                        <input
-                                            type="email"
-                                            disabled={busy || saveUnconfirmed || !selected}
-                                            className={control}
-                                            value={email}
-                                            onChange={(e) => setEmail(e.target.value)}
-                                        />
-                                    </label>
-                                    <p className="ui-hint">Uses the server’s configured mail service. Blank means store enquiries only.</p>
-                                    <button
-                                        disabled={busy || saveUnconfirmed || !selected}
-                                        className={buttonClass('secondary', 'sm')}
-                                        onClick={async () => {
-                                            if (!selected) return;
-                                            setBusy(true);
-                                            try {
-                                                const r = await api(`/forms/${selected.id}/notifications`, { body: { email: email || null } });
-                                                setNotice(r.ok ? 'Notification settings saved.' : r.message);
-                                            } catch {
-                                                setNotice('Could not confirm notification settings.');
-                                            } finally {
-                                                setBusy(false);
-                                            }
-                                        }}
-                                    >
-                                        Save notification settings
-                                    </button>
-                                </div>
-                            </>
-                        )}
-                    </section>
+                {error && !creating && <Notice tone="error">{error}</Notice>}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <label className="ui-field">
+                        Search forms
+                        <input className="ui-input" value={q} placeholder="Form name" onChange={(e) => setQ(e.target.value)} />
+                    </label>
+                    <p className="t-meta">{library.total} forms</p>
                 </div>
-                {permissions.publish && (
-                    <section className="space-y-4" aria-labelledby="enquiries-title">
-                        <SectionHeader
-                            id="enquiries-title"
-                            title="Recent enquiries"
-                            description="Latest 100 submissions. Only owners and admins can read enquiries."
-                        />
-                        {submissions.length === 0 ? (
-                            <div className="rounded-lg border border-dashed border-line-strong">
-                                <EmptyState icon="form" title="No enquiries yet" compact>
-                                    Submissions from published forms appear here.
-                                </EmptyState>
-                            </div>
-                        ) : (
-                            submissions.map((s) => (
-                                <article key={s.id} className="rounded-lg border border-line p-4">
-                                    <p className="mb-3 t-meta t-num">
-                                        {s.createdAt} · Email: {s.notificationStatus}
-                                    </p>
-                                    <dl className="grid gap-3 sm:grid-cols-2">
-                                        {Object.entries(s.values).map(([k, v]) => (
-                                            <div key={k}>
-                                                <dt className="t-label">{k}</dt>
-                                                <dd className="mt-0.5 text-ui whitespace-pre-wrap">{v}</dd>
+                {library.items.length ? (
+                    <div className="ui-management-list rounded-lg border border-line bg-surface">
+                        <table className="ui-management-table w-full text-left text-ui">
+                            <caption className="sr-only">Forms and management actions</caption>
+                            <colgroup>
+                                <col />
+                                <col className="ui-col-status" />
+                                {permissions.entries && <col className="ui-col-count" />}
+                                <col className="ui-col-date" />
+                                <col className="ui-col-actions" />
+                            </colgroup>
+                            <thead className="border-b border-line text-muted">
+                                <tr>
+                                    <th scope="col">Form</th>
+                                    <th scope="col">Status</th>
+                                    {permissions.entries && (
+                                        <th scope="col" className="ui-cell-count">
+                                            Entries
+                                        </th>
+                                    )}
+                                    <th scope="col" className="ui-cell-date">
+                                        Updated
+                                    </th>
+                                    <th scope="col" className="ui-cell-actions">
+                                        Manage
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {library.items.map((f) => (
+                                    <tr key={f.id} className="border-b border-line last:border-0 hover:bg-hover">
+                                        <th scope="row" className="ui-cell-name font-medium">
+                                            <Link href={`/admin/forms/${f.id}`} className="ui-link block truncate" title={f.definition.name}>
+                                                {f.definition.name}
+                                            </Link>
+                                        </th>
+                                        <td className="ui-cell-status">
+                                            <span
+                                                className={
+                                                    'inline-flex rounded-sm px-2 py-1 text-xs ' +
+                                                    (f.status === 'Active'
+                                                        ? 'bg-live-soft text-live'
+                                                        : f.status === 'Draft'
+                                                          ? 'bg-sunken text-muted'
+                                                          : 'bg-sunken text-muted')
+                                                }
+                                            >
+                                                {f.status}
+                                            </span>
+                                            {f.hasDraftChanges && !!f.publishedVersion && (
+                                                <span className="mt-1 block text-xs text-changed">Unpublished edits</span>
+                                            )}
+                                        </td>
+                                        {permissions.entries && (
+                                            <td className="ui-cell-count t-num">
+                                                <Link
+                                                    className="ui-link"
+                                                    href={`/admin/forms/${f.id}?section=Entries`}
+                                                    aria-label={`${f.entries ?? 0} entries for ${f.definition.name}`}
+                                                >
+                                                    <span>{f.entries ?? 0}</span>
+                                                    <span className="ui-mobile-label"> entries</span>
+                                                </Link>
+                                            </td>
+                                        )}
+                                        <td className="ui-cell-date t-meta">
+                                            <span className="ui-mobile-label">Updated </span>
+                                            <time dateTime={f.updatedAt}>{fullDate(f.updatedAt)}</time>
+                                        </td>
+                                        <td className="ui-cell-actions">
+                                            <div className="flex items-center gap-1">
+                                                {permissions.entries && (
+                                                    <ButtonLink size="sm" variant="ghost" href={`/admin/forms/${f.id}?section=Entries`}>
+                                                        Entries
+                                                    </ButtonLink>
+                                                )}
+                                                <ButtonLink
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="ui-direct-settings"
+                                                    href={`/admin/forms/${f.id}?section=Settings`}
+                                                >
+                                                    Settings
+                                                </ButtonLink>
+                                                <a
+                                                    className="ui-direct-preview ui-link rounded-md px-2 py-1"
+                                                    href={`/admin/forms/${f.id}/preview`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                >
+                                                    Preview
+                                                </a>
+                                                <details
+                                                    className={'relative ml-auto ' + (!permissions.edit && !permissions.manage ? 'ui-responsive-overflow' : '')}
+                                                >
+                                                    <summary
+                                                        className="ui-row-overflow cursor-pointer rounded-md px-2 py-1 text-muted hover:bg-hover"
+                                                        aria-label={'More actions for ' + f.definition.name}
+                                                        title="More actions"
+                                                    >
+                                                        ⋯
+                                                    </summary>
+                                                    <div className="absolute right-0 z-10 grid min-w-40 gap-1 rounded-lg border border-line bg-surface p-2 shadow-pop">
+                                                        <ButtonLink
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="ui-overflow-settings"
+                                                            href={`/admin/forms/${f.id}?section=Settings`}
+                                                        >
+                                                            Settings
+                                                        </ButtonLink>
+                                                        <a
+                                                            className="ui-overflow-preview ui-link px-3 py-2"
+                                                            href={`/admin/forms/${f.id}/preview`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                        >
+                                                            Preview
+                                                        </a>
+                                                        {permissions.edit && (
+                                                            <Button size="sm" variant="ghost" disabled={busy} onClick={() => void duplicate(f)}>
+                                                                Duplicate
+                                                            </Button>
+                                                        )}
+                                                        {permissions.manage && (
+                                                            <ButtonLink size="sm" variant="quiet-danger" href={`/admin/forms/${f.id}?section=Settings`}>
+                                                                Archive settings
+                                                            </ButtonLink>
+                                                        )}
+                                                    </div>
+                                                </details>
                                             </div>
-                                        ))}
-                                    </dl>
-                                </article>
-                            ))
-                        )}
-                    </section>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <EmptyState icon="form" title={q ? 'No matching forms' : 'Create your first form'}>
+                        Start with a blank form or a simple template.
+                    </EmptyState>
                 )}
+                <div className="flex justify-between">
+                    <Button disabled={library.page <= 1} onClick={() => router.get('/admin/forms', { q, page: library.page - 1 })}>
+                        Previous page
+                    </Button>
+                    <span className="t-meta">
+                        Page {library.page} of {library.pages}
+                    </span>
+                    <Button disabled={library.page >= library.pages} onClick={() => router.get('/admin/forms', { q, page: library.page + 1 })}>
+                        Next page
+                    </Button>
+                </div>
             </div>
+            <dialog
+                ref={dialog}
+                aria-labelledby="new-form-title"
+                onCancel={(e) => {
+                    if (busy || intent.current) e.preventDefault();
+                    else setCreating(false);
+                }}
+                className="m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border border-line bg-surface p-6 text-fg shadow-pop backdrop:bg-scrim"
+            >
+                <form
+                    className="space-y-4"
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        void create();
+                    }}
+                >
+                    <h2 id="new-form-title" className="t-section">
+                        New form
+                    </h2>
+                    {error && <Notice tone="error">{error}</Notice>}
+                    <fieldset disabled={busy || !!intent.current} className="space-y-4">
+                        <label className="ui-field">
+                            Form name
+                            <input className="ui-input" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
+                        </label>
+                        <label className="ui-field">
+                            Start with
+                            <select className="ui-input" value={kind} onChange={(e) => setKind(e.target.value)}>
+                                <option value="blank">Blank form</option>
+                                <option value="contact">Contact form</option>
+                                <option value="newsletter">Newsletter signup</option>
+                            </select>
+                        </label>
+                    </fieldset>
+                    <div className="flex justify-end gap-2">
+                        <Button disabled={busy || !!intent.current} onClick={() => setCreating(false)}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" variant="primary" busy={busy} disabled={busy}>
+                            {intent.current && !busy ? 'Retry Create form' : 'Create form'}
+                        </Button>
+                    </div>
+                </form>
+            </dialog>
         </AdminLayout>
     );
 }

@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Admin;
 use App\Arkon\Ai\WebsiteProposalService;
 use App\Arkon\Media\MediaSigner;
 use App\Arkon\Renderer\Motion;
-use App\Arkon\Sites\Permissions;
 use App\Arkon\Sites\WebsitePublishing;
 use App\Http\AdminContext;
 use App\Http\Controllers\Controller;
@@ -19,7 +18,7 @@ final class WebsiteController extends Controller
     {
         $a = AdminContext::of($r);
 
-        return Inertia::render('Admin/Website', [...$service->list($a->ctx()), 'permissions' => ['edit' => Permissions::allows($a->role, 'page.edit'), 'publish' => Permissions::allows($a->role, 'page.publish')]]);
+        return Inertia::render('Admin/Website', [...$service->list($a->ctx()), 'permissions' => ['edit' => $a->can('page.edit'), 'publish' => $a->can('page.publish')]]);
     }
 
     public function requests(Request $r, WebsiteProposalService $s)

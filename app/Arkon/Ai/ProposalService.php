@@ -135,6 +135,7 @@ final class ProposalService
             return $context;
         }, isolation: 'REPEATABLE READ', readOnly: true);
         $compiled = $this->compiler->compile($context['doc'], Json::toArray($proposal), array_keys($context['assets']), (int) config('arkon.ai.max_changes'), array_keys($context['components']), $context['themeTypes']);
+        self::assertSeoScope($prompt, $compiled, $context['doc']);
         if (array_diff(FormService::references($compiled['document']), FormService::references($context['doc']), array_keys($context['forms'] ?? [])) !== []) {
             throw new AiException(AiException::INVALID_OUTPUT, 'Use only the published forms supplied in the page context.');
         }
@@ -215,6 +216,7 @@ final class ProposalService
             try {
                 $completion = $runner->run(new AiRequest($this->prompts->instructions($context), $prompt, $this->prompts->schema($context)), $keepGoing);
                 $compiled = $this->compiler->compile($context['doc'], $completion->output, array_keys($context['assets']), (int) config('arkon.ai.max_changes'), array_keys($context['components']), $context['themeTypes']);
+                self::assertSeoScope($claim->prompt, $compiled, $context['doc']);
                 if (array_diff(FormService::references($compiled['document']), FormService::references($context['doc']), array_keys($context['forms'] ?? [])) !== []) {
                     throw new AiException(AiException::INVALID_OUTPUT, 'Use only the published forms supplied in the page context.');
                 }
@@ -403,6 +405,40 @@ final class ProposalService
     }
 
     /** The request as the editor and the MCP tools see it. */
+    public static function assertSeoScope(string $prompt, array $compiled, array $base = []): void
+    {
+        if (preg_match('/^ARKON_SEO_ALT_ONLY:([A-Za-z0-9_-]+)\n/', $prompt, $alt)) {
+            if (($compiled['tokenChanges'] ?? []) !== []) {
+                throw new AiException(AiException::INVALID_OUTPUT, 'Alt text generation cannot change design tokens.');
+            }
+            $before = Json::entries(Json::entries($base['nodes'] ?? [])[$alt[1]]['props'] ?? [])['image'] ?? null;
+            foreach ($compiled['operations'] as $op) {
+                $image = Json::entries(Json::entries($op['set'] ?? [])['image'] ?? []);
+                if (($op['op'] ?? '') !== 'updateProps' || ($op['nodeId'] ?? '') !== $alt[1] || array_keys(Json::entries($op['set'] ?? [])) !== ['image'] || ! empty($op['unset']) || $before === null || ($image['assetId'] ?? null) !== (Json::entries($before)['assetId'] ?? null) || array_diff(array_keys($image), array_keys(Json::entries($before))) !== []) {
+                    throw new AiException(AiException::INVALID_OUTPUT, 'Alt generation can only describe the selected existing image.');
+                }foreach (Json::entries($before) as $key => $value) {
+                    if ($key !== 'alt' && ($image[$key] ?? null) !== $value) {
+                        throw new AiException(AiException::INVALID_OUTPUT, 'Alt generation cannot change the image.');
+                    }
+                }
+            }
+
+            return;
+        }
+        if (! preg_match('/^ARKON_SEO_METADATA_ONLY:([A-Za-z]+)\n/', $prompt, $m)) {
+            return;
+        }
+        $allowed = $m[1] === 'all' ? ['title', 'description', 'focusTopic', 'socialTitle', 'socialDescription'] : [$m[1]];
+        if (($compiled['tokenChanges'] ?? []) !== []) {
+            throw new AiException(AiException::INVALID_OUTPUT, 'SEO text generation cannot change design tokens.');
+        }
+        foreach ($compiled['operations'] as $op) {
+            if (($op['op'] ?? '') !== 'updateSeo' || array_diff(array_keys(Json::entries($op['set'] ?? [])), $allowed) !== [] || ! empty($op['unset'])) {
+                throw new AiException(AiException::INVALID_OUTPUT, 'SEO text generation can only change the requested metadata fields.');
+            }
+        }
+    }
+
     private function view(object $row): array
     {
         $details = Json::toArray(Json::decode((string) ($row->details ?? '{}'))) ?: [];
