@@ -33,6 +33,9 @@ class StructuralEditingTest extends DatabaseTestCase
 
     private array $f;
 
+    /** Registry copies made by this test; removed even when it fails. */
+    private static array $tempDirs = [];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -324,7 +327,7 @@ class StructuralEditingTest extends DatabaseTestCase
     /** A copy of the component directory without the versions added by the visual-builder foundation. */
     private static function registryBeforeFoundation(): string
     {
-        $dir = storage_path('testing/components-'.uniqid());
+        $dir = self::$tempDirs[] = storage_path('testing/components-'.uniqid());
         File::copyDirectory(resource_path('arkon/components'), $dir);
         foreach (['hero/v5', 'image/v6', 'logo/v2', 'button/v6', 'image/v5', 'page/v6', 'column/v6', 'button/v5', 'page/v5', 'column/v5', 'button/v4', 'page/v4', 'column/v4', 'page/v3', 'hero/v2', 'hero/v3', 'hero/v4', 'text/v2', 'text/v3', 'image/v3', 'image/v4', 'button/v2', 'button/v3', 'columns/v2', 'columns/v3', 'column/v2', 'column/v3'] as $version) {
             File::delete(["{$dir}/{$version}.json", "{$dir}/{$version}.css"]);
@@ -334,6 +337,15 @@ class StructuralEditingTest extends DatabaseTestCase
         }
 
         return $dir;
+    }
+
+    protected function tearDown(): void
+    {
+        foreach (self::$tempDirs as $dir) {
+            File::deleteDirectory($dir);
+        }
+        self::$tempDirs = [];
+        parent::tearDown();
     }
 
     private function useRegistry(ComponentRegistry $registry): void

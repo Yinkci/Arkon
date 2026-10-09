@@ -94,4 +94,4 @@ Theme sources must be trusted local files under themes/. The dashboard cannot up
 
 ## New core website blocks
 
-Prefer core Logo, Icon, Slider/Slide, Form and Back-to-top blocks for these functions. Theme components remain declarative leaf components; they cannot install arbitrary JavaScript or relax builder rules. The refreshed style-reference.json includes bounded gradients, sticky positioning, hover/focus settings and local Inter. New capabilities become available through the supplied AI catalogue after restarting the helper/MCP server. See the professional website layouts section in README.md for usage and limits.
+Prefer core Logo, Icon, Slider/Slide, Form and Back-to-top blocks for these functions. Theme components remain declarative leaf components; they cannot install arbitrary JavaScript or relax builder rules. The refreshed style-reference.json includes bounded gradients, sticky positioning, hover/focus settings and local Inter. New capabilities become available through the supplied AI catalogue after restarting the helper/MCP server. See the Blocks and structure section of docs/USER_GUIDE.md for usage.

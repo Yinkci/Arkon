@@ -9,3 +9,17 @@
 /.github export-ignore
 CHANGELOG.md export-ignore
 .styleci.yml export-ignore
+
+# Development-only files, left out of release archives (`git archive`); see docs/RELEASE.md.
+/tests export-ignore
+/e2e export-ignore
+/e2e-herd export-ignore
+/scripts export-ignore
+/CLAUDE.md export-ignore
+/phpunit.xml export-ignore
+/playwright.config.ts export-ignore
+/playwright.herd.config.ts export-ignore
+/vitest.config.ts export-ignore
+/.prettierrc.json export-ignore
+/.prettierignore export-ignore
+/.editorconfig export-ignore
