@@ -40,7 +40,7 @@ export function NewPageForm() {
     return (
         <form onSubmit={onSubmit} className="rounded-lg border border-line bg-surface shadow-hairline" aria-label="New page">
             <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5">
-                <h2 className="text-sm font-semibold">New page</h2>
+                <h2 className="t-title">New page</h2>
                 <p className="text-xs text-muted">Starts as an unpublished draft and opens in the builder.</p>
             </div>
             <div className="grid gap-3 px-4 py-4 sm:grid-cols-2">
@@ -83,7 +83,7 @@ export function NewPageForm() {
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line bg-raised px-4 py-2.5">
                 {error ? (
-                    <p id={ids.error} role="alert" className="flex items-start gap-1.5 text-[0.8125rem] text-danger">
+                    <p id={ids.error} role="alert" className="flex items-start gap-1.5 text-ui text-danger">
                         <Icon name="alert" className="mt-0.5 size-4" />
                         {error}
                     </p>

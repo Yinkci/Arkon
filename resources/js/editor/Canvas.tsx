@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { componentName, resolvePart } from '@/arkon/editor/parts';
 import { resolveSlot, scrollStep, type Geometry, type Indicator, type NodeGeometry } from '@/arkon/editor/placement';
-import { nodeLabel } from '@/arkon/editor/structure';
+import { canContain, nodeLabel } from '@/arkon/editor/structure';
 import { removalOf } from '@/arkon/editor/remove';
 import { Icon } from '@/Components/Icon';
 import type { PageDocument } from '@/arkon/schema/document';
@@ -405,13 +405,13 @@ export function Canvas(props: CanvasProps) {
     return (
         <div
             ref={stageRef}
-            className="flex h-full justify-center-safe overflow-x-auto overflow-y-hidden bg-sunken p-3 sm:p-4"
+            className="flex h-full justify-center-safe overflow-x-auto overflow-y-hidden bg-canvas p-3 sm:p-4"
             data-testid="canvas-stage"
             data-selection-scope
         >
             <div
                 ref={containerRef}
-                className="relative h-full overflow-hidden rounded-md bg-white shadow-[0_0_0_1px_var(--ak-line),0_8px_24px_-12px_rgb(0_0_0/0.25)] transition-[width]"
+                className="relative h-full overflow-hidden rounded-md bg-white shadow-raise transition-[width] duration-200 ease-snap"
                 style={{ width: VIEWPORT_WIDTH[props.viewport], minWidth: VIEWPORT_MIN_WIDTH[props.viewport] }}
                 data-testid="canvas-frame"
             >
@@ -442,7 +442,7 @@ export function Canvas(props: CanvasProps) {
                     >
                         <span
                             ref={indicatorLabelRef}
-                            className="absolute -top-6 left-0 rounded-md bg-[var(--ak-accent)] px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap text-[var(--ak-accent-fg)] empty:hidden"
+                            className="absolute -top-6 left-0 rounded-md bg-[var(--ak-accent)] px-1.5 py-0.5 text-3xs font-medium whitespace-nowrap text-[var(--ak-accent-fg)] empty:hidden"
                         />
                     </div>
                 </div>
@@ -477,7 +477,7 @@ export function Canvas(props: CanvasProps) {
                         data-testid="canvas-duplicate"
                         disabled={props.renderPending}
                         onClick={() => props.onDuplicate!(selectedNode.id)}
-                        className={`absolute z-10 grid h-7 w-7 place-items-center rounded-md bg-[var(--ak-surface)] text-[var(--ak-accent)] shadow-hairline ring-1 ring-[var(--ak-accent-line)] hover:bg-[var(--ak-accent-soft)] disabled:cursor-progress disabled:opacity-70 ${dragging ? 'invisible' : ''}`}
+                        className={`absolute z-10 grid h-7 w-7 place-items-center rounded-md bg-[var(--ak-surface)] text-[var(--ak-fg)] shadow-raise hover:bg-[var(--ak-raised)] disabled:cursor-progress disabled:opacity-70 ${dragging ? 'invisible' : ''}`}
                         // Just left of the Move handle (which keeps room for the controls at the canvas edge).
                         style={{ top: Math.max(2, selected.rect!.top - 30), left: moveLeft(selected.rect!) - 32 }}
                     >
@@ -492,11 +492,14 @@ export function Canvas(props: CanvasProps) {
                         data-testid="canvas-delete"
                         disabled={props.renderPending || !removal.ok}
                         onClick={() => props.onDelete!(selectedNode.id, props.selectedPart ?? null)}
-                        className={`absolute z-10 grid h-7 w-7 place-items-center rounded-md bg-[var(--ak-surface)] text-[var(--ak-danger)] shadow-hairline ring-1 ring-[var(--ak-line)] hover:bg-[var(--ak-danger-soft)] disabled:cursor-not-allowed disabled:opacity-50 ${dragging ? 'invisible' : ''}`}
+                        className={`absolute z-10 grid h-7 w-7 place-items-center rounded-md bg-[var(--ak-surface)] text-[var(--ak-danger)] shadow-raise hover:bg-[var(--ak-danger-soft)] disabled:cursor-not-allowed disabled:opacity-50 ${dragging ? 'invisible' : ''}`}
                         style={{ top: Math.max(2, selected.rect!.top - 30), left: moveLeft(selected.rect!) - 32 * controls }}
                     >
                         <Icon name="trash" className="size-3.5" />
                     </button>
+                )}
+                {canDrag && !dragging && props.onAddInto && props.document && (props.document.nodes[props.document.root]?.children?.length ?? 1) === 0 && (
+                    <EmptyCanvas document={props.document} onAdd={(type) => props.onAddInto!(props.document!.root, type)} />
                 )}
                 {canDrag &&
                     !dragging &&
@@ -513,7 +516,7 @@ export function Canvas(props: CanvasProps) {
                                 aria-haspopup="menu"
                                 aria-expanded={addMenu === id}
                                 onClick={() => setAddMenu((open) => (open === id ? null : id))}
-                                className="inline-flex h-7 items-center gap-1 rounded-full bg-[var(--ak-accent)] px-2.5 text-[11px] font-medium whitespace-nowrap text-[var(--ak-accent-fg)] shadow-hairline"
+                                className="inline-flex h-7 items-center gap-1 rounded-md bg-[var(--ak-surface)] px-2.5 text-2xs font-medium whitespace-nowrap text-[var(--ak-accent)] shadow-raise hover:bg-[var(--ak-accent-soft)]"
                             >
                                 <Icon name="plus" className="size-3" />
                                 Add block
@@ -522,7 +525,7 @@ export function Canvas(props: CanvasProps) {
                                 <div
                                     role="menu"
                                     aria-label="Add to this column"
-                                    className="flex gap-1 rounded-md bg-[var(--ak-surface)] p-1 shadow-pop ring-1 ring-[var(--ak-line)]"
+                                    className="flex gap-0.5 rounded-lg bg-[var(--ak-surface)] p-1 shadow-pop"
                                     onKeyDown={(event) => event.key === 'Escape' && setAddMenu(null)}
                                 >
                                     {ADD_INTO.map(([type, label]) => (
@@ -535,7 +538,7 @@ export function Canvas(props: CanvasProps) {
                                                 setAddMenu(null);
                                                 props.onAddInto!(id, type);
                                             }}
-                                            className="h-7 rounded px-2 text-[11px] font-medium text-[var(--ak-fg)] hover:bg-[var(--ak-accent-soft)]"
+                                            className="h-7 rounded-md px-2 text-2xs font-medium text-[var(--ak-fg)] hover:bg-[var(--ak-hover)]"
                                         >
                                             {label}
                                         </button>
@@ -544,6 +547,47 @@ export function Canvas(props: CanvasProps) {
                             )}
                         </div>
                     ))}
+            </div>
+        </div>
+    );
+}
+
+/** What an empty page shows: where to start, with the first blocks one click away. */
+function EmptyCanvas({ document: doc, onAdd }: { document: PageDocument; onAdd(type: string): void }) {
+    const root = doc.nodes[doc.root]!;
+    const choices = (
+        [
+            ['section', 'Add section'],
+            ['hero', 'Add hero'],
+            ['text', 'Add text'],
+        ] as const
+    ).filter(([type]) => canContain(root, type));
+    return (
+        <div className="absolute inset-0 z-10 grid place-items-center p-6" data-testid="canvas-empty">
+            <div className="flex max-w-sm flex-col items-center rounded-lg border border-dashed border-[var(--ak-line-strong)] bg-[var(--ak-surface)] px-8 py-8 text-center">
+                <span className="grid size-10 place-items-center rounded-lg bg-[var(--ak-accent-soft)] text-[var(--ak-accent)]">
+                    <Icon name="plus" className="size-5" />
+                </span>
+                <p className="mt-4 text-sm font-semibold text-[var(--ak-fg)]">Start building your page</p>
+                <p className="mt-1 text-xs text-[var(--ak-muted)]">Drag a block here from Layers, or start with one of these.</p>
+                {choices.length > 0 && (
+                    <div className="mt-5 flex flex-wrap justify-center gap-2">
+                        {choices.map(([type, label], index) => (
+                            <button
+                                key={type}
+                                type="button"
+                                onClick={() => onAdd(type)}
+                                className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors ${
+                                    index === 0
+                                        ? 'bg-[var(--ak-ink)] text-[var(--ak-ink-fg)] hover:bg-[var(--ak-ink-hover)]'
+                                        : 'border border-[var(--ak-line-strong)] text-[var(--ak-fg)] hover:bg-[var(--ak-raised)]'
+                                }`}
+                            >
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -581,8 +625,8 @@ function MoveHandle(props: {
             onPointerLeave={props.onPointerLeave}
             className={`absolute z-10 flex cursor-grab touch-none items-center gap-1 rounded-md font-medium shadow-hairline select-none active:cursor-grabbing disabled:cursor-progress disabled:opacity-70 ${
                 props.compact
-                    ? 'h-5 bg-[var(--ak-surface)] px-1.5 text-[10px] text-[var(--ak-accent)] ring-1 ring-[var(--ak-accent-line)]'
-                    : 'h-7 bg-[var(--ak-accent)] px-2 text-[11px] text-[var(--ak-accent-fg)]'
+                    ? 'h-5 bg-[var(--ak-surface)] px-1.5 text-3xs text-[var(--ak-accent)] ring-1 ring-[var(--ak-accent-line)]'
+                    : 'h-7 bg-[var(--ak-accent)] px-2 text-2xs text-[var(--ak-accent-fg)]'
             } ${props.hidden ? 'invisible' : ''}`}
             style={
                 props.compact
@@ -609,7 +653,7 @@ function Outline({ rect: r, label, tone, testId }: { rect: Rect; label: string; 
               ? 'border-2 border-[var(--ak-accent)] bg-[color-mix(in_srgb,var(--ak-accent)_8%,transparent)]'
               : tone === 'parent'
                 ? 'border border-dashed border-[var(--ak-accent)]'
-                : 'border border-dashed border-[var(--ak-accent-line)]';
+                : 'border border-[var(--ak-accent-line)]';
     const size = `${Math.round(r.width)} × ${Math.round(r.height)}`;
     return (
         <div className={`absolute ${border}`} style={{ top: r.top, left: r.left, width: r.width, height: r.height }} data-testid={testId} data-label={label}>
@@ -624,13 +668,13 @@ function Outline({ rect: r, label, tone, testId }: { rect: Rect; label: string; 
                 ).map((corner) => <span key={corner} className={`absolute size-3 border-[var(--ak-accent)] ${corner}`} />)}
             {(tone === 'selected' || tone === 'part' || tone === 'parent') && label && (
                 <span
-                    className={`absolute left-0 flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap shadow-hairline ${
+                    className={`absolute left-0 flex h-5 items-center gap-1.5 rounded-sm px-1.5 text-3xs font-medium whitespace-nowrap shadow-hairline ${
                         tone === 'parent' ? 'bg-[var(--ak-surface)] text-[var(--ak-accent)]' : 'bg-[var(--ak-accent)] text-[var(--ak-accent-fg)]'
                     }`}
                     style={tone === 'part' ? { bottom: -22 } : { top: r.top < 22 ? 2 : -22 }}
                 >
                     {label}
-                    {tone !== 'parent' && <span className="tabular-nums opacity-80">{size}</span>}
+                    {tone !== 'parent' && <span className="tabular-nums opacity-70">{size}</span>}
                 </span>
             )}
         </div>

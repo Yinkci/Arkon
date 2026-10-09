@@ -51,7 +51,7 @@ export function ConfirmDialog({ open, title, children, confirmLabel, requireText
                 event.preventDefault();
                 close();
             }}
-            className="m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border border-line bg-surface p-0 text-left whitespace-normal text-fg shadow-pop backdrop:bg-black/45"
+            className="m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border border-line bg-surface p-0 text-left whitespace-normal text-fg shadow-pop backdrop:bg-scrim"
         >
             <form
                 method="dialog"

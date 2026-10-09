@@ -166,7 +166,7 @@ export function LayersPanel({ document: doc, selectedId, canEdit, onSelect, onSt
                         { nodeId: id, type: node.type, label: componentName(node) === node.type ? label : `${componentName(node)}`, origin: 'layers' },
                         () => onSelect(id),
                     )}
-                    className={`group relative flex h-8 items-center gap-1 rounded-md pr-1 text-[0.8125rem] select-none ${selected ? 'bg-accent-soft text-fg' : 'hover:bg-raised'} ${
+                    className={`group relative flex h-8 items-center gap-1 rounded-md pr-1 text-ui select-none ${selected ? 'bg-accent-soft text-fg' : 'hover:bg-hover'} ${
                         dragging?.nodeId === id ? 'opacity-40' : ''
                     } ${canEdit ? 'cursor-grab' : ''}`}
                     style={{ paddingLeft: `${0.375 + depth * 0.875}rem` }}
@@ -183,7 +183,7 @@ export function LayersPanel({ document: doc, selectedId, canEdit, onSelect, onSt
                             data-drag-grip
                             aria-hidden
                             title={`Drag to move ${name}`}
-                            className="grid h-7 w-5 shrink-0 cursor-grab touch-none place-items-center rounded text-faint group-hover:text-muted hover:bg-sunken"
+                            className="grid h-7 w-5 shrink-0 cursor-grab touch-none place-items-center rounded text-faint group-hover:text-muted hover:bg-hover"
                         >
                             <Icon name="grip" className="size-3.5" />
                         </span>
@@ -195,58 +195,70 @@ export function LayersPanel({ document: doc, selectedId, canEdit, onSelect, onSt
                             if (controller.consumeClick()) return; // the end of a drag, not a click
                             onSelect(id);
                         }}
-                        className="min-w-0 flex-1 cursor-[inherit] truncate py-1 text-left"
+                        className={`min-w-0 flex-1 cursor-[inherit] truncate py-1 text-left ${selected ? 'mr-[6.5rem]' : 'group-focus-within:mr-[6.5rem] group-hover:mr-[6.5rem] [@media(hover:none)]:mr-[6.5rem]'}`}
                         aria-current={selected ? 'true' : undefined}
                         title={`${componentName(node)}: ${label}`}
                     >
                         <span className={selected ? 'font-medium' : ''}>{label}</span>
                     </button>
-                    <span data-row-action className="flex items-center opacity-60 group-hover:opacity-100 focus-within:opacity-100">
-                        <button
-                            type="button"
-                            aria-label={`Move ${name} up`}
-                            title="Move up"
-                            disabled={!canEdit || (location?.index ?? 0) === 0}
-                            onClick={() => onStructure(moveWithinParent(doc, id, -1) ?? [], id)}
-                            className="grid size-6 place-items-center rounded text-muted hover:bg-sunken hover:text-fg disabled:opacity-25"
-                        >
-                            <Icon name="arrowUp" className="size-3" />
-                        </button>
-                        <button
-                            type="button"
-                            aria-label={`Move ${name} down`}
-                            title="Move down"
-                            disabled={!canEdit || !location || location.index >= siblings.length - 1}
-                            onClick={() => onStructure(moveWithinParent(doc, id, 1) ?? [], id)}
-                            className="grid size-6 place-items-center rounded text-muted hover:bg-sunken hover:text-fg disabled:opacity-25"
-                        >
-                            <Icon name="arrowDown" className="size-3" />
-                        </button>
-                        {onDuplicate && (
+                    {/* Actions overlay the end of the row: shown for the selected row, on hover and on focus (always on touch screens). */}
+                    <span
+                        data-row-action
+                        className={`absolute inset-y-0 right-0 flex items-center rounded-r-md transition-opacity duration-100 ${
+                            selected
+                                ? 'bg-accent-soft'
+                                : 'bg-surface opacity-0 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100'
+                        }`}
+                    >
+                        <span className={`flex h-full items-center rounded-r-md pr-0.5 pl-1 ${selected ? '' : 'bg-hover'}`}>
                             <button
                                 type="button"
-                                aria-label={`Duplicate ${name}`}
-                                title="Duplicate (Ctrl+D)"
-                                disabled={!canEdit}
-                                onClick={() => onDuplicate(id)}
-                                data-testid="layer-duplicate"
-                                className="grid size-6 place-items-center rounded text-muted hover:bg-sunken hover:text-fg disabled:opacity-25"
+                                aria-label={`Move ${name} up`}
+                                title="Move up"
+                                disabled={!canEdit || (location?.index ?? 0) === 0}
+                                onClick={() => onStructure(moveWithinParent(doc, id, -1) ?? [], id)}
+                                className="grid size-6 place-items-center rounded text-muted hover:bg-hover hover:text-fg disabled:opacity-25"
                             >
-                                <Icon name="copy" className="size-3" />
+                                <Icon name="arrowUp" className="size-3" />
                             </button>
-                        )}
-                        <button
-                            type="button"
-                            aria-label={`Remove ${name}`}
-                            title={`${removalOf(doc, id).label} (Delete key)`}
-                            disabled={!canEdit || !canRemove(doc, id)}
-                            onClick={() =>
-                                onDelete ? onDelete(id) : onStructure(removeOps(doc, id), location?.parentId === doc.root ? null : (location?.parentId ?? null))
-                            }
-                            className="grid size-6 place-items-center rounded text-muted hover:bg-danger-soft hover:text-danger disabled:opacity-25"
-                        >
-                            <Icon name="trash" className="size-3" />
-                        </button>
+                            <button
+                                type="button"
+                                aria-label={`Move ${name} down`}
+                                title="Move down"
+                                disabled={!canEdit || !location || location.index >= siblings.length - 1}
+                                onClick={() => onStructure(moveWithinParent(doc, id, 1) ?? [], id)}
+                                className="grid size-6 place-items-center rounded text-muted hover:bg-hover hover:text-fg disabled:opacity-25"
+                            >
+                                <Icon name="arrowDown" className="size-3" />
+                            </button>
+                            {onDuplicate && (
+                                <button
+                                    type="button"
+                                    aria-label={`Duplicate ${name}`}
+                                    title="Duplicate (Ctrl+D)"
+                                    disabled={!canEdit}
+                                    onClick={() => onDuplicate(id)}
+                                    data-testid="layer-duplicate"
+                                    className="grid size-6 place-items-center rounded text-muted hover:bg-hover hover:text-fg disabled:opacity-25"
+                                >
+                                    <Icon name="copy" className="size-3" />
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                aria-label={`Remove ${name}`}
+                                title={`${removalOf(doc, id).label} (Delete key)`}
+                                disabled={!canEdit || !canRemove(doc, id)}
+                                onClick={() =>
+                                    onDelete
+                                        ? onDelete(id)
+                                        : onStructure(removeOps(doc, id), location?.parentId === doc.root ? null : (location?.parentId ?? null))
+                                }
+                                className="grid size-6 place-items-center rounded text-muted hover:bg-danger-soft hover:text-danger disabled:opacity-25"
+                            >
+                                <Icon name="trash" className="size-3" />
+                            </button>
+                        </span>
                     </span>
                 </div>
                 {node.children && node.children.length > 0 && <ul role="group">{node.children.map((child) => renderNode(child, depth + 1))}</ul>}
@@ -256,16 +268,19 @@ export function LayersPanel({ document: doc, selectedId, canEdit, onSelect, onSt
 
     return (
         <div>
-            <details aria-label="Layout patterns" className="border-b border-line p-3">
-                <summary className="cursor-pointer text-xs font-semibold">Starting layouts</summary>
-                <p className="text-xs text-muted my-2">Editable blocks. Choose images, menus and forms after inserting.</p>
-                <div className="space-y-1">
+            <details aria-label="Layout patterns" className="group border-b border-line">
+                <summary className="flex h-10 cursor-pointer list-none items-center gap-2 px-4 text-xs font-semibold select-none hover:bg-hover [&::-webkit-details-marker]:hidden">
+                    <Icon name="chevronRight" className="size-3.5 text-faint transition-transform group-open:rotate-90" />
+                    Starting layouts
+                </summary>
+                <p className="px-4 pb-2 text-2xs text-muted">Editable blocks. Choose images, menus and forms after inserting.</p>
+                <div className="space-y-px px-2 pb-3">
                     {patterns.map((pattern) => {
                         const placement = insertionFor(doc, selectedId, pattern.template.type);
                         return (
                             <button
                                 type="button"
-                                className="w-full text-left ui-input text-xs"
+                                className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-xs text-fg hover:bg-hover disabled:opacity-40"
                                 key={pattern.id}
                                 title={pattern.description}
                                 disabled={!canEdit || !placement}
@@ -275,16 +290,17 @@ export function LayersPanel({ document: doc, selectedId, canEdit, onSelect, onSt
                                     onStructure(insertOps(placement, nodes), nodes[0]!.id);
                                 }}
                             >
+                                <Icon name="layers" className="size-3.5 text-faint" />
                                 {pattern.name}
                             </button>
                         );
                     })}
                 </div>
             </details>
-            <section aria-label="Add component" className="border-b border-line px-4 py-3.5">
+            <section aria-label="Add component" className="border-b border-line p-4">
                 <h2 className="text-xs font-semibold">Add a block</h2>
-                <p className="mt-0.5 mb-2.5 text-[11px] text-muted">Click to add after the selection, or drag onto the canvas or into the outline.</p>
-                <div className="grid max-h-48 grid-cols-3 gap-1.5 overflow-y-auto pr-1" aria-label="Block palette">
+                <p className="mt-0.5 mb-2.5 text-2xs text-muted">Click to add after the selection, or drag onto the canvas or into the outline.</p>
+                <div className="grid grid-cols-3 gap-1.5" aria-label="Block palette">
                     {addableTypes().map((type) => {
                         const placement = insertionFor(doc, selectedId, type);
                         const name = currentDefinition(type)?.label ?? type;
@@ -306,9 +322,9 @@ export function LayersPanel({ document: doc, selectedId, canEdit, onSelect, onSt
                                 aria-expanded={type === 'columns' ? pickingColumns : undefined}
                                 aria-label={`Add ${name}`}
                                 data-testid={`add-${type}`}
-                                className="flex h-14 cursor-grab flex-col items-center justify-center gap-1 rounded-md border border-line bg-surface text-[11px] font-medium text-fg select-none hover:border-accent-line hover:bg-accent-soft disabled:pointer-events-none disabled:opacity-40"
+                                className="group/tile flex h-14 cursor-grab flex-col items-center justify-center gap-1 rounded-md border border-line bg-raised px-1 text-center text-2xs leading-tight font-medium text-fg transition-[background-color,border-color,box-shadow] duration-100 select-none hover:border-line-strong hover:bg-surface hover:shadow-raise disabled:pointer-events-none disabled:opacity-40"
                             >
-                                <Icon name={TYPE_ICON[type] ?? 'component'} className="size-4 text-muted" />
+                                <Icon name={TYPE_ICON[type] ?? 'component'} className="size-4 text-muted group-hover/tile:text-accent" />
                                 {name}
                             </button>
                         );
@@ -355,7 +371,7 @@ export function LayersPanel({ document: doc, selectedId, canEdit, onSelect, onSt
                         Add
                     </Button>
                 </div>
-                <p className="mt-1.5 text-[11px] text-muted">
+                <p className="mt-1.5 text-2xs text-muted">
                     Shared components and site colours live on the{' '}
                     <a href="/admin/design/components" className="font-medium text-accent hover:underline">
                         Design
@@ -363,10 +379,10 @@ export function LayersPanel({ document: doc, selectedId, canEdit, onSelect, onSt
                     page.
                 </p>
             </section>
-            <section aria-label="Layers" ref={treeRef} className="relative px-2 py-3" data-selection-scope>
+            <section aria-label="Layers" ref={treeRef} className="relative px-2 py-4" data-selection-scope>
                 <h2 className="mb-1.5 px-2 text-xs font-semibold">Outline</h2>
                 {(root.children ?? []).length === 0 ? (
-                    <p className="px-2 text-[0.8125rem] text-muted">The page is empty. Add a block above.</p>
+                    <p className="px-2 text-ui text-muted">The page is empty. Add a block above.</p>
                 ) : (
                     <ul role="tree" aria-label="Page structure" className="space-y-px">
                         {root.children!.map((id) => renderNode(id, 0))}
@@ -378,7 +394,7 @@ export function LayersPanel({ document: doc, selectedId, canEdit, onSelect, onSt
                     data-testid="layers-drop-indicator"
                     className="pointer-events-none absolute top-0 left-0 hidden rounded-full bg-accent data-[kind=inside]:rounded-md data-[kind=inside]:bg-accent-soft/60 data-[kind=inside]:outline-2 data-[kind=inside]:outline-accent data-[result=invalid]:bg-danger-soft data-[result=invalid]:outline-dashed data-[result=invalid]:outline-danger"
                 />
-                <p className="mt-3 px-2 text-[11px] leading-snug text-muted">
+                <p className="mt-3 px-2 text-2xs leading-snug text-muted">
                     Drag a row by its grip (or a block on the canvas by its Move handle) to reorder it or move it into a container; move the pointer left or
                     right at the end of a group to choose the level. The arrow buttons do the same from the keyboard. Esc cancels a drag; Ctrl+Z undoes a move.
                 </p>

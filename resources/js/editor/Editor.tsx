@@ -24,7 +24,7 @@ import { VIEWPORT_BREAKPOINT } from '@/arkon/style/edit';
 import { api, newRequestKey, type ApiResult } from '@/lib/api';
 import { useTheme } from '@/lib/theme';
 import { Icon } from '@/Components/Icon';
-import { Button, Spinner, buttonClass } from '@/Components/ui';
+import { Button, IconButton, Spinner, buttonClass } from '@/Components/ui';
 import type { EditorInit, LiveInfo, MediaInfo, PageStatus, RecoveryItem, Revision } from '@/types';
 import { Canvas, type Viewport } from './Canvas';
 import { DragProvider } from './drag/DragProvider';
@@ -42,7 +42,20 @@ import type { Protection } from './AnimationPanel';
 import { isDeleteKey, isTyping, useBlockActions } from './blockActions';
 import { DeleteDialog } from './DeleteDialog';
 import type { DragController } from './drag/controller';
-import { BackMark, EditorNotice, HistoryButtons, SaveStatus, SidebarTabs, ViewportSwitch, saveState } from './chrome';
+import {
+    BackMark,
+    EditorNotice,
+    EditorToolbar,
+    EditorWorkspace,
+    HistoryButtons,
+    SaveStatus,
+    ToolbarDivider,
+    ViewportSwitch,
+    saveState,
+    useOutlinePreference,
+    useWideLayout,
+    type PanelKey,
+} from './chrome';
 import { revealField, unresolvedNotice, withoutStaleAction, useActivity, useConflict, useLeaveGuard, useUnresolvedFields, type Notice } from './session';
 
 // The publish intent survives a reload of the tab, so an uncertain publish can still be retried safely.
@@ -95,7 +108,15 @@ export function Editor({ init }: { init: EditorInit }) {
     }, []);
     const { theme } = useTheme();
     const [viewport, setViewport] = useState<Viewport>('desktop');
-    const [tab, setTab] = useState<'inspect' | 'layers' | 'history' | 'ai'>('inspect');
+    const [tab, setTab] = useState<PanelKey>('inspect');
+    // The outline panel's own tab on wide screens (where Properties is always beside the canvas).
+    const [leftTab, setLeftTab] = useState<PanelKey>('layers');
+    const chooseTab = useCallback((value: PanelKey) => {
+        setTab(value);
+        if (value !== 'inspect') setLeftTab(value);
+    }, []);
+    const wide = useWideLayout();
+    const [outlineOpen, setOutlineOpen] = useOutlinePreference();
     const { conflict, conflictRef, setConflict } = useConflict();
     const [notice, setNotice] = useState<Notice | null>(null);
     const [live, setLive] = useState<LiveInfo | null>(init.live);
@@ -509,7 +530,7 @@ export function Editor({ init }: { init: EditorInit }) {
                 }
                 if (result.data.proposal && isReviewable(result.data)) {
                     setAiError(null);
-                    setTab('ai');
+                    chooseTab('ai');
                     showProposal(result.data.proposal);
                 }
             } catch {
@@ -601,7 +622,7 @@ export function Editor({ init }: { init: EditorInit }) {
                     return;
                 }
                 askAttempt.current = null;
-                setTab('ai');
+                chooseTab('ai');
                 track(result.data);
                 void refreshAi();
             } finally {
@@ -859,90 +880,116 @@ export function Editor({ init }: { init: EditorInit }) {
                 onCancel={actions.cancelRemove}
             />
             <div data-theme={theme} className="flex h-dvh flex-col bg-canvas text-fg">
-                <header className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-line bg-surface px-2 py-1.5 sm:px-3">
-                    <BackMark href="/admin" label="Arkon dashboard" />
-                    <div className="mr-1 min-w-0 border-l border-line pl-2.5">
-                        <p className="truncate text-[0.8125rem] leading-tight font-semibold" data-testid="page-title">
-                            {pageMeta.title}
-                        </p>
-                        <p className="truncate font-mono text-[11px] leading-tight text-muted" data-testid="page-path">
-                            {pageMeta.path}
-                        </p>
-                    </div>
-                    <div className="ml-auto flex items-center gap-1.5 lg:ml-4">
-                        <ViewportSwitch value={viewport} onChange={setViewport} />
-                        <HistoryButtons canUndo={doc.undo.length > 0 && !locked} canRedo={doc.redo.length > 0 && !locked} onStep={step} />
-                    </div>
-                    <div className="ml-auto flex min-w-0 items-center gap-2 max-md:w-full max-md:justify-end">
-                        <div className="hidden min-w-0 flex-col items-end gap-0.5 md:flex">
-                            <SaveStatus state={state} testId="save-status" />
-                            <p data-testid="live-status" className="flex items-center gap-1 truncate text-[11px] text-muted">
-                                {live ? (
-                                    <>
-                                        <span aria-hidden className="size-1.5 rounded-full bg-live" />
-                                        {`Live: revision #${live.revisionNumber} · ${new Date(live.publishedAt).toLocaleTimeString('en-GB')}`}
-                                    </>
-                                ) : (
-                                    'Not published'
-                                )}
-                            </p>
-                        </div>
-                        {live && (
-                            <a
-                                href={live.path}
-                                target="_blank"
-                                rel="noreferrer"
-                                className={buttonClass('ghost', 'md', 'max-lg:px-2')}
-                                title="Open the live page in a new tab"
+                <EditorToolbar
+                    start={
+                        <>
+                            <BackMark href="/admin" label="Arkon dashboard" />
+                            {wide && (
+                                <IconButton
+                                    icon="sidebar"
+                                    label={outlineOpen ? 'Hide outline' : 'Show outline'}
+                                    aria-pressed={outlineOpen}
+                                    onClick={() => setOutlineOpen(!outlineOpen)}
+                                />
+                            )}
+                            <ToolbarDivider />
+                            <div className="min-w-0 pl-1">
+                                <p className="flex min-w-0 items-baseline gap-2 leading-tight">
+                                    <span className="truncate text-ui font-semibold" data-testid="page-title">
+                                        {pageMeta.title}
+                                    </span>
+                                    <span className="truncate font-mono text-2xs text-muted" data-testid="page-path">
+                                        {pageMeta.path}
+                                    </span>
+                                </p>
+                                <p
+                                    data-testid="live-status"
+                                    className="mt-0.5 flex items-center gap-1.5 truncate text-2xs leading-tight text-muted max-md:hidden"
+                                >
+                                    {live ? (
+                                        <>
+                                            <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-live" />
+                                            {`Live: revision #${live.revisionNumber} · ${new Date(live.publishedAt).toLocaleTimeString('en-GB')}`}
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span aria-hidden className="size-1.5 shrink-0 rounded-full border border-draft" />
+                                            Not published
+                                        </>
+                                    )}
+                                </p>
+                            </div>
+                        </>
+                    }
+                    center={
+                        <>
+                            <ViewportSwitch value={viewport} onChange={setViewport} />
+                            <ToolbarDivider className="mx-1" />
+                            <HistoryButtons canUndo={doc.undo.length > 0 && !locked} canRedo={doc.redo.length > 0 && !locked} onStep={step} />
+                        </>
+                    }
+                    end={
+                        <>
+                            <span className="mr-1 inline-flex min-w-0 max-md:hidden">
+                                <SaveStatus state={state} testId="save-status" />
+                            </span>
+                            {live && (
+                                <a
+                                    href={live.path}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className={buttonClass('ghost', 'md', 'max-lg:px-2')}
+                                    title="Open the live page in a new tab"
+                                >
+                                    <Icon name="external" />
+                                    <span className="max-lg:sr-only">View live</span>
+                                </a>
+                            )}
+                            <Button
+                                icon="eye"
+                                disabled={busy || locked}
+                                title="Save the draft and open a preview of it in a new tab"
+                                onClick={async () => {
+                                    // The preview would not show what is typed in an unresolved field.
+                                    if (recoveryRef.current || blockedByUnresolved('previewing')) return;
+                                    // Open synchronously (popup blockers), then point it at the preview once the draft is saved.
+                                    const preview = window.open('about:blank', '_blank');
+                                    const version = await save();
+                                    // Rechecked after the save: input typed while it was pending must not be skipped.
+                                    if (version === null || blockedByUnresolved('previewing')) preview?.close();
+                                    else if (preview) preview.location.href = `/preview/${pageId}`;
+                                }}
                             >
-                                <Icon name="external" />
-                                <span className="max-lg:sr-only">View live</span>
-                            </a>
-                        )}
-                        <Button
-                            icon="eye"
-                            disabled={busy || locked}
-                            title="Save the draft and open a preview of it in a new tab"
-                            onClick={async () => {
-                                // The preview would not show what is typed in an unresolved field.
-                                if (recoveryRef.current || blockedByUnresolved('previewing')) return;
-                                // Open synchronously (popup blockers), then point it at the preview once the draft is saved.
-                                const preview = window.open('about:blank', '_blank');
-                                const version = await save();
-                                // Rechecked after the save: input typed while it was pending must not be skipped.
-                                if (version === null || blockedByUnresolved('previewing')) preview?.close();
-                                else if (preview) preview.location.href = `/preview/${pageId}`;
-                            }}
-                        >
-                            Preview
-                        </Button>
-                        <Button
-                            icon="save"
-                            disabled={!unsaved || busy || locked || !canEdit}
-                            onClick={() => void save()}
-                            title="Save the draft (Ctrl+S). The live page does not change."
-                        >
-                            Save draft
-                        </Button>
-                        <Button
-                            variant="primary"
-                            icon="globe"
-                            busy={activity === 'publishing'}
-                            disabled={busy || locked || !canPublish}
-                            onClick={() => void publish()}
-                            title={canPublish ? 'Publish this version to the live site' : "You don't have permission to publish"}
-                        >
-                            Publish
-                        </Button>
-                    </div>
-                </header>
+                                Preview
+                            </Button>
+                            <Button
+                                icon="save"
+                                disabled={!unsaved || busy || locked || !canEdit}
+                                onClick={() => void save()}
+                                title="Save the draft (Ctrl+S). The live page does not change."
+                            >
+                                Save draft
+                            </Button>
+                            <Button
+                                variant="primary"
+                                icon="globe"
+                                busy={activity === 'publishing'}
+                                disabled={busy || locked || !canPublish}
+                                onClick={() => void publish()}
+                                title={canPublish ? 'Publish this version to the live site' : "You don't have permission to publish"}
+                            >
+                                Publish
+                            </Button>
+                        </>
+                    }
+                />
                 {/* On narrow screens the status moves under the toolbar, so it is never hidden. */}
                 <div className="flex items-center gap-2 border-b border-line bg-surface px-3 py-1.5 md:hidden">
                     <SaveStatus state={state} testId="save-status-compact" />
-                    <span className="truncate text-[11px] text-muted">{live ? `Live: revision #${live.revisionNumber}` : 'Not published'}</span>
+                    <span className="truncate text-2xs text-muted">{live ? `Live: revision #${live.revisionNumber}` : 'Not published'}</span>
                 </div>
                 {!canPublish && (
-                    <p className="border-b border-line bg-raised px-3 py-1.5 text-[11px] text-muted" data-testid="role-note">
+                    <p className="border-b border-line bg-raised px-3 py-1.5 text-2xs text-muted" data-testid="role-note">
                         <Icon name="lock" className="mr-1 inline size-3" />
                         You can edit and save drafts. Someone with publishing rights makes them live.
                     </p>
@@ -950,49 +997,13 @@ export function Editor({ init }: { init: EditorInit }) {
 
                 {notice && <EditorNotice notice={notice} conflict={conflict} onDismiss={() => setNotice(null)} />}
 
-                <div className="flex min-h-0 flex-1 max-md:flex-col">
-                    <section className="flex min-h-0 min-w-0 flex-1 flex-col max-md:h-[55vh] max-md:flex-none" aria-label="Canvas">
-                        {proposal && (
-                            <div className="flex items-center gap-2 border-b border-ai/25 bg-ai-soft px-3 py-1.5 text-xs text-fg" data-testid="proposal-banner">
-                                <Icon name="sparkle" className="size-3.5 text-ai" />
-                                {proposal.canvas
-                                    ? 'Preview of the AI proposal. Nothing has changed yet: Apply or Discard it in the AI panel.'
-                                    : 'The AI proposed no changes.'}
-                            </div>
-                        )}
-                        <div className="min-h-0 flex-1">
-                            <Canvas
-                                document={proposal ? undefined : doc.document}
-                                renderPending={renderPending}
-                                body={proposal?.canvas?.body ?? canvas.body}
-                                css={proposal?.canvas?.css ?? canvas.css}
-                                multiline={init.multiline}
-                                selectedId={selectedId}
-                                selectedPart={selectedPart}
-                                viewport={viewport}
-                                renderToken={canvasToken}
-                                onSelect={(nodeId, part) => {
-                                    selectPart(nodeId, part ?? null);
-                                    if (nodeId) setTab((current) => (current === 'layers' || current === 'history' ? 'inspect' : current));
-                                }}
-                                onInlineEdit={(nodeId, prop, value) =>
-                                    apply([{ op: 'updateProps', nodeId, set: { [prop]: value } }], { coalesceKey: `${nodeId}:${prop}`, fromCanvas: true })
-                                }
-                                onSaveShortcut={() => void save()}
-                                onDuplicate={canEdit && !locked ? actions.duplicate : undefined}
-                                onDelete={canEdit && !locked ? actions.remove : undefined}
-                                onAddInto={canEdit && !locked ? actions.addInto : undefined}
-                                replay={actions.replay}
-                                documentVersion={docSeq.current}
-                                readOnly={recovery !== null || proposal !== null}
-                            />
-                        </div>
-                    </section>
-                    <aside
-                        className="flex min-h-0 w-full shrink-0 flex-col border-line bg-surface max-md:flex-1 max-md:border-t md:w-[20rem] md:border-l xl:w-[22rem]"
-                        aria-label="Sidebar"
-                    >
-                        {recovery ? (
+                <EditorWorkspace<PanelKey>
+                    tab={tab}
+                    leftTab={leftTab}
+                    onTab={chooseTab}
+                    outlineOpen={outlineOpen}
+                    replaceSidebar={
+                        recovery ? (
                             <div className="min-h-0 flex-1 overflow-auto">
                                 <RecoveryPanel
                                     items={recovery}
@@ -1002,127 +1013,162 @@ export function Editor({ init }: { init: EditorInit }) {
                                     onApply={applyRepair}
                                 />
                             </div>
-                        ) : (
-                            <>
-                                <SidebarTabs<typeof tab>
-                                    value={tab}
-                                    onChange={setTab}
-                                    tabs={[
-                                        { value: 'inspect', label: 'Properties', icon: 'sliders' },
-                                        { value: 'layers', label: 'Layers', icon: 'layers' },
-                                        { value: 'history', label: 'History', icon: 'history' },
-                                        {
-                                            value: 'ai',
-                                            label: 'AI',
-                                            icon: 'sparkle',
-                                            badge:
-                                                proposal || waitingProposals > 0 ? (
-                                                    <span
-                                                        className="rounded-full bg-ai px-1 text-[10px] leading-4 text-surface tabular-nums"
-                                                        aria-label="proposal waiting for review"
-                                                    >
-                                                        {proposal ? 1 : waitingProposals}
-                                                    </span>
-                                                ) : tracked && isActive(tracked) ? (
-                                                    <Spinner className="size-3 text-ai" />
-                                                ) : undefined,
-                                        },
-                                    ]}
+                        ) : undefined
+                    }
+                    tabs={[
+                        { value: 'inspect', label: 'Properties', icon: 'sliders' },
+                        { value: 'layers', label: 'Layers', icon: 'layers' },
+                        { value: 'history', label: 'History', icon: 'history' },
+                        {
+                            value: 'ai',
+                            label: 'AI',
+                            icon: 'sparkle',
+                            badge:
+                                proposal || waitingProposals > 0 ? (
+                                    <span
+                                        className="rounded-full bg-ai px-1 text-3xs leading-4 text-surface tabular-nums"
+                                        aria-label="proposal waiting for review"
+                                    >
+                                        {proposal ? 1 : waitingProposals}
+                                    </span>
+                                ) : tracked && isActive(tracked) ? (
+                                    <Spinner className="size-3 text-ai" />
+                                ) : undefined,
+                        },
+                    ]}
+                    canvas={
+                        <>
+                            {proposal && (
+                                <div
+                                    className="flex items-center gap-2 border-b border-ai/25 bg-ai-soft px-3 py-1.5 text-xs text-fg"
+                                    data-testid="proposal-banner"
+                                >
+                                    <Icon name="sparkle" className="size-3.5 text-ai" />
+                                    {proposal.canvas
+                                        ? 'Preview of the AI proposal. Nothing has changed yet: Apply or Discard it in the AI panel.'
+                                        : 'The AI proposed no changes.'}
+                                </div>
+                            )}
+                            <div className="min-h-0 flex-1">
+                                <Canvas
+                                    document={proposal ? undefined : doc.document}
+                                    renderPending={renderPending}
+                                    body={proposal?.canvas?.body ?? canvas.body}
+                                    css={proposal?.canvas?.css ?? canvas.css}
+                                    multiline={init.multiline}
+                                    selectedId={selectedId}
+                                    selectedPart={selectedPart}
+                                    viewport={viewport}
+                                    renderToken={canvasToken}
+                                    onSelect={(nodeId, part) => {
+                                        selectPart(nodeId, part ?? null);
+                                        if (nodeId) setTab((current) => (current === 'layers' || current === 'history' ? 'inspect' : current));
+                                    }}
+                                    onInlineEdit={(nodeId, prop, value) =>
+                                        apply([{ op: 'updateProps', nodeId, set: { [prop]: value } }], { coalesceKey: `${nodeId}:${prop}`, fromCanvas: true })
+                                    }
+                                    onSaveShortcut={() => void save()}
+                                    onDuplicate={canEdit && !locked ? actions.duplicate : undefined}
+                                    onDelete={canEdit && !locked ? actions.remove : undefined}
+                                    onAddInto={canEdit && !locked ? actions.addInto : undefined}
+                                    replay={actions.replay}
+                                    documentVersion={docSeq.current}
+                                    readOnly={recovery !== null || proposal !== null}
                                 />
-                                <div className="min-h-0 flex-1 overflow-auto" data-testid="sidebar-body">
-                                    {tab === 'layers' ? (
-                                        <LayersPanel
+                            </div>
+                        </>
+                    }
+                    render={(panel) =>
+                        panel === 'layers' ? (
+                            <LayersPanel
+                                document={doc.document}
+                                selectedId={selectedId}
+                                canEdit={canEdit && !locked}
+                                onSelect={setSelectedId}
+                                onStructure={structure}
+                                components={components}
+                                onDuplicate={actions.duplicate}
+                                onDelete={actions.remove}
+                            />
+                        ) : panel === 'inspect' ? (
+                            <Inspector
+                                document={doc.document}
+                                selected={selectedNode}
+                                part={selectedPart}
+                                onSelectPart={selectPart}
+                                onSelectNode={setSelectedId}
+                                media={media}
+                                canEdit={canEdit && !locked}
+                                canUpload={canUpload}
+                                onChange={(ops, coalesceKey) => apply(ops, { coalesceKey })}
+                                onUpload={upload}
+                                unresolved={unresolved}
+                                onUnresolved={setUnresolved}
+                                breakpoint={VIEWPORT_BREAKPOINT[viewport]}
+                                onBreakpoint={(bp) => setViewport(bp === 'base' ? 'desktop' : bp)}
+                                tokens={init.tokens}
+                                components={components}
+                                onDetach={detach}
+                                motion={proposal ? undefined : canvas.motion}
+                                onReplay={actions.replayBlock}
+                                toolbar={
+                                    selectedNode && (
+                                        <StructureBar
                                             document={doc.document}
-                                            selectedId={selectedId}
+                                            node={selectedNode}
                                             canEdit={canEdit && !locked}
                                             onSelect={setSelectedId}
                                             onStructure={structure}
-                                            components={components}
+                                            onMakeReusable={(nodeId, name) => void makeReusable(nodeId, name)}
                                             onDuplicate={actions.duplicate}
                                             onDelete={actions.remove}
                                         />
-                                    ) : tab === 'inspect' ? (
-                                        <Inspector
-                                            document={doc.document}
-                                            selected={selectedNode}
-                                            part={selectedPart}
-                                            onSelectPart={selectPart}
-                                            onSelectNode={setSelectedId}
-                                            media={media}
-                                            canEdit={canEdit && !locked}
-                                            canUpload={canUpload}
-                                            onChange={(ops, coalesceKey) => apply(ops, { coalesceKey })}
-                                            onUpload={upload}
-                                            unresolved={unresolved}
-                                            onUnresolved={setUnresolved}
-                                            breakpoint={VIEWPORT_BREAKPOINT[viewport]}
-                                            onBreakpoint={(bp) => setViewport(bp === 'base' ? 'desktop' : bp)}
-                                            tokens={init.tokens}
-                                            components={components}
-                                            onDetach={detach}
-                                            motion={proposal ? undefined : canvas.motion}
-                                            onReplay={actions.replayBlock}
-                                            toolbar={
-                                                selectedNode && (
-                                                    <StructureBar
-                                                        document={doc.document}
-                                                        node={selectedNode}
-                                                        canEdit={canEdit && !locked}
-                                                        onSelect={setSelectedId}
-                                                        onStructure={structure}
-                                                        onMakeReusable={(nodeId, name) => void makeReusable(nodeId, name)}
-                                                        onDuplicate={actions.duplicate}
-                                                        onDelete={actions.remove}
-                                                    />
-                                                )
-                                            }
-                                            pageSettings={
-                                                <PageSettings
-                                                    key={`${pageMeta.title}|${pageMeta.path}`}
-                                                    title={pageMeta.title}
-                                                    path={pageMeta.path}
-                                                    live={live && { title: live.title, path: live.path }}
-                                                    canEdit={canEdit && !locked}
-                                                    blockedReason={
-                                                        unsaved
-                                                            ? 'Save your changes first, then update the title and URL.'
-                                                            : busy
-                                                              ? 'Wait for the current action to finish.'
-                                                              : null
-                                                    }
-                                                    onApply={applySettings}
-                                                />
-                                            }
-                                        />
-                                    ) : tab === 'history' ? (
-                                        <HistoryPanel revisions={revisions} canRestore={canEdit && !locked && !busy} onRestore={(r) => void restore(r)} />
-                                    ) : (
-                                        <AiPanel
-                                            available={init.ai.available && !conflict}
-                                            unavailableReason={conflict ? 'Reload the page to continue.' : init.ai.reason}
-                                            promptMax={init.ai.promptMax}
-                                            connection={aiConnection}
-                                            requests={aiRequests}
-                                            tracked={tracked}
-                                            sending={sending}
-                                            onCancel={(id) => void cancelRequest(id)}
-                                            onReview={(id) => void reviewRequest(id)}
-                                            proposal={proposal}
-                                            applyBlocker={proposal ? proposalBlocker(doc, proposal, unresolvedCount) : null}
-                                            error={aiError}
-                                            history={aiHistory}
-                                            onAsk={(prompt) => void askAi(prompt)}
-                                            onApply={applyProposal}
-                                            onDiscard={discardProposal}
-                                            onApplyTokens={() => void applyProposalTokens()}
-                                            tokensBusy={tokensBusy}
-                                        />
-                                    )}
-                                </div>
-                            </>
-                        )}
-                    </aside>
-                </div>
+                                    )
+                                }
+                                pageSettings={
+                                    <PageSettings
+                                        key={`${pageMeta.title}|${pageMeta.path}`}
+                                        title={pageMeta.title}
+                                        path={pageMeta.path}
+                                        live={live && { title: live.title, path: live.path }}
+                                        canEdit={canEdit && !locked}
+                                        blockedReason={
+                                            unsaved
+                                                ? 'Save your changes first, then update the title and URL.'
+                                                : busy
+                                                  ? 'Wait for the current action to finish.'
+                                                  : null
+                                        }
+                                        onApply={applySettings}
+                                    />
+                                }
+                            />
+                        ) : panel === 'history' ? (
+                            <HistoryPanel revisions={revisions} canRestore={canEdit && !locked && !busy} onRestore={(r) => void restore(r)} />
+                        ) : (
+                            <AiPanel
+                                available={init.ai.available && !conflict}
+                                unavailableReason={conflict ? 'Reload the page to continue.' : init.ai.reason}
+                                promptMax={init.ai.promptMax}
+                                connection={aiConnection}
+                                requests={aiRequests}
+                                tracked={tracked}
+                                sending={sending}
+                                onCancel={(id) => void cancelRequest(id)}
+                                onReview={(id) => void reviewRequest(id)}
+                                proposal={proposal}
+                                applyBlocker={proposal ? proposalBlocker(doc, proposal, unresolvedCount) : null}
+                                error={aiError}
+                                history={aiHistory}
+                                onAsk={(prompt) => void askAi(prompt)}
+                                onApply={applyProposal}
+                                onDiscard={discardProposal}
+                                onApplyTokens={() => void applyProposalTokens()}
+                                tokensBusy={tokensBusy}
+                            />
+                        )
+                    }
+                />
             </div>
         </DragProvider>
     );

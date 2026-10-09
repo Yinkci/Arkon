@@ -69,7 +69,7 @@ export function RecoveryPanel({ items, document, canEdit, onShow, onApply }: Rec
     return (
         <section aria-labelledby={headingId} className="space-y-4 p-4" data-testid="recovery">
             <div>
-                <h2 id={headingId} className="text-sm font-semibold">
+                <h2 id={headingId} className="t-title">
                     This draft needs repair
                 </h2>
                 <p className="mt-1 text-xs leading-snug text-muted">
@@ -102,7 +102,7 @@ export function RecoveryPanel({ items, document, canEdit, onShow, onApply }: Rec
                     <button type="button" disabled={ops === null} onClick={() => ops && onApply(ops)} className={buttonClass('primary', 'md', 'w-full')}>
                         Apply repair
                     </button>
-                    <p className="text-[11px] text-muted">Then save the draft. Publishing works again once it is saved.</p>
+                    <p className="text-2xs text-muted">Then save the draft. Publishing works again once it is saved.</p>
                 </div>
             ) : (
                 <p className="text-xs text-muted">Only members who can edit this page can repair it.</p>
@@ -116,11 +116,7 @@ function RecoveryRow(props: { item: RecoveryItem; label: string; choice: Choice;
     const ids = { name: useId(), input: useId(), error: useId() };
     const error = choice?.action === 'correct' ? linkError(choice.value) : null;
     return (
-        <li
-            className="space-y-2 rounded-md border border-changed/30 bg-changed-soft p-3 text-[0.8125rem]"
-            data-testid="recovery-item"
-            data-node-id={item.nodeId}
-        >
+        <li className="space-y-2 rounded-md border border-changed/30 bg-changed-soft p-3 text-ui" data-testid="recovery-item" data-node-id={item.nodeId}>
             <div className="flex items-start justify-between gap-2">
                 <p className="font-medium">{label}</p>
                 <button type="button" onClick={props.onShow} className="shrink-0 text-xs font-medium text-accent hover:underline">

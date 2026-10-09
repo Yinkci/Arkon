@@ -82,9 +82,9 @@ export function ScreenBar({
         return countAt(style, bp, slot) + presets;
     };
     return (
-        <div className="space-y-1.5 border-b border-line bg-raised px-4 py-2.5" data-testid="screen-bar">
+        <div className="space-y-2 border-b border-line bg-raised px-4 py-3" data-testid="screen-bar">
             <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-medium text-muted">Design for</span>
+                <span className="text-xs font-medium whitespace-nowrap text-muted">Design for</span>
                 <Segmented
                     label="Screen size being edited"
                     size="sm"
@@ -96,14 +96,14 @@ export function ScreenBar({
                         icon: bp === 'base' ? 'desktop' : bp,
                         badge:
                             bp !== 'base' && count(bp) > 0 ? (
-                                <span className="rounded-full bg-accent-soft px-1 text-[10px] text-accent tabular-nums" aria-label={`${count(bp)} overrides`}>
+                                <span className="rounded-sm bg-accent-soft px-1 text-3xs text-accent tabular-nums" aria-label={`${count(bp)} overrides`}>
                                     {count(bp)}
                                 </span>
                             ) : undefined,
                     }))}
                 />
             </div>
-            <p className="text-[11px] leading-snug text-muted">
+            <p className="text-2xs leading-snug text-muted">
                 {breakpoint === 'base'
                     ? 'Values apply on every screen unless tablet or mobile overrides them.'
                     : `Overrides for ${breakpoint === 'tablet' ? 'tablets and phones (899 px and narrower)' : 'phones (599 px and narrower)'}. Anything not set here is inherited.`}
@@ -144,47 +144,65 @@ export function StyleControl({
     const disabled = !target.canEdit || baseOnlyHere;
     const onSet = setter(target, property);
     const state = own !== undefined ? (target.breakpoint === 'base' ? null : `${target.breakpoint === 'tablet' ? 'Tablet' : 'Mobile'} override`) : null;
+    // Rich controls (an image picker, a gradient editor) need the panel's full width: label above.
+    const stacked = definition.kind === 'image' || definition.kind === 'gradient';
 
     return (
-        <div data-testid={testId ?? `style-${property}`} data-state={own !== undefined ? 'set' : inherited !== undefined ? 'inherited' : 'default'}>
-            <div className="mb-1 flex min-h-5 items-center gap-1.5">
-                <label htmlFor={id} className={`min-w-0 flex-1 truncate text-xs ${own !== undefined ? 'font-semibold text-fg' : 'font-medium text-muted'}`}>
+        // A property row: the name (with its override state) beside the control, so a group of
+        // settings reads as a compact table instead of a tall form.
+        <div
+            data-testid={testId ?? `style-${property}`}
+            data-state={own !== undefined ? 'set' : inherited !== undefined ? 'inherited' : 'default'}
+            className={stacked ? 'space-y-1.5' : 'grid grid-cols-[minmax(0,6.25rem)_minmax(0,1fr)] gap-x-3'}
+        >
+            <div className={stacked ? 'flex flex-wrap items-center gap-x-2' : 'flex min-h-7 flex-col justify-center self-start py-0.5'}>
+                <label
+                    htmlFor={id}
+                    title={name}
+                    className={`text-xs leading-4 break-words ${own !== undefined ? 'font-semibold text-fg' : 'font-medium text-muted'}`}
+                >
+                    {own !== undefined && <span aria-hidden="true" className="mr-1 inline-block size-1.5 rounded-full bg-accent align-middle" />}
                     {name}
                 </label>
                 {state && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-1.5 text-[10px] font-medium text-accent">
+                    <span className="mt-0.5 inline-flex items-center gap-1 text-3xs font-medium text-accent">
                         <Icon name={target.breakpoint === 'tablet' ? 'tablet' : 'mobile'} className="size-2.5" />
                         {state}
                     </span>
                 )}
-                {own !== undefined && (
-                    <button
-                        type="button"
-                        disabled={!target.canEdit}
-                        onClick={() => onSet(null)}
-                        className="inline-flex items-center gap-0.5 rounded px-1 text-[11px] text-muted hover:bg-sunken hover:text-fg disabled:opacity-40"
-                        aria-label={`Reset ${name} on ${BREAKPOINT_LABEL[target.breakpoint].toLowerCase()}`}
-                        title={target.breakpoint === 'base' ? 'Back to the default' : `Back to the value inherited from larger screens`}
-                    >
-                        <Icon name="reset" className="size-3" />
-                        Reset
-                    </button>
-                )}
             </div>
-            <ValueInput
-                id={id}
-                property={property}
-                definition={definition}
-                own={own}
-                inherited={inherited}
-                target={target}
-                disabled={disabled}
-                onSet={onSet}
-                name={name}
-                check={check}
-            />
-            <StateLine effective={effective} breakpoint={target.breakpoint} own={own} media={target.media} baseOnly={baseOnlyHere} property={property} />
-            {hint && <p className="mt-1 text-[11px] leading-snug text-muted">{hint}</p>}
+            <div className="min-w-0">
+                <div className="flex items-center gap-1">
+                    <div className="min-w-0 flex-1">
+                        <ValueInput
+                            id={id}
+                            property={property}
+                            definition={definition}
+                            own={own}
+                            inherited={inherited}
+                            target={target}
+                            disabled={disabled}
+                            onSet={onSet}
+                            name={name}
+                            check={check}
+                        />
+                    </div>
+                    {own !== undefined && (
+                        <button
+                            type="button"
+                            disabled={!target.canEdit}
+                            onClick={() => onSet(null)}
+                            className="grid size-7 shrink-0 place-items-center rounded-md text-muted hover:bg-hover hover:text-fg disabled:opacity-40"
+                            aria-label={`Reset ${name} on ${BREAKPOINT_LABEL[target.breakpoint].toLowerCase()}`}
+                            title={target.breakpoint === 'base' ? 'Reset: back to the default' : `Reset: back to the value inherited from larger screens`}
+                        >
+                            <Icon name="reset" className="size-3.5" />
+                        </button>
+                    )}
+                </div>
+                <StateLine effective={effective} breakpoint={target.breakpoint} own={own} media={target.media} baseOnly={baseOnlyHere} property={property} />
+                {hint && <p className="mt-1 text-2xs leading-snug text-muted">{hint}</p>}
+            </div>
         </div>
     );
 }
@@ -204,17 +222,17 @@ function StateLine({
     baseOnly: boolean;
     property: string;
 }) {
-    if (baseOnly) return <p className="mt-1 text-[11px] text-muted">Set on all screens only.</p>;
+    if (baseOnly) return <p className="mt-1 text-2xs text-muted">Set on all screens only.</p>;
     if (own !== undefined) return null;
     if (effective.from !== null && effective.value !== undefined) {
         return (
-            <p className="mt-1 flex items-center gap-1 truncate text-[11px] text-muted">
+            <p className="mt-1 flex items-center gap-1 truncate text-2xs text-muted">
                 <Icon name="arrowDown" className="size-3 text-faint" />
                 From {SCREEN_NOUN[effective.from]}: {display(effective.value, media, property)}
             </p>
         );
     }
-    return <p className="mt-1 text-[11px] text-faint">Default{breakpoint === 'base' ? '' : ' on every screen'}</p>;
+    return <p className="mt-1 text-2xs text-faint">Default{breakpoint === 'base' ? '' : ' on every screen'}</p>;
 }
 
 function display(value: StyleValue, media: MediaInfo[], property: string): string {
@@ -270,7 +288,7 @@ function ValueInput(props: ValueInputProps) {
                     onChoose={(id) => props.onSet(id ? { assetId: id } : null)}
                     scopeKey={`${target.part.slot}:${target.breakpoint}`}
                 />
-                <p className="mt-1 text-[11px] text-muted">
+                <p className="mt-1 text-2xs text-muted">
                     {definition.baseOnly ? 'This background image applies to all screens.' : 'Uses the selected screen. Reset restores inheritance.'}
                 </p>
             </div>
@@ -373,7 +391,7 @@ function LengthInput(props: ValueInputProps & { tokens: [string, string][] }) {
                 />
                 <select
                     aria-label={`${props.name} unit`}
-                    className="ui-input w-[5.25rem] shrink-0"
+                    className="ui-input w-[4.25rem] shrink-0"
                     disabled={props.disabled}
                     value={unit}
                     onChange={(e) => {
@@ -412,7 +430,7 @@ function LengthInput(props: ValueInputProps & { tokens: [string, string][] }) {
                 </select>
             </div>
             {error && (
-                <p role="alert" className="mt-1 text-[11px] text-danger">
+                <p role="alert" className="mt-1 text-2xs text-danger">
                     {error}
                 </p>
             )}
@@ -457,7 +475,7 @@ function FreeInput(props: ValueInputProps & { tokens: [string, string][] }) {
                         disabled={props.disabled}
                         value={swatch && /^#[0-9a-f]{6}$/i.test(swatch) ? swatch : '#000000'}
                         onChange={(e) => change(e.target.value)}
-                        className="h-8 w-9 shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface p-0.5"
+                        className="size-7 shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface p-0.5"
                     />
                 )}
                 <input
@@ -485,7 +503,7 @@ function FreeInput(props: ValueInputProps & { tokens: [string, string][] }) {
                 ))}
             </datalist>
             {error && (
-                <p role="alert" className="mt-1 text-[11px] text-danger">
+                <p role="alert" className="mt-1 text-2xs text-danger">
                     {error}
                 </p>
             )}
@@ -524,7 +542,7 @@ export function StyleGroups({ target, exclude = [], title = 'More design setting
     return (
         <div data-testid="style-groups">
             {groups.length > 0 && (
-                <p className="border-t border-line px-4 pt-3 pb-1 text-[11px] font-medium text-faint">
+                <p className="border-t border-line px-4 pt-4 pb-1 t-eyebrow">
                     {title} · {target.part.label}
                 </p>
             )}
@@ -537,7 +555,7 @@ export function StyleGroups({ target, exclude = [], title = 'More design setting
                         title={label}
                         collapsible
                         defaultOpen={set > 0}
-                        aside={set > 0 ? <span className="text-[11px] font-normal text-muted tabular-nums">{set} set</span> : undefined}
+                        aside={set > 0 ? <span className="text-2xs font-normal text-muted tabular-nums">{set} set</span> : undefined}
                     >
                         {keys.map((key) => (
                             <StyleControl

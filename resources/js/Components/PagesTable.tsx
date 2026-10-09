@@ -24,23 +24,23 @@ export function StatusMark({ status, className = '' }: { status: PageStatus; cla
     );
 }
 
-const action = 'inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-muted hover:bg-sunken hover:text-fg';
+const action = 'inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-muted hover:bg-hover hover:text-fg';
 
 export function PagesTable({ pages, canPublish, canDelete }: { pages: PageRow[]; canPublish: boolean; canDelete: boolean }) {
     return (
         <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted max-sm:sr-only">
+            <thead className="text-left max-sm:sr-only">
                 <tr className="border-b border-line">
-                    <th scope="col" className="w-full py-2 pr-4 font-normal">
+                    <th scope="col" className="h-11 w-full pr-4 t-eyebrow">
                         Page
                     </th>
-                    <th scope="col" className="min-w-44 py-2 pr-4 font-normal">
+                    <th scope="col" className="h-11 min-w-44 pr-4 t-eyebrow">
                         Status
                     </th>
-                    <th scope="col" className="hidden min-w-32 py-2 pr-4 font-normal md:table-cell">
+                    <th scope="col" className="hidden h-9 min-w-32 pr-4 t-eyebrow md:table-cell">
                         Last published
                     </th>
-                    <th scope="col" className="py-2">
+                    <th scope="col" className="h-11">
                         <span className="sr-only">Actions</span>
                     </th>
                 </tr>
@@ -49,28 +49,28 @@ export function PagesTable({ pages, canPublish, canDelete }: { pages: PageRow[];
                 {pages.map((page) => (
                     <tr
                         key={page.id}
-                        className="border-b border-line last:border-b-0 max-sm:flex max-sm:flex-wrap max-sm:items-center max-sm:gap-x-3 max-sm:gap-y-1 max-sm:py-3"
+                        className="border-b border-line transition-colors last:border-b-0 hover:bg-hover max-sm:flex max-sm:flex-wrap max-sm:items-center max-sm:gap-x-3 max-sm:gap-y-1 max-sm:py-3"
                         data-testid="page-row"
                         data-path={page.path}
                     >
-                        <td className="py-3 pr-4 align-middle max-sm:basis-full max-sm:py-0">
-                            <Link href={`/admin/editor/${page.id}`} className="font-medium hover:text-accent">
+                        <td className="py-3.5 pr-4 align-middle max-sm:basis-full max-sm:py-0">
+                            <Link href={`/admin/editor/${page.id}`} className="font-medium text-fg hover:text-accent">
                                 {page.title}
                             </Link>
-                            <p className="mt-0.5 font-mono break-all text-[11px] text-muted">
+                            <p className="mt-0.5 font-mono break-all text-xs text-muted">
                                 {page.path}
                                 {page.livePath && page.livePath !== page.path && <span className="ml-1.5 text-changed">live at {page.livePath}</span>}
                             </p>
                         </td>
-                        <td className="py-3 pr-4 align-middle whitespace-nowrap max-sm:py-0">
-                            <span className="inline-flex items-center gap-1.5 text-xs text-fg">
+                        <td className="py-3.5 pr-4 align-middle whitespace-nowrap max-sm:py-0">
+                            <span className="inline-flex items-center gap-1.5 text-ui text-muted">
                                 <StatusMark status={page.status} />
                                 {STATUS_LABEL[page.status]}
                             </span>
                         </td>
-                        <td className="hidden py-3 pr-4 align-middle text-xs whitespace-nowrap text-muted tabular-nums md:table-cell">
+                        <td className="hidden py-3.5 pr-4 align-middle text-ui whitespace-nowrap text-muted tabular-nums md:table-cell">
                             {page.updatedAt && (
-                                <p className="mb-1 text-[11px] text-muted" title={fullDate(page.updatedAt)}>
+                                <p className="text-xs text-faint" title={fullDate(page.updatedAt)}>
                                     Edited {relativeTime(page.updatedAt)}
                                 </p>
                             )}
@@ -82,7 +82,7 @@ export function PagesTable({ pages, canPublish, canDelete }: { pages: PageRow[];
                                 <span className="text-faint">Never</span>
                             )}
                         </td>
-                        <td className="py-3 align-middle max-sm:ml-auto max-sm:py-0">
+                        <td className="py-3.5 align-middle max-sm:ml-auto max-sm:py-0">
                             <div className="flex items-center justify-end gap-1 text-xs whitespace-nowrap">
                                 {page.livePath && (
                                     <a href={page.livePath} target="_blank" rel="noreferrer" className={action}>
@@ -91,13 +91,11 @@ export function PagesTable({ pages, canPublish, canDelete }: { pages: PageRow[];
                                     </a>
                                 )}
                                 <details className="relative">
-                                    <summary
-                                        className="cursor-pointer rounded-md px-2 py-1 text-muted hover:bg-sunken"
-                                        aria-label={`More actions for ${page.title}`}
-                                    >
+                                    <summary className={`${action} list-none [&::-webkit-details-marker]:hidden`} aria-label={`More actions for ${page.title}`}>
                                         More
+                                        <Icon name="chevronDown" className="size-3" />
                                     </summary>
-                                    <div className="absolute right-0 z-10 flex flex-col gap-1 rounded-lg border border-line bg-surface p-2 shadow-lg">
+                                    <div className="absolute right-0 z-10 mt-1 flex min-w-40 flex-col rounded-lg border border-line bg-surface p-1 shadow-pop">
                                         <a href={`/preview/${page.id}`} target="_blank" rel="noreferrer" className={action}>
                                             Preview draft
                                         </a>
@@ -143,7 +141,7 @@ function PageRowActions({ page, canPublish, canDelete }: { page: PageRow; canPub
                 <button
                     type="button"
                     onClick={() => setDialog('delete')}
-                    className="inline-flex h-7 items-center rounded-md px-1.5 text-danger hover:bg-danger-soft"
+                    className="inline-flex h-7 items-center rounded-md px-2 text-danger hover:bg-danger-soft"
                 >
                     Delete
                 </button>

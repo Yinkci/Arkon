@@ -145,7 +145,7 @@ export default function Design(props: {
     return (
         <AdminLayout>
             <Head title={title} />
-            <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-8 sm:py-8">
+            <div className="ak-page space-y-8">
                 <AdminPageHeader
                     title={title}
                     description={
@@ -158,11 +158,11 @@ export default function Design(props: {
                 />
                 {section === 'performance' && (
                     <section className="space-y-3 border-t border-line pt-5">
-                        <h2 className="font-semibold">Core Web Vitals</h2>
+                        <h2 className="t-section">Core Web Vitals</h2>
                         <p className="text-sm text-muted">
                             Not measured for this live website. No field monitoring is connected, and opening this screen does not run an expensive audit.
                         </p>
-                        <h2 className="pt-3 font-semibold">Publishing updates</h2>
+                        <h2 className="pt-3 t-section">Publishing updates</h2>
                         {refreshes.pending === 0 && refreshes.failed === 0 && (
                             <p className="text-sm text-muted">
                                 No pending or failed design updates. This describes publishing operations, not a performance score.
@@ -304,7 +304,7 @@ function TokenField(props: {
     return (
         <div className="grid grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)] items-center gap-x-2 gap-y-1" data-testid={`token-${props.group}-${props.name}`}>
             <label htmlFor={id} className="flex min-w-0 items-center gap-1.5">
-                <code className="truncate font-mono text-[11px] text-muted">{props.name}</code>
+                <code className="truncate font-mono text-2xs text-muted">{props.name}</code>
                 {props.changed && (
                     <span className="size-1.5 shrink-0 rounded-full bg-site" title="Draft differs from live">
                         <span className="sr-only">(draft differs from live)</span>
@@ -349,7 +349,7 @@ function TokenField(props: {
                 )}
             </div>
             {problem && (
-                <p role="alert" className="col-span-2 text-[11px] text-danger">
+                <p role="alert" className="col-span-2 text-2xs text-danger">
                     {problem}
                 </p>
             )}
@@ -423,7 +423,7 @@ function ComponentsSection({ components, canEdit }: { components: ComponentRow[]
                     Create one below, or select a block in the builder and choose “Make reusable”.
                 </EmptyState>
             ) : (
-                <table className="w-full text-[0.8125rem]">
+                <table className="w-full text-ui">
                     <thead className="text-left text-xs text-muted">
                         <tr className="border-b border-line">
                             <th className="px-4 py-2 font-medium">Name</th>
@@ -492,7 +492,7 @@ function ComponentsSection({ components, canEdit }: { components: ComponentRow[]
                         Create
                     </Button>
                     {error && (
-                        <p role="alert" className="w-full text-[0.8125rem] text-danger">
+                        <p role="alert" className="w-full text-ui text-danger">
                             {error}
                         </p>
                     )}

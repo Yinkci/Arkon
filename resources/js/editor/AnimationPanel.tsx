@@ -55,7 +55,7 @@ function StatusLine(props: { status: MotionStatus; reduced: boolean; document: P
             role="status"
             data-testid="animation-status"
             data-status={kind}
-            className={`flex items-start gap-2 rounded-md border px-2.5 py-2 text-[11px] leading-snug ${cls}`}
+            className={`flex items-start gap-2 rounded-md border px-2.5 py-2 text-2xs leading-snug ${cls}`}
         >
             <Icon name={icon} className="mt-px size-3.5 shrink-0" />
             <div className="min-w-0 space-y-1">{text}</div>
@@ -193,9 +193,9 @@ export function AnimationSection(props: {
         <PanelSection
             title="Animation"
             data-testid="animation-section"
-            aside={on ? <span className="text-[11px] font-normal text-muted">{ANIMATION_LABELS[animation]}</span> : undefined}
+            aside={on ? <span className="text-2xs font-normal text-muted">{ANIMATION_LABELS[animation]}</span> : undefined}
         >
-            <p className="text-[11px] leading-snug text-muted" data-testid="animation-target">
+            <p className="text-2xs leading-snug text-muted" data-testid="animation-target">
                 <Icon name="motion" className="mr-1 inline size-3.5 align-[-3px]" />
                 Animates the whole {name.toLowerCase()} and everything inside it, as one block.
             </p>
@@ -246,7 +246,7 @@ export function AnimationSection(props: {
                     >
                         Move this entrance to the other blocks inside
                     </Button>
-                    <p className="text-[11px] leading-snug text-muted" data-testid="animation-instead-count">
+                    <p className="text-2xs leading-snug text-muted" data-testid="animation-instead-count">
                         {targets.length} block{targets.length === 1 ? '' : 's'} next to the protected content get{targets.length === 1 ? 's' : ''} the entrance{' '}
                         (taken from this block); the protected content stays still. One undo step.
                     </p>
@@ -321,7 +321,7 @@ export function AnimationSection(props: {
                             ))}
                         </select>
                     </div>
-                    <label htmlFor={ids.phones} className="flex items-center gap-2 text-[0.8125rem]">
+                    <label htmlFor={ids.phones} className="flex items-center gap-2 text-ui">
                         <input
                             id={ids.phones}
                             type="checkbox"
@@ -334,7 +334,7 @@ export function AnimationSection(props: {
                         Don’t animate on phones
                     </label>
                     {props.inComponent && (
-                        <p className="text-[11px] leading-snug text-muted">
+                        <p className="text-2xs leading-snug text-muted">
                             On a page, the animation is left off if this block holds the page’s main heading or the image that loads first.
                         </p>
                     )}

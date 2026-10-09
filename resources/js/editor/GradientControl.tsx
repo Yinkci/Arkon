@@ -75,7 +75,7 @@ export function GradientControl({ value, disabled, onSet }: { value?: string; di
                     </label>
                 </div>
             ))}
-            <p className="text-[11px] text-muted">Overlays the background image. Use a transparent end to keep the photograph visible.</p>
+            <p className="text-2xs text-muted">Overlays the background image. Use a transparent end to keep the photograph visible.</p>
         </div>
     );
 }

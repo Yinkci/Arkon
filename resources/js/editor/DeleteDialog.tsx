@@ -23,13 +23,13 @@ export function DeleteDialog(props: { open: boolean; title: string; contents: nu
                 event.preventDefault();
                 props.onCancel();
             }}
-            className="m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border border-line bg-surface p-0 text-left text-fg shadow-pop backdrop:bg-black/45"
+            className="m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border border-line bg-surface p-0 text-left text-fg shadow-pop backdrop:bg-scrim"
         >
             <div className="space-y-4 p-6">
                 <h2 id={titleId} className="text-base font-semibold">
                     {props.title}?
                 </h2>
-                <p className="text-sm text-muted">
+                <p className="text-ui text-muted">
                     The {props.contents} block{props.contents === 1 ? '' : 's'} inside it will be deleted too. Undo (Ctrl+Z) brings everything back.
                 </p>
                 <div className="flex flex-wrap justify-end gap-2">

@@ -13,22 +13,22 @@ export function HistoryPanel({ revisions, canRestore, onRestore }: { revisions: 
         );
     return (
         <div>
-            <p className="border-b border-line px-4 py-2.5 text-[11px] leading-snug text-muted">
+            <p className="border-b border-line px-4 py-2.5 text-2xs leading-snug text-muted">
                 Restoring copies a revision into the draft. The live page changes only when you publish.
             </p>
             <ol aria-label="Revision history">
                 {revisions.map((r) => (
                     <li key={r.id} className="flex items-start gap-3 border-b border-line px-4 py-3" data-testid="revision">
                         <span
-                            className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-[10px] font-semibold tabular-nums ${r.isLive ? 'bg-live-soft text-live' : 'bg-sunken text-muted'}`}
+                            className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-3xs font-semibold tabular-nums ${r.isLive ? 'bg-live-soft text-live' : 'bg-sunken text-muted'}`}
                         >
                             {r.number}
                         </span>
                         <div className="min-w-0 flex-1">
-                            <p className="text-[0.8125rem] leading-snug font-medium">
+                            <p className="text-ui leading-snug font-medium">
                                 #{r.number} {r.message}
                             </p>
-                            <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] text-muted">
+                            <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-2xs text-muted">
                                 <span>{r.authorName ?? (r.source === 'system' ? 'System' : 'Unknown')}</span>
                                 <span aria-hidden>·</span>
                                 <time dateTime={r.createdAt} title={fullDate(r.createdAt)}>

@@ -6,6 +6,9 @@ import { E2E_OWNER } from './fixtures';
 /** For anonymous, Node-side requests (no browser): the same site, reached directly. */
 export const BASE_URL = SERVER_URL;
 
+/** The dashboard heading: a time-of-day greeting with the signed-in name. */
+export const greeting = (name: string) => new RegExp(`^Good (morning|afternoon|evening), ${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
+
 /** The e2e database as the restricted runtime role (fixtures only). */
 export const db = new pg.Pool({ ...runtimeDatabase(), max: 2 });
 
@@ -14,7 +17,7 @@ export async function login(page: Page) {
     await page.getByLabel('Email').fill(E2E_OWNER.email);
     await page.getByLabel('Password').fill(E2E_OWNER.password);
     await page.getByRole('button', { name: 'Sign in' }).click();
-    await expect(page.getByRole('heading', { name: `Welcome, ${E2E_OWNER.name}` })).toBeVisible();
+    await expect(page.getByRole('heading', { name: greeting(E2E_OWNER.name) })).toBeVisible();
 }
 
 /** A fresh, unpublished page with one hero, so each test starts from a known state. */

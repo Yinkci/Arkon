@@ -3,9 +3,12 @@
 // and writes PNGs to storage/screenshots/<label>/ (git-ignored). The e2e database holds fixture data
 // only (no real accounts or credentials), and the AI panel uses the fake Claude Code CLI.
 import { expect, test, type Page } from '@playwright/test';
+import { E2E_HOST } from './env';
 import { createPage } from './support';
 
 const LABEL = process.env.SCREENSHOTS ?? '';
+// Headless Chromium hides scrollbars; show them, as people see them.
+test.use({ launchOptions: { args: [`--host-resolver-rules=MAP ${E2E_HOST} 127.0.0.1`], ignoreDefaultArgs: ['--hide-scrollbars'] } });
 test.skip(LABEL === '', 'Set SCREENSHOTS=<label> to capture review screenshots');
 
 const ACCEPTANCE =
@@ -96,6 +99,19 @@ for (const theme of ['light', 'dark'] as const) {
         await page.goto('/admin/pages');
         await shot(page, `pages${suffix}`);
 
+        for (const [path, name] of [
+            ['/admin/media', 'media'],
+            ['/admin/forms', 'forms'],
+            ['/admin/navigation', 'navigation'],
+            ['/admin/design/components', 'components'],
+            ['/admin/themes', 'themes'],
+            ['/admin/website', 'website'],
+            ['/admin/settings', 'settings'],
+        ] as const) {
+            await page.goto(path);
+            await shot(page, `${name}${suffix}`);
+        }
+
         // Signed out: the login screen.
         const anonymous = await page
             .context()
@@ -109,10 +125,28 @@ for (const theme of ['light', 'dark'] as const) {
     });
 }
 
+test('review screenshots (sidebar at short heights)', async ({ page }) => {
+    for (const theme of ['light', 'dark'] as const) {
+        await page.addInitScript((value) => localStorage.setItem('arkon.theme', value), theme);
+        for (const height of [768, 800, 900]) {
+            await page.setViewportSize({ width: 1440, height });
+            // The last destination: the rail scrolls it into view, while identity and account stay put.
+            await page.goto('/admin/settings');
+            const nav = page.getByRole('navigation', { name: 'Main' });
+            await expect(nav.getByRole('link', { name: 'Site settings' })).toBeInViewport({ ratio: 1 });
+            await expect(page.getByRole('button', { name: 'Sign out' })).toBeInViewport();
+            await shot(page, `sidebar-${height}${theme === 'dark' ? '-dark' : ''}`);
+        }
+    }
+});
+
 test('review screenshots (smaller screens)', async ({ page }) => {
     test.setTimeout(120_000);
     const id = await createPage('/spring-small', 'Gardens designed for every season');
     for (const [name, width, height] of [
+        ['desktop-1920', 1920, 1080],
+        ['wide-1680', 1680, 1000],
+        ['laptop-1366', 1366, 768],
         ['laptop-1280', 1280, 720],
         ['tablet-1024', 1024, 768],
         ['phone-390', 390, 844],

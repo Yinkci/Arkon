@@ -11,7 +11,7 @@ import type { TokenSet } from '@/arkon/style/tokens';
 import { api, newRequestKey } from '@/lib/api';
 import { useTheme } from '@/lib/theme';
 import { Icon } from '@/Components/Icon';
-import { Button } from '@/Components/ui';
+import { Button, IconButton } from '@/Components/ui';
 import type { MediaInfo } from '@/types';
 import { Canvas, type Viewport } from './Canvas';
 import { DragProvider } from './drag/DragProvider';
@@ -24,7 +24,19 @@ import { StructureBar } from './StructureBar';
 import { isDeleteKey, isTyping, useBlockActions } from './blockActions';
 import { DeleteDialog } from './DeleteDialog';
 import type { DragController } from './drag/controller';
-import { BackMark, EditorNotice, HistoryButtons, SaveStatus, SidebarTabs, ViewportSwitch, saveState } from './chrome';
+import {
+    BackMark,
+    EditorNotice,
+    EditorToolbar,
+    EditorWorkspace,
+    HistoryButtons,
+    SaveStatus,
+    ToolbarDivider,
+    ViewportSwitch,
+    saveState,
+    useOutlinePreference,
+    useWideLayout,
+} from './chrome';
 import { revealField, unresolvedNotice, withoutStaleAction, useActivity, useConflict, useLeaveGuard, useUnresolvedFields, type Notice } from './session';
 
 /** The name as it would be saved, or null when it isn't valid (1 to 80 characters). */
@@ -85,6 +97,8 @@ export function ComponentEditor({ init }: { init: ComponentEditorInit }) {
     const { theme } = useTheme();
     const [viewport, setViewport] = useState<Viewport>('desktop');
     const [tab, setTab] = useState<'inspect' | 'layers'>('inspect');
+    const wide = useWideLayout();
+    const [outlineOpen, setOutlineOpen] = useOutlinePreference();
     const [canvas, setCanvas] = useState(init.canvas);
     const [token, setToken] = useState(0);
     const [media, setMedia] = useState(init.media);
@@ -382,61 +396,79 @@ export function ComponentEditor({ init }: { init: ComponentEditorInit }) {
                 onCancel={actions.cancelRemove}
             />
             <div data-theme={theme} className="flex h-dvh flex-col bg-canvas text-fg">
-                <header className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-line bg-surface px-2 py-1.5 sm:px-3">
-                    <BackMark href="/admin/design/components" label="Back to reusable components" />
-                    <div className="flex min-w-0 items-center gap-2 border-l border-line pl-2.5">
-                        <span className="hidden items-center gap-1 rounded-full bg-site-soft px-2 py-0.5 text-[11px] font-medium text-site sm:inline-flex">
-                            <Icon name="component" className="size-3" />
-                            Reusable component
-                        </span>
-                        <input
-                            id="component-name"
-                            value={name}
-                            maxLength={80}
-                            disabled={!canEdit}
-                            onChange={(e) => setName(e.target.value)}
-                            aria-invalid={nameInvalid}
-                            className="ui-input h-7 w-40 font-semibold sm:w-56"
-                            aria-label="Component name"
-                        />
-                    </div>
-                    <div className="ml-auto flex items-center gap-1.5 lg:ml-4">
-                        <ViewportSwitch value={viewport} onChange={setViewport} />
-                        <HistoryButtons canUndo={doc.undo.length > 0 && !conflict} canRedo={doc.redo.length > 0 && !conflict} onStep={step} />
-                    </div>
-                    <div className="ml-auto flex min-w-0 items-center gap-2 max-md:w-full max-md:justify-end">
-                        <div className="hidden min-w-0 flex-col items-end gap-0.5 md:flex" data-testid="component-status">
-                            <SaveStatus state={state} testId="component-save-status" />
-                            <p className="truncate text-[11px] text-muted">
-                                {published ? `Pages show v${published}` : 'Not published'} · used on {init.livePages} live page{init.livePages === 1 ? '' : 's'}
-                            </p>
-                        </div>
-                        <Button
-                            icon="save"
-                            disabled={!unsaved || busy || conflict || !canEdit}
-                            onClick={() => void save()}
-                            title="Save the component draft (Ctrl+S). Pages keep the published version."
-                        >
-                            Save draft
-                        </Button>
-                        <Button
-                            variant="primary"
-                            icon="globe"
-                            busy={activity === 'publishing'}
-                            disabled={activity === 'publishing' || conflict || !init.permissions.publish}
-                            onClick={() => void publish()}
-                            data-testid="component-publish"
-                            title={
-                                init.permissions.publish
-                                    ? 'Publish the component: every page using it is updated, including live pages'
-                                    : "You don't have permission to publish"
-                            }
-                        >
-                            Publish component
-                        </Button>
-                    </div>
-                </header>
-                <div className="flex items-center gap-2 border-b border-site/20 bg-site-soft px-3 py-1.5 text-[11px] text-fg">
+                <EditorToolbar
+                    start={
+                        <>
+                            <BackMark href="/admin/design/components" label="Back to reusable components" />
+                            {wide && (
+                                <IconButton
+                                    icon="sidebar"
+                                    label={outlineOpen ? 'Hide outline' : 'Show outline'}
+                                    aria-pressed={outlineOpen}
+                                    onClick={() => setOutlineOpen(!outlineOpen)}
+                                />
+                            )}
+                            <ToolbarDivider />
+                            <span className="hidden size-7 shrink-0 place-items-center rounded-md bg-site-soft text-site sm:grid" title="Reusable component">
+                                <Icon name="component" className="size-3.5" />
+                            </span>
+                            <div className="min-w-0">
+                                <input
+                                    id="component-name"
+                                    value={name}
+                                    maxLength={80}
+                                    disabled={!canEdit}
+                                    onChange={(e) => setName(e.target.value)}
+                                    aria-invalid={nameInvalid}
+                                    className="ui-input h-7 w-40 font-semibold sm:w-56"
+                                    aria-label="Component name"
+                                />
+                            </div>
+                        </>
+                    }
+                    center={
+                        <>
+                            <ViewportSwitch value={viewport} onChange={setViewport} />
+                            <ToolbarDivider className="mx-1" />
+                            <HistoryButtons canUndo={doc.undo.length > 0 && !conflict} canRedo={doc.redo.length > 0 && !conflict} onStep={step} />
+                        </>
+                    }
+                    end={
+                        <>
+                            <div className="mr-1 hidden min-w-0 flex-col items-end gap-0.5 md:flex" data-testid="component-status">
+                                <SaveStatus state={state} testId="component-save-status" />
+                                <p className="truncate text-2xs leading-tight text-muted">
+                                    {published ? `Pages show v${published}` : 'Not published'} · used on {init.livePages} live page
+                                    {init.livePages === 1 ? '' : 's'}
+                                </p>
+                            </div>
+                            <Button
+                                icon="save"
+                                disabled={!unsaved || busy || conflict || !canEdit}
+                                onClick={() => void save()}
+                                title="Save the component draft (Ctrl+S). Pages keep the published version."
+                            >
+                                Save draft
+                            </Button>
+                            <Button
+                                variant="primary"
+                                icon="globe"
+                                busy={activity === 'publishing'}
+                                disabled={activity === 'publishing' || conflict || !init.permissions.publish}
+                                onClick={() => void publish()}
+                                data-testid="component-publish"
+                                title={
+                                    init.permissions.publish
+                                        ? 'Publish the component: every page using it is updated, including live pages'
+                                        : "You don't have permission to publish"
+                                }
+                            >
+                                Publish component
+                            </Button>
+                        </>
+                    }
+                />
+                <div className="flex items-center gap-2 border-b border-site/20 bg-site-soft px-3 py-1.5 text-2xs text-fg">
                     <Icon name="globe" className="size-3.5 text-site" />
                     <span>
                         Site-wide: publishing updates every page that uses this component
@@ -445,8 +477,16 @@ export function ComponentEditor({ init }: { init: ComponentEditorInit }) {
                     </span>
                 </div>
                 {notice && <EditorNotice notice={notice} conflict={conflict} onDismiss={() => setNotice(null)} />}
-                <div className="flex min-h-0 flex-1 max-md:flex-col">
-                    <section className="flex min-h-0 min-w-0 flex-1 flex-col max-md:h-[55vh] max-md:flex-none" aria-label="Canvas">
+                <EditorWorkspace<'inspect' | 'layers'>
+                    tab={tab}
+                    leftTab="layers"
+                    onTab={setTab}
+                    outlineOpen={outlineOpen}
+                    tabs={[
+                        { value: 'inspect', label: 'Properties', icon: 'sliders' },
+                        { value: 'layers', label: 'Layers', icon: 'layers' },
+                    ]}
+                    canvas={
                         <Canvas
                             document={doc.document}
                             renderPending={renderPending}
@@ -472,74 +512,61 @@ export function ComponentEditor({ init }: { init: ComponentEditorInit }) {
                             replay={actions.replay}
                             documentVersion={docSeq.current}
                         />
-                    </section>
-                    <aside
-                        className="flex min-h-0 w-full shrink-0 flex-col border-line bg-surface max-md:flex-1 max-md:border-t md:w-[20rem] md:border-l xl:w-[22rem]"
-                        aria-label="Sidebar"
-                    >
-                        <SidebarTabs<typeof tab>
-                            value={tab}
-                            onChange={setTab}
-                            tabs={[
-                                { value: 'inspect', label: 'Properties', icon: 'sliders' },
-                                { value: 'layers', label: 'Layers', icon: 'layers' },
-                            ]}
-                        />
-                        <div className="min-h-0 flex-1 overflow-auto">
-                            {tab === 'layers' ? (
-                                <LayersPanel
-                                    document={doc.document}
-                                    selectedId={selectedId}
-                                    canEdit={canEdit && !conflict}
-                                    onSelect={setSelectedId}
-                                    onStructure={structure}
-                                    onDuplicate={actions.duplicate}
-                                    onDelete={actions.remove}
-                                />
-                            ) : (
-                                <Inspector
-                                    rootName="Component"
-                                    document={doc.document}
-                                    selected={selected}
-                                    part={selectedPart}
-                                    onSelectPart={selectPart}
-                                    onSelectNode={setSelectedId}
-                                    media={media}
-                                    canEdit={canEdit && !conflict}
-                                    canUpload={init.permissions.upload}
-                                    onChange={(ops, coalesceKey) => apply(ops, { coalesceKey })}
-                                    onUpload={upload}
-                                    unresolved={unresolved}
-                                    onUnresolved={setUnresolved}
-                                    breakpoint={VIEWPORT_BREAKPOINT[viewport]}
-                                    onBreakpoint={(bp) => setViewport(bp === 'base' ? 'desktop' : bp)}
-                                    tokens={init.tokens}
-                                    components={[]}
-                                    onReplay={actions.replayBlock}
-                                    toolbar={
-                                        selected && (
-                                            <StructureBar
-                                                document={doc.document}
-                                                node={selected}
-                                                canEdit={canEdit && !conflict}
-                                                onSelect={setSelectedId}
-                                                onStructure={structure}
-                                                onDuplicate={actions.duplicate}
-                                                onDelete={actions.remove}
-                                            />
-                                        )
-                                    }
-                                    pageSettings={
-                                        <p className="border-b border-line px-4 py-3 text-[0.8125rem] text-muted">
-                                            Select a block on the canvas or in Layers. Add blocks from the Layers tab. Pages show this component exactly as
-                                            published.
-                                        </p>
-                                    }
-                                />
-                            )}
-                        </div>
-                    </aside>
-                </div>
+                    }
+                    render={(panel) =>
+                        panel === 'layers' ? (
+                            <LayersPanel
+                                document={doc.document}
+                                selectedId={selectedId}
+                                canEdit={canEdit && !conflict}
+                                onSelect={setSelectedId}
+                                onStructure={structure}
+                                onDuplicate={actions.duplicate}
+                                onDelete={actions.remove}
+                            />
+                        ) : (
+                            <Inspector
+                                rootName="Component"
+                                document={doc.document}
+                                selected={selected}
+                                part={selectedPart}
+                                onSelectPart={selectPart}
+                                onSelectNode={setSelectedId}
+                                media={media}
+                                canEdit={canEdit && !conflict}
+                                canUpload={init.permissions.upload}
+                                onChange={(ops, coalesceKey) => apply(ops, { coalesceKey })}
+                                onUpload={upload}
+                                unresolved={unresolved}
+                                onUnresolved={setUnresolved}
+                                breakpoint={VIEWPORT_BREAKPOINT[viewport]}
+                                onBreakpoint={(bp) => setViewport(bp === 'base' ? 'desktop' : bp)}
+                                tokens={init.tokens}
+                                components={[]}
+                                onReplay={actions.replayBlock}
+                                toolbar={
+                                    selected && (
+                                        <StructureBar
+                                            document={doc.document}
+                                            node={selected}
+                                            canEdit={canEdit && !conflict}
+                                            onSelect={setSelectedId}
+                                            onStructure={structure}
+                                            onDuplicate={actions.duplicate}
+                                            onDelete={actions.remove}
+                                        />
+                                    )
+                                }
+                                pageSettings={
+                                    <p className="border-b border-line px-4 py-3 text-ui text-muted">
+                                        Select a block on the canvas or in Layers. Add blocks from the Layers tab. Pages show this component exactly as
+                                        published.
+                                    </p>
+                                }
+                            />
+                        )
+                    }
+                />
             </div>
         </DragProvider>
     );

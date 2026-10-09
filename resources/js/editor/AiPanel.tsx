@@ -78,7 +78,7 @@ export function AiPanel(props: AiPanelProps) {
                         if (prompt.trim() && !tooLong && !props.sending && !running) props.onAsk(prompt.trim());
                     }}
                 >
-                    <label htmlFor={ids.prompt} className="block text-[0.8125rem] font-semibold">
+                    <label htmlFor={ids.prompt} className="block text-ui font-semibold">
                         Ask AI to change this page
                     </label>
                     <textarea
@@ -92,7 +92,7 @@ export function AiPanel(props: AiPanelProps) {
                         onChange={(e) => setPrompt(e.target.value)}
                         className="ui-input"
                     />
-                    <p id={ids.hint} className={`text-[11px] leading-snug ${tooLong ? 'text-danger' : 'text-muted'}`}>
+                    <p id={ids.hint} className={`text-2xs leading-snug ${tooLong ? 'text-danger' : 'text-muted'}`}>
                         {tooLong
                             ? `Too long: ${prompt.length} of ${props.promptMax} characters.`
                             : 'Claude Code (your subscription) prepares a proposal on this computer. You preview it first; nothing changes until you apply it, and nothing goes live until you publish.'}
@@ -138,7 +138,7 @@ export function AiPanel(props: AiPanelProps) {
                         {waiting.map((request) => (
                             <li key={request.id} className="flex items-start justify-between gap-2 rounded-md border border-ai/25 bg-ai-soft p-2.5 text-xs">
                                 <span className="min-w-0">
-                                    <span className="block text-[11px] text-muted">{SOURCE[request.source] ?? request.source}</span>
+                                    <span className="block text-2xs text-muted">{SOURCE[request.source] ?? request.source}</span>
                                     <span className="block truncate font-medium">“{request.prompt}”</span>
                                 </span>
                                 <Button size="sm" onClick={() => props.onReview(request.id)}>
@@ -156,18 +156,18 @@ export function AiPanel(props: AiPanelProps) {
                         <StatusPill tone="ai" icon="sparkle">
                             {proposal.status === 'empty' ? 'Nothing to apply' : 'Preview only: nothing changed yet'}
                         </StatusPill>
-                        <h2 id={ids.proposal} className="mt-2 text-sm font-semibold">
+                        <h2 id={ids.proposal} className="mt-2 t-title">
                             {proposal.status === 'empty' ? 'No changes proposed' : 'Proposal (preview only)'}
                         </h2>
-                        <p className="mt-0.5 text-[11px] text-muted">
+                        <p className="mt-0.5 text-2xs text-muted">
                             “{proposal.prompt}” · based on draft version {proposal.baseVersion}
                         </p>
                     </div>
-                    <p className="text-[0.8125rem] leading-relaxed">{proposal.summary}</p>
+                    <p className="text-ui leading-relaxed">{proposal.summary}</p>
 
                     {proposal.changes.length > 0 && (
                         <div className="rounded-md border border-line">
-                            <h3 className="flex items-center gap-1.5 border-b border-line bg-raised px-2.5 py-1.5 text-[11px] font-semibold">
+                            <h3 className="flex items-center gap-1.5 border-b border-line bg-raised px-2.5 py-1.5 text-2xs font-semibold">
                                 <Icon name="pages" className="size-3.5 text-muted" />
                                 This page only: what will change
                             </h3>
@@ -195,7 +195,7 @@ export function AiPanel(props: AiPanelProps) {
                                         {/^#[0-9a-f]{3,8}$/i.test(change.value) && (
                                             <span
                                                 aria-hidden
-                                                className="inline-block size-3.5 rounded border border-black/20"
+                                                className="inline-block size-3.5 rounded-sm border border-line-strong"
                                                 style={{ background: change.value }}
                                             />
                                         )}
@@ -283,7 +283,7 @@ export function AiPanel(props: AiPanelProps) {
                         </Button>
                     </div>
                     {hasPageChanges && (
-                        <p className="text-[11px] text-muted">
+                        <p className="text-2xs text-muted">
                             Applying saves the changes to this page's draft as one step (Undo reverts it). Publishing stays separate.
                         </p>
                     )}

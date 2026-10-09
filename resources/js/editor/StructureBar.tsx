@@ -45,7 +45,7 @@ export function StructureBar({
     const name = currentDefinition(node.type)?.label ?? node.type;
     const removal = removalOf(doc, node.id);
     return (
-        <div className="border-b border-line bg-surface px-3 py-1.5" data-selection-scope>
+        <div className="border-b border-line bg-surface px-3 py-1" data-selection-scope>
             <div className="flex flex-wrap items-center gap-0.5" role="toolbar" aria-label={`${name} structure`}>
                 <IconButton
                     icon="arrowUp"
@@ -61,16 +61,14 @@ export function StructureBar({
                     disabled={!canEdit || !location || location.index >= siblings.length - 1}
                     onClick={() => onStructure(moveWithinParent(doc, node.id, 1) ?? [], node.id)}
                 />
-                <Button
-                    size="sm"
-                    variant="ghost"
+                <IconButton
                     icon="chevronUp"
+                    size="sm"
+                    label="Select parent"
                     disabled={!parentId}
                     onClick={() => onSelect(parentId)}
-                    title={parentId ? `Select the ${componentName(doc.nodes[parentId]!).toLowerCase()} around it` : 'Already at the top level'}
-                >
-                    Select parent
-                </Button>
+                    title={parentId ? `Select parent: the ${componentName(doc.nodes[parentId]!).toLowerCase()} around it` : 'Already at the top level'}
+                />
                 <span className="flex-1" />
                 {onDuplicate && (
                     <Button
@@ -86,9 +84,14 @@ export function StructureBar({
                     </Button>
                 )}
                 {reusable && naming === null && (
-                    <Button size="sm" variant="ghost" icon="component" onClick={() => setNaming(name)} data-testid="make-reusable">
-                        Make reusable
-                    </Button>
+                    <IconButton
+                        icon="component"
+                        size="sm"
+                        label="Make reusable"
+                        title="Make reusable: turn this block into a shared component"
+                        onClick={() => setNaming(name)}
+                        data-testid="make-reusable"
+                    />
                 )}
                 <IconButton
                     icon="trash"

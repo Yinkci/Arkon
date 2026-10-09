@@ -37,8 +37,8 @@ export default function Login({ next }: { next: string }) {
                 <ArkonMark className="size-8" />
                 <span className="text-sm font-semibold tracking-tight">Arkon</span>
             </div>
-            <h1 className="mt-6 text-xl font-semibold tracking-tight">Sign in</h1>
-            <p className="mt-1 text-[0.8125rem] text-muted">Design, edit and publish your site.</p>
+            <h1 className="mt-6 t-page">Sign in</h1>
+            <p className="mt-1 text-ui text-muted">Design, edit and publish your site.</p>
             <form
                 className="mt-6 space-y-4"
                 onSubmit={(event) => {
@@ -73,7 +73,7 @@ export default function Login({ next }: { next: string }) {
                     />
                 </label>
                 {error && (
-                    <p role="alert" className="flex items-start gap-1.5 text-[0.8125rem] text-danger">
+                    <p role="alert" className="flex items-start gap-1.5 text-ui text-danger">
                         <Icon name="alert" className="mt-0.5 size-4" />
                         {error}
                     </p>

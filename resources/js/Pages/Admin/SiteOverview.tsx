@@ -25,7 +25,7 @@ export default function SiteOverview(props: {
     return (
         <AdminLayout>
             <Head title={settings ? 'Site settings' : 'SEO overview'} />
-            <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-8 sm:py-8">
+            <div className="ak-page space-y-8">
                 <AdminPageHeader
                     title={settings ? 'Site settings' : 'SEO overview'}
                     description={
@@ -37,7 +37,7 @@ export default function SiteOverview(props: {
                 {settings ? (
                     <>
                         <section className="border-t border-line pt-5">
-                            <h2 className="text-base font-semibold">General</h2>
+                            <h2 className="t-section">General</h2>
                             <dl className="mt-4 grid gap-4 sm:grid-cols-2">
                                 {[
                                     ['Site name', props.identity?.name],
@@ -57,7 +57,7 @@ export default function SiteOverview(props: {
                             </p>
                         </section>
                         <section className="border-t border-line pt-5">
-                            <h2 className="font-semibold">Looking for another setting?</h2>
+                            <h2 className="t-title">Looking for another setting?</h2>
                             <div className="mt-3 flex flex-wrap gap-3">
                                 <ButtonLink href="/admin/navigation">Navigation</ButtonLink>
                                 <ButtonLink href="/admin/design">Global styles</ButtonLink>
@@ -97,7 +97,7 @@ export default function SiteOverview(props: {
                                                     Live: {row.livePath ? (row.liveNoindex ? 'Excluded' : 'Allowed') : '—'}
                                                 </td>
                                                 <td className="p-3">
-                                                    <Link className="text-accent hover:underline" href={'/admin/editor/' + row.id}>
+                                                    <Link className="ui-link" href={'/admin/editor/' + row.id}>
                                                         Edit SEO
                                                     </Link>
                                                 </td>
@@ -121,10 +121,10 @@ export default function SiteOverview(props: {
                             </div>
                         </div>
                         <div className="flex gap-4 text-sm">
-                            <a href="/sitemap.xml" target="_blank" rel="noreferrer" className="text-accent">
+                            <a href="/sitemap.xml" target="_blank" rel="noreferrer" className="ui-link">
                                 View sitemap
                             </a>
-                            <a href="/robots.txt" target="_blank" rel="noreferrer" className="text-accent">
+                            <a href="/robots.txt" target="_blank" rel="noreferrer" className="ui-link">
                                 View crawler rules
                             </a>
                         </div>

@@ -25,8 +25,8 @@ export function ColumnsPicker({ onPick, onCancel, disabled }: { onPick(preset: C
             aria-label="Choose a column layout"
         >
             <div className="mb-1.5 flex items-center justify-between">
-                <p className="text-[11px] font-medium">Choose a layout</p>
-                <button type="button" onClick={onCancel} className="rounded px-1 text-[11px] text-muted hover:bg-sunken hover:text-fg">
+                <p className="text-2xs font-medium">Choose a layout</p>
+                <button type="button" onClick={onCancel} className="rounded px-1 text-2xs text-muted hover:bg-hover hover:text-fg">
                     Cancel
                 </button>
             </div>
@@ -40,14 +40,14 @@ export function ColumnsPicker({ onPick, onCancel, disabled }: { onPick(preset: C
                         aria-label={`Add Columns: ${preset.label}`}
                         title={preset.label}
                         data-testid={`columns-preset-${preset.id.replaceAll(' ', '-')}`}
-                        className="flex h-12 flex-col items-center justify-center gap-1 rounded-md border border-line bg-surface px-1 text-[10px] text-muted hover:border-accent hover:text-accent disabled:opacity-40"
+                        className="flex h-12 flex-col items-center justify-center gap-1 rounded-md border border-line bg-surface px-1 text-3xs text-muted hover:border-accent hover:text-accent disabled:opacity-40"
                     >
                         <LayoutGlyph count={preset.count} tracks={preset.tracks} className="h-4 w-10" />
                         <span className="truncate">{preset.tracks ? preset.tracks.replaceAll('fr', '').replaceAll(' ', ':') : `${preset.count} equal`}</span>
                     </button>
                 ))}
             </div>
-            <p className="mt-1.5 text-[10px] leading-snug text-muted">Columns stack on phones. Change the number and widths later in the properties.</p>
+            <p className="mt-1.5 text-3xs leading-snug text-muted">Columns stack on phones. Change the number and widths later in the properties.</p>
         </div>
     );
 }

@@ -162,13 +162,13 @@ function TargetHeader({ document: doc, node, part, onSelectNode, onSelectPart, r
     return (
         <div className="sticky top-0 z-10 border-b border-line bg-surface/95 px-4 pt-3 pb-3 backdrop-blur-sm" data-testid="inspector-target-header">
             <nav aria-label="Selection path">
-                <ol className="flex flex-wrap items-center gap-0.5 text-[11px] text-muted">
+                <ol className="flex flex-wrap items-center gap-0.5 text-2xs text-muted">
                     <li>
                         <button
                             type="button"
                             onClick={() => onSelectNode(null)}
                             aria-label={`${rootName} settings`}
-                            className="rounded px-1 py-0.5 hover:bg-sunken hover:text-fg"
+                            className="rounded px-1 py-0.5 hover:bg-hover hover:text-fg"
                         >
                             {rootName}
                         </button>
@@ -179,7 +179,7 @@ function TargetHeader({ document: doc, node, part, onSelectNode, onSelectPart, r
                             <button
                                 type="button"
                                 onClick={() => onSelectNode(ancestor.id)}
-                                className="max-w-[9rem] truncate rounded px-1 py-0.5 hover:bg-sunken hover:text-fg"
+                                className="max-w-[9rem] truncate rounded px-1 py-0.5 hover:bg-hover hover:text-fg"
                             >
                                 {componentName(ancestor)}
                             </button>
@@ -196,7 +196,7 @@ function TargetHeader({ document: doc, node, part, onSelectNode, onSelectPart, r
                                 type="button"
                                 onClick={() => onSelectPart(node.id, 'root')}
                                 data-testid="inspector-target-parent"
-                                className="rounded px-1 py-0.5 font-medium text-fg hover:bg-sunken"
+                                className="rounded px-1 py-0.5 font-medium text-fg hover:bg-hover"
                                 title={`Edit the ${name.toLowerCase()} itself`}
                             >
                                 {name}
@@ -210,10 +210,10 @@ function TargetHeader({ document: doc, node, part, onSelectNode, onSelectPart, r
                     <Icon name={!atRoot && part.slot === 'media' ? 'image' : (ICONS[node.type] ?? 'component')} />
                 </span>
                 <div className="min-w-0">
-                    <h2 className="truncate text-sm font-semibold" data-testid="inspector-target">
+                    <h2 className="truncate t-title" data-testid="inspector-target">
                         {part.label}
                     </h2>
-                    <p className="truncate text-[11px] text-muted">{atRoot ? describe(node) : `Part of the ${name.charAt(0).toLowerCase()}${name.slice(1)}`}</p>
+                    <p className="truncate text-2xs text-muted">{atRoot ? describe(node) : `Part of the ${name.charAt(0).toLowerCase()}${name.slice(1)}`}</p>
                 </div>
             </div>
             {parts.length > 1 && (
@@ -225,10 +225,10 @@ function TargetHeader({ document: doc, node, part, onSelectNode, onSelectPart, r
                             aria-pressed={p.slot === part.slot}
                             onClick={() => onSelectPart(node.id, p.slot)}
                             data-testid={`part-${p.slot}`}
-                            className={`h-6 rounded-full border px-2 text-[11px] font-medium transition-colors ${
+                            className={`h-6 rounded-md px-2 text-2xs font-medium transition-colors ${
                                 p.slot === part.slot
-                                    ? 'border-accent bg-accent text-accent-fg'
-                                    : 'border-line bg-surface text-muted hover:border-faint hover:text-fg'
+                                    ? 'bg-accent-soft text-accent ring-1 ring-accent-line ring-inset'
+                                    : 'bg-sunken text-muted hover:bg-hover hover:text-fg'
                             }`}
                         >
                             {p.label}
@@ -287,7 +287,7 @@ function TextField(props: {
                 placeholder={props.placeholder}
                 onChange={(e) => props.onChange(e.target.value)}
             />
-            {props.hint && <p className="mt-1 text-[11px] text-muted">{props.hint}</p>}
+            {props.hint && <p className="mt-1 text-2xs text-muted">{props.hint}</p>}
         </div>
     );
 }
@@ -306,7 +306,7 @@ function SelectField<T extends string>(props: { label: string; value: T; options
                     </option>
                 ))}
             </select>
-            {props.hint && <p className="mt-1 text-[11px] text-muted">{props.hint}</p>}
+            {props.hint && <p className="mt-1 text-2xs text-muted">{props.hint}</p>}
         </div>
     );
 }
@@ -329,46 +329,53 @@ function QuickChoice(props: { style: StyleTarget; label: string; property: strin
             withStyleValue(current, style.part.slot, style.breakpoint, props.property, value),
             value === null ? undefined : `style.${style.part.slot}.${style.breakpoint}.${props.property}`,
         );
+    // The same property-row layout as StyleControl (DesignPanel), so every design setting reads alike.
     return (
-        <div>
-            <div className="mb-1 flex items-center gap-1.5">
-                <label htmlFor={id} className={`min-w-0 flex-1 text-xs ${own ? 'font-semibold text-fg' : 'font-medium text-muted'}`}>
+        <div className="grid grid-cols-[minmax(0,6.25rem)_minmax(0,1fr)] gap-x-3">
+            <div className="flex min-h-7 flex-col justify-center self-start py-0.5">
+                <label htmlFor={id} className={`text-xs leading-4 break-words ${own ? 'font-semibold text-fg' : 'font-medium text-muted'}`}>
+                    {own && <span aria-hidden="true" className="mr-1 inline-block size-1.5 rounded-full bg-accent align-middle" />}
                     {props.label}
                 </label>
                 {own && style.breakpoint !== 'base' && (
-                    <span className="rounded-full bg-accent-soft px-1.5 text-[10px] font-medium text-accent">
+                    <span className="mt-0.5 inline-flex items-center gap-1 text-3xs font-medium text-accent">
+                        <Icon name={style.breakpoint === 'tablet' ? 'tablet' : 'mobile'} className="size-2.5" />
                         {style.breakpoint === 'tablet' ? 'Tablet' : 'Mobile'} override
                     </span>
                 )}
-                {own && (
-                    <button
-                        type="button"
-                        disabled={!style.canEdit}
-                        onClick={() => setValue(null)}
-                        aria-label={`Reset ${props.label} on ${BREAKPOINT_LABEL[style.breakpoint].toLowerCase()}`}
-                        className="inline-flex items-center gap-0.5 rounded px-1 text-[11px] text-muted hover:bg-sunken hover:text-fg"
-                    >
-                        <Icon name="reset" className="size-3" />
-                        Reset
-                    </button>
-                )}
             </div>
-            <select
-                id={id}
-                data-testid={props.testId}
-                className="ui-input"
-                disabled={!style.canEdit}
-                value={own}
-                onChange={(e) => setValue(e.target.value === '' ? null : e.target.value)}
-            >
-                <option value="">{inherited !== null ? `Inherited: ${name(inherited)}` : 'Default'}</option>
-                {props.options.map(([value, text]) => (
-                    <option key={value} value={value}>
-                        {text}
-                    </option>
-                ))}
-            </select>
-            {props.hint && <p className="mt-1 text-[11px] leading-snug text-muted">{props.hint}</p>}
+            <div className="min-w-0">
+                <div className="flex items-center gap-1">
+                    <select
+                        id={id}
+                        data-testid={props.testId}
+                        className="ui-input min-w-0 flex-1"
+                        disabled={!style.canEdit}
+                        value={own}
+                        onChange={(e) => setValue(e.target.value === '' ? null : e.target.value)}
+                    >
+                        <option value="">{inherited !== null ? `Inherited: ${name(inherited)}` : 'Default'}</option>
+                        {props.options.map(([value, text]) => (
+                            <option key={value} value={value}>
+                                {text}
+                            </option>
+                        ))}
+                    </select>
+                    {own && (
+                        <button
+                            type="button"
+                            disabled={!style.canEdit}
+                            onClick={() => setValue(null)}
+                            aria-label={`Reset ${props.label} on ${BREAKPOINT_LABEL[style.breakpoint].toLowerCase()}`}
+                            title="Reset"
+                            className="grid size-7 shrink-0 place-items-center rounded-md text-muted hover:bg-hover hover:text-fg"
+                        >
+                            <Icon name="reset" className="size-3.5" />
+                        </button>
+                    )}
+                </div>
+                {props.hint && <p className="mt-1 text-2xs leading-snug text-muted">{props.hint}</p>}
+            </div>
         </div>
     );
 }
@@ -440,7 +447,7 @@ function SizeSection({
             {properties.map((property) => (
                 <StyleControl key={`${style.breakpoint}:${property}`} target={style} property={property} />
             ))}
-            {hint && <p className="text-[11px] leading-snug text-muted">{hint}</p>}
+            {hint && <p className="text-2xs leading-snug text-muted">{hint}</p>}
         </PanelSection>
     );
 }
@@ -540,7 +547,7 @@ function HeroBody(props: NodeInspectorProps) {
             <>
                 <PanelSection title="Buttons">
                     <AddInside node={props.node} canEdit={canEdit} onChange={props.onChange} types={['button']} />
-                    <p className="text-[11px] text-muted">Select a button on the canvas to edit its label and link.</p>
+                    <p className="text-2xs text-muted">Select a button on the canvas to edit its label and link.</p>
                 </PanelSection>
                 <DesignArea props={props} />
             </>
@@ -793,7 +800,7 @@ function ButtonBody(props: NodeInspectorProps) {
                         data-unresolved-field={key}
                         onChange={(e) => editLink(e.target.value)}
                     />
-                    <p id={`${linkId}-hint`} role={linkError ? 'alert' : undefined} className={`mt-1 text-[11px] ${linkError ? 'text-danger' : 'text-muted'}`}>
+                    <p id={`${linkId}-hint`} role={linkError ? 'alert' : undefined} className={`mt-1 text-2xs ${linkError ? 'text-danger' : 'text-muted'}`}>
                         {linkError ??
                             (applied === '#'
                                 ? 'Placeholder destination — choose a real link when ready.'
@@ -801,7 +808,7 @@ function ButtonBody(props: NodeInspectorProps) {
                     </p>
                     {pending && (
                         <div
-                            className="mt-1.5 flex items-start gap-2 rounded-md border border-danger/30 bg-danger-soft px-2.5 py-2 text-[11px]"
+                            className="mt-1.5 flex items-start gap-2 rounded-md border border-danger/30 bg-danger-soft px-2.5 py-2 text-2xs"
                             data-testid="unresolved-link"
                         >
                             <Icon name="alert" className="mt-px size-3.5 text-danger" />
@@ -835,7 +842,7 @@ function ButtonBody(props: NodeInspectorProps) {
                         ['large', 'Large'],
                     ]}
                 />
-                <label htmlFor={tabId} className="flex items-center gap-2 text-[0.8125rem]">
+                <label htmlFor={tabId} className="flex items-center gap-2 text-ui">
                     <input
                         id={tabId}
                         type="checkbox"
@@ -880,10 +887,10 @@ function SectionBody(props: NodeInspectorProps) {
                     ]}
                     fallback="section"
                 />
-                <label className="block text-sm">
+                <label className="ui-field">
                     Section anchor
                     <input
-                        className="mt-2 w-full rounded border border-line bg-surface p-2"
+                        className="ui-input"
                         placeholder="services"
                         value={String(props.node.props.anchor ?? '')}
                         disabled={!props.canEdit}
@@ -1026,7 +1033,7 @@ function ColumnsBody(props: NodeInspectorProps) {
                         onChange={(v) => choose(Number(v))}
                         options={Array.from({ length: MAX_COLUMNS }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))}
                     />
-                    <p className="mt-1 text-[11px] leading-snug text-muted">
+                    <p className="mt-1 text-2xs leading-snug text-muted">
                         How many editable columns there are, on every screen. Adding keeps all content; removing columns that hold blocks asks first.
                     </p>
                 </div>
@@ -1042,14 +1049,14 @@ function ColumnsBody(props: NodeInspectorProps) {
                     <p
                         role="status"
                         data-testid="columns-message"
-                        className={`text-[11px] leading-snug ${message.tone === 'error' ? 'text-danger' : 'text-muted'}`}
+                        className={`text-2xs leading-snug ${message.tone === 'error' ? 'text-danger' : 'text-muted'}`}
                     >
                         {message.text}
                     </p>
                 )}
             </PanelSection>
             <PanelSection title="Widths" data-testid="columns-widths">
-                <p className="text-[11px] leading-snug text-muted">Column proportions for the selected screen. The number of blocks stays the same.</p>
+                <p className="text-2xs leading-snug text-muted">Column proportions for the selected screen. The number of blocks stays the same.</p>
                 <p className="text-xs text-muted">
                     {style.root?.[screen]?.columns === undefined
                         ? 'Inherited / component default'
@@ -1075,7 +1082,7 @@ function ColumnsBody(props: NodeInspectorProps) {
                                 onClick={() => setScreen(screen, option.tracks ?? String(n))}
                                 title={option.label}
                                 data-testid={`columns-width-${option.id.replaceAll(' ', '-')}`}
-                                className={`flex h-12 w-16 flex-col items-center justify-center gap-1 rounded-md border text-[10px] ${
+                                className={`flex h-12 w-16 flex-col items-center justify-center gap-1 rounded-md border text-3xs ${
                                     active ? 'border-accent bg-accent-soft text-accent' : 'border-line bg-surface text-muted hover:border-faint hover:text-fg'
                                 } disabled:opacity-40`}
                             >
@@ -1153,18 +1160,18 @@ function ReduceColumnsDialog(props: {
                 event.preventDefault();
                 props.onCancel();
             }}
-            className="m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border border-line bg-surface p-0 text-left text-fg shadow-pop backdrop:bg-black/45"
+            className="m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border border-line bg-surface p-0 text-left text-fg shadow-pop backdrop:bg-scrim"
         >
             <div className="space-y-4 p-6">
                 <h2 id={titleId} className="text-base font-semibold">
                     Keep {props.columnsLeft} column{props.columnsLeft === 1 ? '' : 's'}?
                 </h2>
-                <p className="text-sm text-muted">
+                <p className="text-ui text-muted">
                     The columns being removed hold {blocks}. Move them, in order, to the end of column {props.columnsLeft}, or delete them with the columns.
                     Undo brings everything back either way.
                 </p>
                 {props.error && (
-                    <p role="alert" className="text-sm text-danger" data-testid="reduce-error">
+                    <p role="alert" className="text-ui text-danger" data-testid="reduce-error">
                         {props.error}
                     </p>
                 )}
@@ -1200,12 +1207,12 @@ function InstanceBody(props: NodeInspectorProps) {
     return (
         <>
             <PanelSection title="Reusable component">
-                <div className="flex items-center gap-2 rounded-md border border-site/25 bg-site-soft px-2.5 py-2 text-[0.8125rem]">
+                <div className="flex items-center gap-2 rounded-md border border-site/25 bg-site-soft px-2.5 py-2 text-ui">
                     <Icon name="component" className="size-4 text-site" />
                     <span className="min-w-0 flex-1 truncate font-medium">{component ? component.name : 'Not published yet'}</span>
-                    {component?.published && <span className="text-[11px] text-muted">v{component.published}</span>}
+                    {component?.published && <span className="text-2xs text-muted">v{component.published}</span>}
                 </div>
-                <p className="text-[11px] leading-snug text-muted">
+                <p className="text-2xs leading-snug text-muted">
                     Shows the component as last published. Editing and publishing the component updates every page that uses it, including live pages. Spacing
                     and size set here apply to this page only.
                 </p>
@@ -1213,7 +1220,7 @@ function InstanceBody(props: NodeInspectorProps) {
                     {component && (
                         <a
                             href={`/admin/components/${component.id}`}
-                            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-line-strong bg-surface px-2 text-xs font-medium hover:bg-raised"
+                            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-line-strong bg-surface px-2 text-xs font-medium hover:bg-hover"
                         >
                             <Icon name="external" className="size-3.5" />
                             Edit the component
@@ -1228,7 +1235,7 @@ function InstanceBody(props: NodeInspectorProps) {
                         Detach (copy its blocks into this page)
                     </Button>
                 </div>
-                <p className="text-[11px] text-muted">Detaching keeps the content but drops this page's spacing and size settings for it.</p>
+                <p className="text-2xs text-muted">Detaching keeps the content but drops this page's spacing and size settings for it.</p>
             </PanelSection>
             <DesignArea props={props} />
         </>
@@ -1267,7 +1274,7 @@ function GenericBody(props: NodeInspectorProps & { only?: string[]; sectionTitle
                             );
                         if (field.type === 'boolean')
                             return (
-                                <label key={key} className="flex items-center gap-2 text-sm">
+                                <label key={key} className="ui-check">
                                     <input
                                         type="checkbox"
                                         checked={value === true}
@@ -1386,10 +1393,10 @@ function NavigationBody(props: NodeInspectorProps) {
     const { siteMenus = [] } = usePage<{ siteMenus: { id: string; name: string; published_version: number | null }[] }>().props;
     return (
         <div className="space-y-3">
-            <label className="block text-sm">
+            <label className="ui-field">
                 Menu
                 <select
-                    className="mt-2 w-full rounded border border-line bg-surface p-2"
+                    className="ui-input"
                     disabled={!props.canEdit}
                     value={String(props.node.props.menuId ?? '')}
                     onChange={(e) => props.set({ menuId: e.target.value })}
@@ -1403,7 +1410,7 @@ function NavigationBody(props: NodeInspectorProps) {
                     ))}
                 </select>
             </label>
-            <a className="text-sm text-accent" href="/admin/navigation" target="_blank" rel="noopener noreferrer">
+            <a className="ui-link inline-flex text-xs" href="/admin/navigation" target="_blank" rel="noopener noreferrer">
                 Manage menus
             </a>
             <DesignArea props={props} />
@@ -1418,10 +1425,10 @@ function FormBody(props: NodeInspectorProps) {
     return (
         <div className="space-y-3">
             <ScreenBar props={node.props} breakpoint={props.breakpoint} onBreakpoint={props.onBreakpoint} />
-            <label className="block text-sm">
+            <label className="ui-field">
                 Form definition
                 <select
-                    className="mt-2 w-full rounded border border-line bg-surface p-2"
+                    className="ui-input"
                     value={selected?.id ?? ''}
                     disabled={!canEdit}
                     onChange={(e) => set({ form: e.target.value ? { id: e.target.value } : null })}
@@ -1435,7 +1442,7 @@ function FormBody(props: NodeInspectorProps) {
                     ))}
                 </select>
             </label>
-            <a href="/admin/forms" target="_blank" rel="noopener noreferrer" className="text-sm text-accent">
+            <a href="/admin/forms" target="_blank" rel="noopener noreferrer" className="ui-link inline-flex text-xs">
                 Manage forms and enquiries
             </a>
             <GenericBody {...props} />
@@ -1643,10 +1650,10 @@ function PageInspector(props: InspectorProps) {
                         <Icon name="pages" />
                     </span>
                     <div className="min-w-0">
-                        <h2 className="text-sm font-semibold" data-testid="inspector-target">
+                        <h2 className="t-title" data-testid="inspector-target">
                             {rootName} settings
                         </h2>
-                        <p className="text-[11px] text-muted">Select a block on the canvas or in Layers to edit it.</p>
+                        <p className="text-2xs text-muted">Select a block on the canvas or in Layers to edit it.</p>
                     </div>
                 </div>
             </div>
@@ -1669,7 +1676,7 @@ function PageInspector(props: InspectorProps) {
                         disabled={!canEdit}
                         onChange={(v) => set({ description: v }, 'description')}
                     />
-                    <label htmlFor={ids.noindex} className="flex items-center gap-2 text-[0.8125rem]">
+                    <label htmlFor={ids.noindex} className="flex items-center gap-2 text-ui">
                         <input
                             id={ids.noindex}
                             type="checkbox"

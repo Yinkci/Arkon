@@ -5,77 +5,177 @@
 
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
+/*
+ * Arkon admin design system (the admin only: published sites never load this stylesheet).
+ *
+ * Identity: precise, calm, technical. Ink (the colour of the Arkon mark) carries primary
+ * actions; cobalt is a signal colour reserved for selection, focus, links and the active
+ * place. Neutrals are slightly warm so long sessions feel like paper, not a spreadsheet.
+ * Hierarchy comes from type, spacing and surface, not from boxes inside boxes.
+ *
+ * Scales (use these, not arbitrary values):
+ *   spacing   Tailwind's 4px grid: 1 2 3 4 5 6 8 10 12 16 (4 8 12 16 20 24 32 40 48 64 px)
+ *   type      3xs 10 · 2xs 11 · xs 12 · ui 13 · sm 14 · base 15 · lg 17 · xl 19 · 2xl 22
+ *             roles: t-page, t-section, t-title, t-body, t-meta, t-label, t-eyebrow
+ *   radius    sm 4 (chips, kbd) · md 6 (controls) · lg 8 (panels, menus) · xl 10 (frame, dialogs)
+ *   elevation hairline (controls) · raise (selected tabs, floating toolbars) · pop (menus, dialogs, drags)
+ *   controls  28px (sm, panels) and 32px (md, pages); icons 14px in sm and 16px in md
+ *
+ * Screens render inside an element with data-theme="light|dark" (AdminLayout and the editors
+ * resolve the "system" preference). Status hues always come with an icon and text.
+ */
 @theme {
     --font-sans: 'Segoe UI Variable Text', 'Segoe UI', ui-sans-serif, system-ui, -apple-system, Roboto, sans-serif;
     --font-mono: ui-monospace, 'Cascadia Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
+
+    --text-3xs: 0.625rem;
+    --text-3xs--line-height: 0.875rem;
+    --text-2xs: 0.6875rem;
+    --text-2xs--line-height: 1rem;
+    --text-xs: 0.75rem;
+    --text-xs--line-height: 1rem;
+    --text-ui: 0.8125rem;
+    --text-ui--line-height: 1.25rem;
+    --text-sm: 0.875rem;
+    --text-sm--line-height: 1.375rem;
+    --text-base: 0.9375rem;
+    --text-base--line-height: 1.5rem;
+    --text-lg: 1.0625rem;
+    --text-lg--line-height: 1.5rem;
+    --text-xl: 1.1875rem;
+    --text-xl--line-height: 1.625rem;
+    --text-2xl: 1.375rem;
+    --text-2xl--line-height: 1.75rem;
+
+    --radius-sm: 0.25rem;
+    --radius: 0.25rem;
+    --radius-md: 0.375rem;
+    --radius-lg: 0.5rem;
+    --radius-xl: 0.625rem;
+    --radius-2xl: 0.75rem;
+
+    --ease-snap: cubic-bezier(0.2, 0, 0, 1);
+
+    /* Only Arkon elevation exists (hairline, raise, pop): no default black shadows. */
+    --shadow-*: initial;
+    --inset-shadow-*: initial;
+    --drop-shadow-*: initial;
+    --color-black: var(--ak-dark-1);
 }
 
 /*
- * Admin design tokens (the admin only: published sites never load this stylesheet).
- * Screens render inside an element with data-theme="light|dark" (AdminLayout and the
- * editors resolve the "system" preference). Status hues always come with an icon and
- * text, never colour alone.
+ * One dark-neutral scale, built on #2d2d2d (the navigation rail). Every dark tone in the admin
+ * and the builder — text, primary actions, the rail, dark-mode surfaces, shadows and scrims —
+ * comes from these six steps. There is no pure black and no second "near black": add a step
+ * here only for a new purpose, never a one-off hex in a component.
  */
+:root {
+    --ak-dark-1: #1f1f1f; /* deepest: dark-mode canvas and wells */
+    --ak-dark-2: #262626; /* dark-mode panels; light-mode text */
+    --ak-dark-3: #2d2d2d; /* BASE: navigation rail, primary actions */
+    --ak-dark-4: #363636; /* hover, elevated, dark-mode lines */
+    --ak-dark-5: #404040; /* active, pressed, dividers on the rail */
+    --ak-dark-6: #4a4a4a; /* strong edges in dark mode (control borders) */
+    /* The same neutral, as RGB, for shadows, overlays and scrims. */
+    --ak-dark-rgb: 31 31 31;
+}
+
 :root,
 [data-theme] {
-    --ak-canvas: #f4f5f7;
+    /* Surfaces, from the frame behind everything to the wells inside controls. */
+    --ak-canvas: #f4f4f3;
     --ak-surface: #ffffff;
-    --ak-raised: #f9fafb;
-    --ak-sunken: #eceef1;
-    --ak-line: #e3e5e9;
-    --ak-line-strong: #cbd0d7;
-    --ak-fg: #15171c;
-    --ak-muted: #575e6a;
-    --ak-faint: #838a96;
-    --ak-accent: #3047d1;
-    --ak-accent-hover: #2538b2;
+    --ak-raised: #fafaf9;
+    --ak-sunken: #ededeb;
+    --ak-hover: rgb(var(--ak-dark-rgb) / 0.05);
+    --ak-line: #e5e5e2;
+    --ak-line-strong: #d4d4d0;
+    /* Text: dark-2 on white is 15.1:1, softer than black with no loss of contrast. */
+    --ak-fg: var(--ak-dark-2);
+    --ak-muted: #5e5e5e;
+    --ak-faint: #8a8a8a;
+    /* Primary actions and the brand mark: the rail's own graphite, lighter on hover. */
+    --ak-ink: var(--ak-dark-3);
+    --ak-ink-hover: var(--ak-dark-5);
+    --ak-ink-fg: #fafafa;
+    /* Cobalt: selection, focus, links, the current place. */
+    --ak-accent: #2f4cd6;
+    --ak-accent-hover: #2440bb;
     --ak-accent-fg: #ffffff;
-    --ak-accent-soft: #eaedfb;
-    --ak-accent-line: #b5bff0;
-    --ak-live: #157347;
+    --ak-accent-soft: #edf0fc;
+    --ak-accent-line: #c2cbf5;
+    /* States. */
+    --ak-live: #17784a;
     --ak-live-soft: #e5f3eb;
-    --ak-changed: #965600;
-    --ak-changed-soft: #fcf0dc;
-    --ak-draft: #6b7280;
-    --ak-danger: #be2530;
-    --ak-danger-soft: #fcebec;
-    --ak-ai: #6a3fcf;
-    --ak-ai-soft: #f1ebfd;
-    --ak-site: #0b6b75;
-    --ak-site-soft: #e2f3f4;
-    --ak-shadow: 0 1px 2px rgb(20 22 30 / 0.06);
-    --ak-shadow-pop: 0 12px 32px -8px rgb(20 22 30 / 0.22), 0 2px 6px rgb(20 22 30 / 0.07);
+    --ak-changed: #985800;
+    --ak-changed-soft: #fbf0dc;
+    --ak-draft: #757575;
+    --ak-danger: #c0272f;
+    --ak-danger-soft: #fcebeb;
+    --ak-ai: #6942cc;
+    --ak-ai-soft: #f2edfd;
+    --ak-site: #0c6c76;
+    --ak-site-soft: #e2f2f3;
+    /* Elevation and overlays, from the same neutral. */
+    --ak-shadow: 0 1px 1.5px rgb(var(--ak-dark-rgb) / 0.07);
+    --ak-shadow-raise: 0 1px 2px rgb(var(--ak-dark-rgb) / 0.08), 0 0 0 1px rgb(var(--ak-dark-rgb) / 0.06);
+    --ak-shadow-pop: 0 12px 32px -8px rgb(var(--ak-dark-rgb) / 0.22), 0 2px 6px rgb(var(--ak-dark-rgb) / 0.07), 0 0 0 1px rgb(var(--ak-dark-rgb) / 0.07);
+    --ak-scrim: rgb(var(--ak-dark-rgb) / 0.45);
+    --ak-ring: 0 0 0 3px rgb(47 76 214 / 0.18);
+    /* Navigation rail (the same in both themes): the scale's base, with solid steps for hover and
+       active so they read the same on every display. Text steps measured against #2d2d2d. */
+    --ak-nav: var(--ak-dark-3);
+    --ak-nav-raised: var(--ak-dark-4); /* inner surfaces: avatar, theme switch track */
+    --ak-nav-hover: var(--ak-dark-4);
+    --ak-nav-active: var(--ak-dark-5);
+    --ak-nav-line: var(--ak-dark-5); /* dividers inside the rail */
+    --ak-nav-edge: rgb(var(--ak-dark-rgb) / 0.2); /* where the rail meets a light workspace */
+    --ak-nav-fg: #fafafa; /* active and hovered labels, 13.2:1 */
+    --ak-nav-text: #d6d6d6; /* labels, 9.5:1 */
+    --ak-nav-muted: #ababab; /* icons and secondary text, 6.0:1 */
+    --ak-nav-faint: #979797; /* group headings, 4.7:1 */
+    --ak-nav-accent: #9db0ff; /* active bar and icon, 5.0:1 on the active row */
     color-scheme: light;
 }
 
+/* Dark theme: the workspace steps down from the rail (canvas dark-1, panels dark-2), never to black. */
 [data-theme='dark'] {
-    --ak-canvas: #0e1014;
-    --ak-surface: #15181d;
-    --ak-raised: #1a1d23;
-    --ak-sunken: #0b0d10;
-    --ak-line: #272b32;
-    --ak-line-strong: #363b45;
-    --ak-fg: #e7e9ed;
-    --ak-muted: #a3aab5;
-    --ak-faint: #737a86;
-    --ak-accent: #8b9cff;
-    --ak-accent-hover: #a5b2ff;
-    --ak-accent-fg: #0e1014;
-    --ak-accent-soft: #1d2348;
-    --ak-accent-line: #3b468f;
-    --ak-live: #52c690;
-    --ak-live-soft: #10281c;
-    --ak-changed: #f0b14c;
-    --ak-changed-soft: #2d2311;
-    --ak-draft: #8b919c;
-    --ak-danger: #f47f78;
-    --ak-danger-soft: #361a1b;
-    --ak-ai: #b7a0ff;
-    --ak-ai-soft: #251c43;
+    --ak-canvas: var(--ak-dark-1);
+    --ak-surface: var(--ak-dark-2);
+    --ak-raised: var(--ak-dark-3);
+    --ak-sunken: var(--ak-dark-1);
+    --ak-hover: rgb(255 255 255 / 0.055);
+    --ak-line: var(--ak-dark-4);
+    --ak-line-strong: var(--ak-dark-6);
+    --ak-fg: #ededed;
+    --ak-muted: #a8a8a8;
+    --ak-faint: #858585;
+    /* Primary actions invert: light graphite-text buttons on the dark workspace. */
+    --ak-ink: #ededed;
+    --ak-ink-hover: #ffffff;
+    --ak-ink-fg: var(--ak-dark-2);
+    --ak-accent: #8ea1ff;
+    --ak-accent-hover: #a9b7ff;
+    --ak-accent-fg: var(--ak-dark-2);
+    --ak-accent-soft: #2b3152;
+    --ak-accent-line: #46519a;
+    --ak-live: #55c792;
+    --ak-live-soft: #1f3329;
+    --ak-changed: #efb04d;
+    --ak-changed-soft: #3a2f1c;
+    --ak-draft: #959595;
+    --ak-danger: #f48078;
+    --ak-danger-soft: #3f2626;
+    --ak-ai: #b8a2ff;
+    --ak-ai-soft: #332b4d;
     --ak-site: #63c9d2;
-    --ak-site-soft: #0f2a2d;
-    --ak-shadow: 0 1px 2px rgb(0 0 0 / 0.45);
-    --ak-shadow-pop: 0 16px 40px -8px rgb(0 0 0 / 0.65), 0 0 0 1px rgb(255 255 255 / 0.05);
+    --ak-site-soft: #1e3638;
+    --ak-shadow: 0 1px 1.5px rgb(12 12 12 / 0.45);
+    --ak-shadow-raise: 0 1px 2px rgb(12 12 12 / 0.45), 0 0 0 1px rgb(255 255 255 / 0.06);
+    --ak-shadow-pop: 0 16px 40px -8px rgb(12 12 12 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.08);
+    --ak-scrim: rgb(12 12 12 / 0.6);
+    --ak-ring: 0 0 0 3px rgb(142 161 255 / 0.25);
+    --ak-nav-edge: rgb(255 255 255 / 0.06); /* the rail is lighter than a dark workspace: a faint line */
     color-scheme: dark;
 }
 
@@ -84,11 +184,15 @@
     --color-surface: var(--ak-surface);
     --color-raised: var(--ak-raised);
     --color-sunken: var(--ak-sunken);
+    --color-hover: var(--ak-hover);
     --color-line: var(--ak-line);
     --color-line-strong: var(--ak-line-strong);
     --color-fg: var(--ak-fg);
     --color-muted: var(--ak-muted);
     --color-faint: var(--ak-faint);
+    --color-ink: var(--ak-ink);
+    --color-ink-hover: var(--ak-ink-hover);
+    --color-ink-fg: var(--ak-ink-fg);
     --color-accent: var(--ak-accent);
     --color-accent-hover: var(--ak-accent-hover);
     --color-accent-fg: var(--ak-accent-fg);
@@ -106,12 +210,68 @@
     --color-site: var(--ak-site);
     --color-site-soft: var(--ak-site-soft);
     --shadow-hairline: var(--ak-shadow);
+    --shadow-raise: var(--ak-shadow-raise);
     --shadow-pop: var(--ak-shadow-pop);
+    --shadow-ring: var(--ak-ring);
+    --color-scrim: var(--ak-scrim);
+    --color-dark-1: var(--ak-dark-1);
+    --color-dark-2: var(--ak-dark-2);
+    --color-dark-3: var(--ak-dark-3);
+    --color-dark-4: var(--ak-dark-4);
+    --color-dark-5: var(--ak-dark-5);
+    --color-dark-6: var(--ak-dark-6);
+    --color-nav: var(--ak-nav);
+    --color-nav-raised: var(--ak-nav-raised);
+    --color-nav-hover: var(--ak-nav-hover);
+    --color-nav-active: var(--ak-nav-active);
+    --color-nav-line: var(--ak-nav-line);
+    --color-nav-edge: var(--ak-nav-edge);
+    --color-nav-fg: var(--ak-nav-fg);
+    --color-nav-text: var(--ak-nav-text);
+    --color-nav-muted: var(--ak-nav-muted);
+    --color-nav-faint: var(--ak-nav-faint);
+    --color-nav-accent: var(--ak-nav-accent);
+}
+
+/*
+ * Density. The builder is a tool and stays dense; admin screens (inside .ak-comfortable, set by
+ * AdminLayout) are read more than operated, so text and controls are one step larger. Type roles,
+ * buttons and inputs read these variables: change the scale here, not in components.
+ */
+[data-theme] {
+    --ak-d-page: var(--text-2xl);
+    --ak-d-page-lh: var(--text-2xl--line-height);
+    --ak-d-section: var(--text-base);
+    --ak-d-section-lh: var(--text-base--line-height);
+    --ak-d-body: var(--text-ui);
+    --ak-d-body-lh: var(--text-ui--line-height);
+    --ak-d-meta: var(--text-xs);
+    --ak-d-meta-lh: var(--text-xs--line-height);
+    --ak-control-h: 2rem;
+    --ak-control-px: 0.75rem;
+    --ak-control-text: var(--text-ui);
+    --ak-d-label: var(--text-xs);
+}
+.ak-comfortable {
+    --ak-d-page: 1.75rem;
+    --ak-d-page-lh: 2.25rem;
+    --ak-d-section: var(--text-lg);
+    --ak-d-section-lh: 1.625rem;
+    --ak-d-body: var(--text-sm);
+    --ak-d-body-lh: 1.375rem;
+    --ak-d-meta: var(--text-ui);
+    --ak-d-meta-lh: 1.25rem;
+    --ak-control-h: 2.25rem;
+    --ak-control-px: 0.875rem;
+    --ak-control-text: var(--text-sm);
+    --ak-d-label: var(--text-ui);
 }
 
 [data-theme] {
     background: var(--ak-canvas);
     color: var(--ak-fg);
+    font-feature-settings: 'tnum' 0;
+    -webkit-font-smoothing: antialiased;
 }
 
 [data-theme] :focus-visible {
@@ -119,8 +279,87 @@
     outline-offset: 2px;
 }
 
+/* On the navigation rail the focus ring uses the rail's lighter accent. */
+[data-theme] .bg-nav :focus-visible {
+    outline-color: var(--ak-nav-accent);
+}
+
 [data-theme] ::selection {
     background: var(--ak-accent-soft);
+}
+
+/* Type roles: one definition per role, so the same role looks the same on every screen. */
+@utility t-page {
+    font-size: var(--ak-d-page);
+    line-height: var(--ak-d-page-lh);
+    font-weight: 600;
+    letter-spacing: -0.022em;
+    color: var(--ak-fg);
+}
+@utility t-section {
+    font-size: var(--ak-d-section);
+    line-height: var(--ak-d-section-lh);
+    font-weight: 600;
+    letter-spacing: -0.006em;
+    color: var(--ak-fg);
+}
+@utility t-title {
+    font-size: var(--ak-d-body);
+    line-height: var(--ak-d-body-lh);
+    font-weight: 600;
+    color: var(--ak-fg);
+}
+@utility t-body {
+    font-size: var(--ak-d-body);
+    line-height: var(--ak-d-body-lh);
+    color: var(--ak-fg);
+}
+@utility t-meta {
+    font-size: var(--ak-d-meta);
+    line-height: var(--ak-d-meta-lh);
+    color: var(--ak-muted);
+}
+@utility t-label {
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
+    font-weight: 500;
+    color: var(--ak-muted);
+}
+@utility t-eyebrow {
+    font-size: var(--text-2xs);
+    line-height: var(--text-2xs--line-height);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ak-faint);
+}
+@utility t-num {
+    font-variant-numeric: tabular-nums;
+}
+/* Controls sized by the density (Button md, .ui-input). */
+@utility h-control {
+    height: var(--ak-control-h);
+}
+@utility px-control {
+    padding-inline: var(--ak-control-px);
+}
+@utility text-control {
+    font-size: var(--ak-control-text);
+    line-height: 1.25rem;
+}
+@utility size-control {
+    width: var(--ak-control-h);
+    height: var(--ak-control-h);
+}
+/* The content column of an admin screen: one recipe, so titles line up everywhere. */
+@utility ak-page {
+    margin-inline: auto;
+    width: 100%;
+    max-width: 86rem;
+    padding: 1.75rem 1.25rem 4rem;
+    @media (width >= 40rem) {
+        padding: 2.25rem 2.5rem 5rem;
+    }
 }
 
 /* Shared form controls (see Components/ui.tsx). One look for every input in the admin. */
@@ -128,38 +367,57 @@
     .ui-input {
         width: 100%;
         min-width: 0;
-        height: 2rem;
-        border-radius: 0.375rem;
+        height: var(--ak-control-h);
+        border-radius: var(--radius-md);
         border: 1px solid var(--ak-line-strong);
         background: var(--ak-surface);
-        padding-inline: 0.5rem;
-        font-size: 0.8125rem;
+        padding-inline: 0.625rem;
+        font-size: var(--ak-control-text);
+        font-weight: 400;
         color: var(--ak-fg);
         outline: none;
-        transition: border-color 120ms;
+        box-shadow: var(--ak-shadow);
+        transition:
+            border-color 120ms var(--ease-snap),
+            box-shadow 120ms var(--ease-snap);
     }
-    textarea.ui-input {
+    /* Inside the builder's panels controls are one step denser. */
+    .ui-dense .ui-input,
+    .ui-input.ui-dense {
+        height: 1.75rem;
+        padding-inline: 0.5rem;
+        font-size: var(--text-xs);
+    }
+    textarea.ui-input,
+    .ui-dense textarea.ui-input {
         height: auto;
-        padding-block: 0.375rem;
+        font-size: var(--text-ui);
+        padding-block: 0.4375rem;
         line-height: 1.45;
         resize: vertical;
     }
     select.ui-input {
-        padding-right: 1.5rem;
+        appearance: none;
+        padding-right: 1.75rem;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%238a8a92' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 6.5 8 9.5l3-3'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.375rem center;
+        background-size: 1rem;
     }
     .ui-input::placeholder {
         color: var(--ak-faint);
     }
     .ui-input:hover:not(:disabled) {
-        border-color: var(--ak-faint);
+        border-color: color-mix(in srgb, var(--ak-line-strong) 50%, var(--ak-faint));
     }
     .ui-input:focus {
         border-color: var(--ak-accent);
-        box-shadow: 0 0 0 3px var(--ak-accent-soft);
+        box-shadow: var(--ak-ring);
     }
     .ui-input:disabled {
-        background: var(--ak-raised);
+        background-color: var(--ak-raised);
         color: var(--ak-muted);
+        box-shadow: none;
         cursor: not-allowed;
     }
     .ui-input[aria-invalid='true'] {
@@ -168,11 +426,157 @@
     }
     .ui-label {
         display: block;
-        font-size: 0.75rem;
+        font-size: var(--ak-d-label);
+        line-height: 1.25;
         font-weight: 500;
         color: var(--ak-muted);
-        margin-bottom: 0.25rem;
+        margin-bottom: 0.375rem;
     }
+    /* A label that wraps its control: label text, then the control 6px below. */
+    .ui-field {
+        display: grid;
+        gap: 0.375rem;
+        font-size: var(--ak-d-label);
+        line-height: 1.25;
+        font-weight: 500;
+        color: var(--ak-muted);
+    }
+    .ui-field > .ui-hint {
+        font-weight: 400;
+    }
+    .ui-hint {
+        font-size: var(--ak-d-label);
+        line-height: 1.25;
+        color: var(--ak-muted);
+    }
+    /* A checkbox or radio with its label. */
+    .ui-check {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.5rem;
+        font-size: var(--ak-d-body);
+        line-height: var(--ak-d-body-lh);
+        color: var(--ak-fg);
+    }
+    .ui-check > input {
+        margin-top: 0.1875rem;
+        flex-shrink: 0;
+    }
+    /* A link inside text or a list: cobalt, underlined on hover. */
+    .ui-link {
+        color: var(--ak-accent);
+        text-underline-offset: 3px;
+        text-decoration-thickness: 1px;
+    }
+    .ui-link:hover {
+        text-decoration-line: underline;
+    }
+    /* An indeterminate activity bar (not a percentage). */
+    .ui-activity {
+        position: relative;
+        height: 0.25rem;
+        overflow: hidden;
+        border-radius: 999px;
+        background: var(--ak-sunken);
+    }
+    .ui-activity::after {
+        content: '';
+        position: absolute;
+        inset-block: 0;
+        width: 35%;
+        border-radius: inherit;
+        background: var(--ak-accent);
+        animation: ui-activity 1.4s var(--ease-snap) infinite;
+    }
+}
+
+@keyframes ui-activity {
+    from {
+        left: -35%;
+    }
+    to {
+        left: 100%;
+    }
+}
+
+@keyframes ui-pop-in {
+    from {
+        opacity: 0;
+        transform: translateY(-2px) scale(0.985);
+    }
+}
+
+@layer base {
+    [data-theme] :is(input[type='checkbox'], input[type='radio'], progress, input[type='range']) {
+        accent-color: var(--ak-accent);
+    }
+}
+
+/*
+ * Scroll areas inside the admin (the navigation rail, builder panels). A thin track-less thumb
+ * from the dark-neutral scale, inset from the edge by a transparent border (10 px to grab, 6 px
+ * drawn), no arrow buttons. Subtle at rest, clearer while the area is hovered, clearest while
+ * dragged. `scrollbar-gutter: stable` keeps content from shifting when it appears. Chromium and
+ * Safari use the ::-webkit-scrollbar parts; Firefox gets the standard properties (Chromium would
+ * ignore the webkit parts if those were set, so they are scoped to browsers without them).
+ */
+@utility ak-scroll {
+    --ak-scroll-thumb: rgb(var(--ak-dark-rgb) / 0.16);
+    --ak-scroll-thumb-hover: rgb(var(--ak-dark-rgb) / 0.3);
+    --ak-scroll-thumb-active: rgb(var(--ak-dark-rgb) / 0.42);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+
+    &::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+    &::-webkit-scrollbar-track,
+    &::-webkit-scrollbar-corner {
+        background: transparent;
+    }
+    &::-webkit-scrollbar-button {
+        display: none;
+        width: 0;
+        height: 0;
+    }
+    &::-webkit-scrollbar-thumb {
+        min-height: 32px;
+        border: 2px solid transparent;
+        border-radius: 999px;
+        background-clip: padding-box;
+        background-color: var(--ak-scroll-thumb);
+    }
+    &:hover::-webkit-scrollbar-thumb {
+        background-color: var(--ak-scroll-thumb-hover);
+    }
+    &::-webkit-scrollbar-thumb:hover,
+    &::-webkit-scrollbar-thumb:active {
+        background-color: var(--ak-scroll-thumb-active);
+    }
+    @supports not selector(::-webkit-scrollbar) {
+        scrollbar-width: thin;
+        scrollbar-color: var(--ak-scroll-thumb) transparent;
+        &:hover {
+            scrollbar-color: var(--ak-scroll-thumb-hover) transparent;
+        }
+    }
+}
+/* Content fades out over the last 12 px at either end, so a cut-off item reads as "more here". */
+@utility ak-scroll-fade {
+    mask-image: linear-gradient(to bottom, transparent, #000 12px, #000 calc(100% - 16px), transparent);
+}
+/* On dark surfaces (the rail, and every panel in the dark theme) the thumb is a lighter neutral. */
+@utility ak-scroll-dark {
+    --ak-scroll-thumb: rgb(255 255 255 / 0.12);
+    --ak-scroll-thumb-hover: rgb(255 255 255 / 0.22);
+    --ak-scroll-thumb-active: rgb(255 255 255 / 0.32);
+}
+[data-theme='dark'] .ak-scroll {
+    --ak-scroll-thumb: rgb(255 255 255 / 0.12);
+    --ak-scroll-thumb-hover: rgb(255 255 255 / 0.22);
+    --ak-scroll-thumb-active: rgb(255 255 255 / 0.32);
 }
 
 @media (prefers-reduced-motion: reduce) {

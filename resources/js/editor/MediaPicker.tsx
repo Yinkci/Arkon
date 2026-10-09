@@ -89,11 +89,9 @@ export function MediaPicker({
                     {current ? <img src={current.url} alt="" className="size-full object-cover" /> : <Icon name="image" className="size-5" />}
                 </div>
                 <div className="min-w-0 flex-1">
-                    <p className="truncate text-[0.8125rem] font-medium">
-                        {current ? mediaName(current) : value ? 'Image not in the library list' : 'No image'}
-                    </p>
+                    <p className="truncate text-ui font-medium">{current ? mediaName(current) : value ? 'Image not in the library list' : 'No image'}</p>
                     {current && (
-                        <p className="text-[11px] text-muted tabular-nums">
+                        <p className="text-2xs text-muted tabular-nums">
                             {current.width} × {current.height} px
                         </p>
                     )}
@@ -174,7 +172,7 @@ export function MediaPicker({
                     </Button>
                 )}
             </div>
-            {canUpload && canEdit && <p className="text-[11px] text-muted">{uploadHelp()}</p>}
+            {canUpload && canEdit && <p className="text-2xs text-muted">{uploadHelp()}</p>}
             {uploading && (
                 <div role="status" className="space-y-1 text-xs text-muted">
                     <progress aria-label="Image upload progress" value={progress ?? 0} max={100} className="h-2 w-full" />
@@ -237,7 +235,7 @@ export function MediaPicker({
                                         loading="lazy"
                                         className="aspect-[4/3] w-full bg-sunken object-cover"
                                     />
-                                    <span className="block truncate px-1 py-0.5 text-[10px] text-muted">{mediaName(m)}</span>
+                                    <span className="block truncate px-1 py-0.5 text-3xs text-muted">{mediaName(m)}</span>
                                 </button>
                             </li>
                         );

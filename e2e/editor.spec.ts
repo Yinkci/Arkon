@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { E2E_OWNER, PNG_1X1 } from './fixtures';
-import { BASE_URL } from './support';
+import { BASE_URL, greeting } from './support';
 
 // This file exercises the login flow itself, so it starts signed out.
 test.use({ storageState: { cookies: [], origins: [] } });
@@ -11,7 +11,7 @@ async function login(page: Page) {
     await page.getByLabel('Email').fill(E2E_OWNER.email);
     await page.getByLabel('Password').fill(E2E_OWNER.password);
     await page.getByRole('button', { name: 'Sign in' }).click();
-    await expect(page.getByRole('heading', { name: `Welcome, ${E2E_OWNER.name}` })).toBeVisible();
+    await expect(page.getByRole('heading', { name: greeting(E2E_OWNER.name) })).toBeVisible();
 }
 
 /** The live home page as an anonymous visitor sees it. */

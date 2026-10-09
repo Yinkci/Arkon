@@ -1,6 +1,6 @@
 import { expect, test, type FrameLocator, type Locator, type Page } from '@playwright/test';
 import { E2E_EDITOR, PNG_1X1 } from './fixtures';
-import { BASE_URL, createPage, interceptNext, isAction, publicationCount } from './support';
+import { BASE_URL, createPage, greeting, interceptNext, isAction, publicationCount } from './support';
 
 const status = (page: Page) => page.getByTestId('save-status');
 const notice = (page: Page) => page.getByTestId('notice');
@@ -406,7 +406,7 @@ test.describe('as an editor', () => {
         await page.getByLabel('Email').fill(E2E_EDITOR.email);
         await page.getByLabel('Password').fill(E2E_EDITOR.password);
         await page.getByRole('button', { name: 'Sign in' }).click();
-        await expect(page.getByRole('heading', { name: `Welcome, ${E2E_EDITOR.name}` })).toBeVisible();
+        await expect(page.getByRole('heading', { name: greeting(E2E_EDITOR.name) })).toBeVisible();
 
         await page.goto(`/admin/editor/${id}`);
         await openLayers(page);

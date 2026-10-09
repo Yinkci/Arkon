@@ -18,7 +18,7 @@ export default function Pages({ pages }: { pages: PageRow[] }) {
     return (
         <AdminLayout>
             <Head title="Pages" />
-            <div className="mx-auto max-w-5xl space-y-5 px-4 py-6 sm:px-8 sm:py-8">
+            <div className="ak-page space-y-6">
                 <AdminPageHeader
                     title="Pages"
                     description="Manage page drafts and live versions. Open any page in the builder to edit content, layout and SEO."
@@ -49,22 +49,25 @@ export default function Pages({ pages }: { pages: PageRow[] }) {
                     </div>
                 )}
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div role="group" aria-label="Filter pages" className="flex flex-wrap gap-1">
+                    <div role="group" aria-label="Filter pages" className="inline-flex flex-wrap rounded-md border border-line bg-sunken p-0.5">
                         {[
                             ['all', 'All'],
                             ['published', 'Published'],
                             ['draft', 'Not published'],
                             ['changed', 'Unpublished changes'],
                         ].map(([value, label]) => (
-                            <Button
+                            <button
                                 key={value}
-                                size="sm"
-                                variant={filter === value ? 'secondary' : 'ghost'}
+                                type="button"
                                 aria-pressed={filter === value}
                                 onClick={() => setFilter(value!)}
+                                className={`inline-flex h-8 items-center gap-1.5 rounded px-3 text-ui font-medium transition-colors ${filter === value ? 'bg-surface text-fg shadow-raise' : 'text-muted hover:text-fg'}`}
                             >
                                 {label}
-                            </Button>
+                                <span aria-hidden="true" className="text-2xs text-faint t-num">
+                                    {value === 'all' ? pages.length : pages.filter((p) => p.status === value).length}
+                                </span>
+                            </button>
                         ))}
                     </div>
                     <label className="sr-only" htmlFor="pages-search">
@@ -72,26 +75,27 @@ export default function Pages({ pages }: { pages: PageRow[] }) {
                     </label>
                     <input
                         id="pages-search"
+                        type="search"
                         className="ui-input w-full sm:w-64"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         placeholder="Search title or URL"
                     />
                 </div>
-                <section aria-label="All pages" className="rounded-lg border border-line bg-surface shadow-hairline">
-                    <h2 className="border-b border-line px-4 py-2.5 text-sm font-semibold">
-                        All pages <span className="font-normal text-muted tabular-nums">{pages.length}</span>
-                    </h2>
+                <section aria-label="All pages">
+                    <h2 className="sr-only">All pages</h2>
                     {shown.length === 0 ? (
-                        <EmptyState icon="pages" title={pages.length ? 'No matching pages' : 'Create your first page'}>
-                            {pages.length
-                                ? 'Change the search or filter to find a page.'
-                                : can['page.create']
-                                  ? 'Choose New page or generate editable drafts with AI.'
-                                  : 'Pages created by your team appear here.'}
-                        </EmptyState>
+                        <div className="rounded-lg border border-dashed border-line-strong">
+                            <EmptyState icon="pages" title={pages.length ? 'No matching pages' : 'Create your first page'}>
+                                {pages.length
+                                    ? 'Change the search or filter to find a page.'
+                                    : can['page.create']
+                                      ? 'Choose New page or generate editable drafts with AI.'
+                                      : 'Pages created by your team appear here.'}
+                            </EmptyState>
+                        </div>
                     ) : (
-                        <div className="px-4">
+                        <div className="rounded-lg border border-line bg-surface px-5 shadow-hairline">
                             <PagesTable pages={shown} canPublish={!!can['page.publish']} canDelete={!!can['page.delete']} />
                         </div>
                     )}

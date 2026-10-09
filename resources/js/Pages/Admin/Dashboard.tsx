@@ -1,7 +1,9 @@
 import { Head, Link, usePage } from '@inertiajs/react';
+import type { ReactNode } from 'react';
 import { AdminLayout } from '@/Components/AdminLayout';
-import { STATUS_LABEL } from '@/Components/PagesTable';
-import { ButtonLink, EmptyState } from '@/Components/ui';
+import { Icon, type IconName } from '@/Components/Icon';
+import { STATUS_LABEL, StatusMark } from '@/Components/PagesTable';
+import { Avatar, ButtonLink, EmptyState, PageShell } from '@/Components/ui';
 import { fullDate, relativeTime } from '@/lib/time';
 import type { PageRow, PageStatus, SharedProps } from '@/types';
 
@@ -33,6 +35,23 @@ function summary(counts: Record<Filter, number>): string {
     return 'Every page is live and up to date.';
 }
 
+function greeting(now = new Date()): string {
+    const hour = now.getHours();
+    if (hour >= 5 && hour < 12) return 'Good morning';
+    if (hour >= 12 && hour < 18) return 'Good afternoon';
+    return 'Good evening';
+}
+
+const host = (url: string) => url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+
+interface AttentionItem {
+    key: string;
+    href: string;
+    icon: IconName;
+    tone: string;
+    label: string;
+}
+
 export default function Dashboard({
     pages,
     counts,
@@ -45,17 +64,92 @@ export default function Dashboard({
     overview: Overview;
 }) {
     const { auth, site, can } = usePage<SharedProps>().props;
+    const live = counts.published + counts.changed;
+    const failing = overview.refreshes.failed > 0;
+    const healthTone = failing ? 'bg-danger' : counts.changed > 0 ? 'bg-changed' : counts.all > 0 && counts.draft === 0 ? 'bg-live' : 'bg-draft';
+    const [latest, ...rest] = pages;
+
+    const attention: AttentionItem[] = [
+        ...overview.proposals.map((p) => ({
+            key: 'proposal-' + p.id,
+            href: '/admin/editor/' + p.pageId,
+            icon: 'sparkle' as const,
+            tone: 'text-ai',
+            label: `Review AI proposal for ${p.page}`,
+        })),
+        ...(counts.changed > 0
+            ? [
+                  {
+                      key: 'changed',
+                      href: '/admin/pages?status=changed',
+                      icon: 'dots' as const,
+                      tone: 'text-changed',
+                      label: `Review ${counts.changed} pages with unpublished changes`,
+                  },
+              ]
+            : []),
+        ...(failing || overview.refreshes.pending > 0
+            ? [
+                  {
+                      key: 'refreshes',
+                      href: '/admin/performance',
+                      icon: 'alert' as const,
+                      tone: 'text-danger',
+                      label: `${overview.refreshes.failed} failed · ${overview.refreshes.pending} pending live-page updates`,
+                  },
+              ]
+            : []),
+        ...(overview.design.tokensChanged
+            ? [{ key: 'tokens', href: '/admin/design', icon: 'palette' as const, tone: 'text-changed', label: 'Review unpublished global styles' }]
+            : []),
+        ...(overview.design.componentsChanged > 0
+            ? [
+                  {
+                      key: 'components',
+                      href: '/admin/design/components',
+                      icon: 'component' as const,
+                      tone: 'text-changed',
+                      label: `Review ${overview.design.componentsChanged} changed components`,
+                  },
+              ]
+            : []),
+    ];
+
+    const setup = !homepage || live === 0;
+    const setupSteps = [
+        { done: !!homepage, href: '/admin/pages', label: homepage ? 'Homepage created' : 'Create a page at /' },
+        {
+            done: !!homepage && homepage.status !== 'draft',
+            href: homepage ? '/admin/editor/' + homepage.id : '/admin/pages',
+            label: 'Preview and publish the homepage',
+        },
+        { done: false, href: '/admin/navigation', label: 'Review navigation' },
+        ...(can['page.publish'] ? [{ done: false, href: '/admin/settings', label: 'Review site identity' }] : []),
+    ];
+
     return (
         <AdminLayout>
             <Head title="Dashboard" />
-            <div className="mx-auto max-w-6xl space-y-8 px-4 py-6 sm:px-8 sm:py-8">
-                <header className="flex flex-wrap justify-between gap-4">
-                    <div>
-                        <p className="text-xs text-muted">{site?.name}</p>
-                        <h1 className="mt-1 text-2xl font-semibold tracking-tight">Welcome, {auth.user?.name}</h1>
-                        <p className="mt-2 text-sm text-muted">{summary(counts)}</p>
+            <PageShell>
+                <header className="flex flex-wrap items-center justify-between gap-x-8 gap-y-5">
+                    <div className="min-w-0">
+                        <p className="flex items-center gap-2 t-meta">
+                            <span className="font-medium text-fg">{site?.name}</span>
+                            {site?.url && (
+                                <>
+                                    <span aria-hidden="true" className="text-faint">
+                                        /
+                                    </span>
+                                    <span className="truncate font-mono text-xs">{host(site.url)}</span>
+                                </>
+                            )}
+                        </p>
+                        <h1 className="mt-2 t-page">
+                            {greeting()}, {auth.user?.name}
+                        </h1>
+                        <p className="mt-1.5 text-base text-muted">Here’s what is happening with your website today.</p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap items-center gap-2.5">
                         {homepage && (
                             <ButtonLink href={'/admin/editor/' + homepage.id} icon="home">
                                 {can['page.edit'] ? 'Edit homepage' : 'View homepage'}
@@ -68,179 +162,356 @@ export default function Dashboard({
                         )}
                     </div>
                 </header>
-                <section aria-label="Website overview" className="flex flex-wrap gap-x-10 gap-y-3 border-y border-line py-5 text-sm">
-                    <p>
-                        <strong className="text-xl">{counts.all}</strong> {counts.all === 1 ? 'page' : 'pages'}
-                    </p>
-                    <p>
-                        <strong>{counts.published + counts.changed}</strong> live
-                    </p>
-                    <p>
-                        <strong>{counts.draft}</strong> unpublished
-                    </p>
-                    <p>
-                        <strong>{counts.changed}</strong> with draft changes
-                    </p>
-                    {site?.url && (
-                        <a href={site.url} className="text-accent hover:underline" target="_blank" rel="noreferrer">
-                            View website ↗
-                        </a>
-                    )}
-                </section>
-                {(!homepage || counts.published + counts.changed === 0) && (
-                    <section className="space-y-2" aria-labelledby="setup-title">
-                        <h2 id="setup-title" className="text-base font-semibold">
-                            Get your site ready
-                        </h2>
-                        <p className="text-sm text-muted">
-                            {homepage ? 'Your homepage is saved. Open the builder to preview and publish it.' : 'Create a page at / to set up your homepage.'}
-                        </p>
-                        <div className="flex flex-wrap gap-4 text-sm">
-                            <Link href="/admin/pages" className="text-accent">
-                                Set up pages
-                            </Link>
-                            <Link href="/admin/navigation" className="text-accent">
-                                Review navigation
-                            </Link>
-                            {can['page.publish'] && (
-                                <Link href="/admin/settings" className="text-accent">
-                                    Review site identity
-                                </Link>
+
+                {/* 1 · Where the site stands, and what needs a decision. */}
+                <div className="mt-9 grid gap-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
+                    <section aria-labelledby="overview-title" className="overflow-hidden rounded-lg border border-line bg-surface shadow-hairline">
+                        <PanelHeading
+                            id="overview-title"
+                            title="Site overview"
+                            aside={
+                                <span className="inline-flex items-center gap-2 text-ui text-muted" data-testid="site-health">
+                                    <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${healthTone}`} />
+                                    {summary(counts)}
+                                </span>
+                            }
+                        />
+                        <div className="grid gap-x-10 gap-y-6 px-6 pt-6 pb-5 sm:grid-cols-[auto_minmax(0,1fr)]">
+                            <div>
+                                <p className="t-label">Pages</p>
+                                <p className="mt-1 text-[2.5rem] leading-none font-semibold tracking-tight t-num">{counts.all}</p>
+                                <p className="mt-2 t-meta t-num">
+                                    {live} of {counts.all} live
+                                </p>
+                            </div>
+                            <div className="min-w-0 self-end">
+                                <ul className="grid grid-cols-3 gap-4">
+                                    <Metric status="published" count={counts.published} label="Live" />
+                                    <Metric status="changed" count={counts.changed} label="Draft changes" />
+                                    <Metric status="draft" count={counts.draft} label="Unpublished" />
+                                </ul>
+                                <StateBar counts={counts} />
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line bg-raised px-6 py-3.5 text-ui">
+                            <span className="t-label">Homepage</span>
+                            {homepage ? (
+                                <span className="inline-flex items-center gap-2 font-medium">
+                                    <StatusMark status={homepage.status} />
+                                    {STATUS_LABEL[homepage.status]}
+                                    <span className="font-normal text-muted">
+                                        {homepage.publishedAt ? `· published ${relativeTime(homepage.publishedAt)}` : '· not live yet'}
+                                    </span>
+                                </span>
+                            ) : (
+                                <span className="text-muted">No page at / yet</span>
+                            )}
+                            {site?.url && (
+                                <a href={site.url} className="ui-link ml-auto inline-flex items-center gap-1.5" target="_blank" rel="noreferrer">
+                                    View website
+                                    <Icon name="external" className="size-3.5" />
+                                </a>
                             )}
                         </div>
                     </section>
-                )}
-                <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,0.7fr)]">
-                    <section aria-labelledby="recent-content">
-                        <div className="flex justify-between gap-3">
-                            <h2 id="recent-content" className="text-base font-semibold">
-                                Recent content
-                            </h2>
-                            <Link href="/admin/pages" className="text-sm text-accent">
-                                View all pages →
-                            </Link>
-                        </div>
-                        {pages.length ? (
-                            <ul className="mt-3 divide-y divide-line">
-                                {pages.map((page) => (
-                                    <li key={page.id} className="flex items-center justify-between gap-3 py-3">
-                                        <div className="min-w-0">
-                                            <Link className="block truncate text-sm font-medium hover:text-accent" href={'/admin/editor/' + page.id}>
-                                                {page.title}
-                                            </Link>
-                                            <p className="mt-1 text-xs text-muted">
-                                                {STATUS_LABEL[page.status]} · {page.updatedAt ? relativeTime(page.updatedAt) : 'Recently created'}
-                                            </p>
-                                        </div>
-                                        <ButtonLink href={'/admin/editor/' + page.id} size="sm">
-                                            Open builder
-                                        </ButtonLink>
+
+                    <section
+                        aria-labelledby="attention-title"
+                        data-testid="attention"
+                        className="flex flex-col overflow-hidden rounded-lg border border-line bg-surface shadow-hairline"
+                    >
+                        <PanelHeading
+                            id="attention-title"
+                            title="Needs attention"
+                            aside={
+                                attention.length > 0 ? (
+                                    <span className="rounded-sm bg-changed-soft px-2 py-0.5 text-xs font-semibold text-changed t-num">{attention.length}</span>
+                                ) : undefined
+                            }
+                        />
+                        {attention.length ? (
+                            <ul className="flex-1 divide-y divide-line">
+                                {attention.map((item) => (
+                                    <li key={item.key}>
+                                        <Link href={item.href} className="group flex items-center gap-3 px-6 py-3.5 text-sm hover:bg-hover">
+                                            <span className="grid size-8 shrink-0 place-items-center rounded-md bg-sunken">
+                                                <Icon name={item.icon} className={`size-4 ${item.tone}`} />
+                                            </span>
+                                            <span className="min-w-0 flex-1">{item.label}</span>
+                                            <Icon name="chevronRight" className="size-4 text-faint group-hover:text-muted" />
+                                        </Link>
                                     </li>
                                 ))}
                             </ul>
                         ) : (
-                            <EmptyState icon="pages" title="Your website starts with a page">
+                            <div className="flex flex-1 items-start gap-3 px-6 py-5">
+                                <span className="grid size-8 shrink-0 place-items-center rounded-md bg-live-soft">
+                                    <Icon name="check" className="size-4 text-live" />
+                                </span>
+                                <div>
+                                    <p className="t-title">All clear</p>
+                                    <p className="mt-0.5 t-meta">No pending actions in recorded publishing activity.</p>
+                                </div>
+                            </div>
+                        )}
+                        <p className="border-t border-line px-6 py-3 t-meta">Performance and indexing have not been measured for this site.</p>
+                    </section>
+                </div>
+
+                {/* 2 · The work itself, and the shortest ways to more of it. */}
+                <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
+                    <section aria-labelledby="recent-content" className="min-w-0 overflow-hidden rounded-lg border border-line bg-surface shadow-hairline">
+                        <PanelHeading
+                            id="recent-content"
+                            title="Recent content"
+                            aside={
+                                <Link href="/admin/pages" className="ui-link inline-flex items-center gap-1 text-ui font-medium">
+                                    View all pages
+                                    <Icon name="chevronRight" className="size-3.5" />
+                                </Link>
+                            }
+                        />
+                        {latest ? (
+                            <>
+                                <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-line bg-raised px-6 py-5">
+                                    <span className="grid size-11 shrink-0 place-items-center rounded-lg border border-line bg-surface text-muted shadow-hairline max-sm:hidden">
+                                        <Icon name="pages" className="size-5" />
+                                    </span>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="t-eyebrow">Continue editing</p>
+                                        <Link className="mt-1 block truncate text-base font-semibold hover:text-accent" href={'/admin/editor/' + latest.id}>
+                                            {latest.title}
+                                        </Link>
+                                        <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 t-meta">
+                                            <span className="font-mono text-xs">{latest.path}</span>
+                                            <span className="inline-flex items-center gap-1.5">
+                                                <StatusMark status={latest.status} />
+                                                {STATUS_LABEL[latest.status]}
+                                            </span>
+                                            <span>{latest.updatedAt ? `Edited ${relativeTime(latest.updatedAt)}` : 'Recently created'}</span>
+                                        </p>
+                                    </div>
+                                    <ButtonLink href={'/admin/editor/' + latest.id} variant="primary" icon="layers">
+                                        Open builder
+                                    </ButtonLink>
+                                </div>
+                                {rest.length > 0 && (
+                                    <>
+                                        <div
+                                            aria-hidden="true"
+                                            className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-6 px-6 pt-4 pb-1 t-eyebrow sm:grid-cols-[minmax(0,1fr)_11rem_7rem_1rem]"
+                                        >
+                                            <span>Page</span>
+                                            <span className="max-sm:hidden">Status</span>
+                                            <span className="text-right">Edited</span>
+                                            <span className="max-sm:hidden" />
+                                        </div>
+                                        <ul className="px-3 pb-3">
+                                            {rest.map((page) => (
+                                                <li key={page.id}>
+                                                    <Link
+                                                        href={'/admin/editor/' + page.id}
+                                                        className="group grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 rounded-md px-3 py-2 hover:bg-hover sm:grid-cols-[minmax(0,1fr)_11rem_7rem_1rem]"
+                                                    >
+                                                        <span className="min-w-0">
+                                                            <span className="block truncate text-sm font-medium group-hover:text-accent">{page.title}</span>
+                                                            <span className="block truncate font-mono text-xs text-muted">{page.path}</span>
+                                                        </span>
+                                                        <span className="inline-flex items-center gap-2 text-ui text-muted max-sm:hidden">
+                                                            <StatusMark status={page.status} />
+                                                            {STATUS_LABEL[page.status]}
+                                                        </span>
+                                                        <span
+                                                            className="text-right text-ui text-muted t-num"
+                                                            title={page.updatedAt ? fullDate(page.updatedAt) : undefined}
+                                                        >
+                                                            {page.updatedAt ? relativeTime(page.updatedAt) : 'New'}
+                                                        </span>
+                                                        <Icon name="chevronRight" className="size-4 text-faint group-hover:text-muted max-sm:hidden" />
+                                                    </Link>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </>
+                                )}
+                            </>
+                        ) : (
+                            <EmptyState
+                                icon="pages"
+                                title="Your website starts with a page"
+                                action={
+                                    can['page.create'] && (
+                                        <ButtonLink href="/admin/pages?new=1" variant="primary" icon="plus">
+                                            New page
+                                        </ButtonLink>
+                                    )
+                                }
+                            >
                                 Create a page manually or prepare editable drafts with AI.
                             </EmptyState>
                         )}
                     </section>
-                    <section aria-labelledby="attention-title" data-testid="attention">
-                        <h2 id="attention-title" className="text-base font-semibold">
-                            Needs attention
-                        </h2>
-                        <ul className="mt-3 space-y-3 text-sm">
-                            {overview.proposals.map((p) => (
-                                <li key={p.id}>
-                                    <Link href={'/admin/editor/' + p.pageId} className="text-accent">
-                                        Review AI proposal for {p.page}
-                                    </Link>
-                                </li>
-                            ))}
-                            {counts.changed > 0 && (
-                                <li>
-                                    <Link href="/admin/pages?status=changed" className="text-accent">
-                                        Review {counts.changed} pages with unpublished changes
-                                    </Link>
-                                </li>
+
+                    <div className="space-y-6">
+                        {setup && (
+                            <section aria-labelledby="setup-title" className="overflow-hidden rounded-lg border border-line bg-surface shadow-hairline">
+                                <PanelHeading
+                                    id="setup-title"
+                                    title="Get your site ready"
+                                    aside={
+                                        <span className="t-meta t-num">
+                                            {setupSteps.filter((step) => step.done).length} of {setupSteps.length}
+                                        </span>
+                                    }
+                                />
+                                <ol className="space-y-0.5 p-3">
+                                    {setupSteps.map((step) => (
+                                        <li key={step.label}>
+                                            <Link href={step.href} className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm hover:bg-hover">
+                                                {step.done ? (
+                                                    <span className="grid size-5 shrink-0 place-items-center rounded-full bg-live text-surface">
+                                                        <Icon name="check" className="size-3" />
+                                                    </span>
+                                                ) : (
+                                                    <span
+                                                        aria-hidden="true"
+                                                        className="size-5 shrink-0 rounded-full border-[1.5px] border-dashed border-line-strong"
+                                                    />
+                                                )}
+                                                <span className={step.done ? 'text-muted line-through decoration-line-strong' : ''}>{step.label}</span>
+                                                {step.done && <span className="sr-only">(done)</span>}
+                                            </Link>
+                                        </li>
+                                    ))}
+                                </ol>
+                            </section>
+                        )}
+
+                        <section aria-labelledby="shortcuts-title" className="overflow-hidden rounded-lg border border-line bg-surface shadow-hairline">
+                            <PanelHeading id="shortcuts-title" title="Quick actions" />
+                            <ul className="space-y-0.5 p-3">
+                                {can['page.create'] && (
+                                    <QuickAction href="/admin/pages?new=1" icon="plus" label="Create a page" detail="A new unpublished draft" />
+                                )}
+                                {can['media.view'] && (
+                                    <QuickAction href="/admin/media" icon="image" label="Media library" detail="Upload and describe images" />
+                                )}
+                                <QuickAction href="/admin/navigation" icon="menu" label="Navigation" detail="Menus, header and footer" />
+                                <QuickAction href="/admin/design" icon="palette" label="Global styles" detail="Colours, fonts and spacing" />
+                                <QuickAction href="/admin/seo" icon="globe" label="Review SEO metadata" detail="Titles and descriptions" />
+                            </ul>
+                            {can['page.edit'] && (
+                                <div className="border-t border-line bg-ai-soft/60 px-6 py-4">
+                                    <p className="flex items-center gap-2 t-title">
+                                        <Icon name="sparkle" className="size-4 text-ai" />
+                                        Build with Arkon AI
+                                    </p>
+                                    <p className="mt-1 t-meta">
+                                        Prepare a website proposal, or open a page builder to ask for a change. Review before applying.
+                                    </p>
+                                    <ButtonLink href="/admin/website" size="sm" className="mt-3">
+                                        Build a website
+                                    </ButtonLink>
+                                </div>
                             )}
-                            {(overview.refreshes.failed > 0 || overview.refreshes.pending > 0) && (
-                                <li>
-                                    <Link href="/admin/performance" className="text-danger">
-                                        {overview.refreshes.failed} failed · {overview.refreshes.pending} pending live-page updates
-                                    </Link>
-                                </li>
-                            )}
-                            {overview.design.tokensChanged && (
-                                <li>
-                                    <Link href="/admin/design" className="text-accent">
-                                        Review unpublished global styles
-                                    </Link>
-                                </li>
-                            )}
-                            {overview.design.componentsChanged > 0 && (
-                                <li>
-                                    <Link href="/admin/design/components" className="text-accent">
-                                        Review {overview.design.componentsChanged} changed components
-                                    </Link>
-                                </li>
-                            )}
-                            {overview.proposals.length === 0 &&
-                                counts.changed === 0 &&
-                                !overview.design.tokensChanged &&
-                                overview.design.componentsChanged === 0 &&
-                                overview.refreshes.pending === 0 &&
-                                overview.refreshes.failed === 0 && <li className="text-muted">No pending actions in recorded publishing activity.</li>}
-                        </ul>
-                        <div className="mt-5 border-t border-line pt-4 text-sm">
-                            <Link href="/admin/seo" className="text-accent">
-                                Review SEO metadata →
-                            </Link>
-                            <p className="mt-2 text-xs text-muted">Performance and indexing have not been measured for this site.</p>
-                        </div>
-                    </section>
+                        </section>
+                    </div>
                 </div>
-                <section aria-labelledby="activity-title" data-testid="activity" className="border-t border-line pt-6">
-                    <h2 id="activity-title" className="text-base font-semibold">
-                        Recent activity
-                    </h2>
+
+                {/* 3 · What happened. */}
+                <section
+                    aria-labelledby="activity-title"
+                    data-testid="activity"
+                    className="mt-6 overflow-hidden rounded-lg border border-line bg-surface shadow-hairline"
+                >
+                    <PanelHeading id="activity-title" title="Recent activity" aside={<span className="t-meta">Publishing, restores and design changes</span>} />
                     {overview.activity.length ? (
-                        <ul className="mt-3 space-y-3 text-sm">
-                            {overview.activity.slice(0, 5).map((item) => (
-                                <li key={item.id} className="flex flex-wrap justify-between gap-2">
-                                    <span>
-                                        {item.actor ?? 'A team member'} {item.verb}{' '}
+                        <ol className="relative space-y-5 px-6 py-5 before:absolute before:top-8 before:bottom-8 before:left-[2.375rem] before:w-px before:bg-line">
+                            {overview.activity.slice(0, 6).map((item) => (
+                                <li key={item.id} className="relative flex items-start gap-4">
+                                    <Avatar name={item.actor ?? 'Team member'} className="relative size-7 text-2xs ring-4 ring-surface" />
+                                    <p className="min-w-0 flex-1 pt-1 text-sm">
+                                        <span className="font-medium">{item.actor ?? 'A team member'}</span> <span className="text-muted">{item.verb}</span>{' '}
                                         {item.href ? (
-                                            <Link className="text-accent" href={item.href}>
+                                            <Link className="ui-link" href={item.href}>
                                                 {item.target}
                                             </Link>
                                         ) : (
                                             item.target
                                         )}
-                                    </span>
-                                    <time className="text-xs text-muted" dateTime={item.at} title={fullDate(item.at)}>
+                                    </p>
+                                    <time className="shrink-0 pt-1 t-meta t-num" dateTime={item.at} title={fullDate(item.at)}>
                                         {relativeTime(item.at)}
                                     </time>
                                 </li>
                             ))}
-                        </ul>
+                        </ol>
                     ) : (
-                        <p className="mt-3 text-sm text-muted">Publishing and design changes will appear here.</p>
+                        <p className="px-6 py-5 text-sm text-muted">Publishing and design changes will appear here.</p>
                     )}
                 </section>
-                {can['page.edit'] && (
-                    <section className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-6">
-                        <div>
-                            <h2 className="text-base font-semibold">Build with Arkon AI</h2>
-                            <p className="mt-1 text-sm text-muted">
-                                Prepare a website proposal, or open a page builder to ask for a specific change. Review before applying.
-                            </p>
-                        </div>
-                        <ButtonLink href="/admin/website" icon="sparkle">
-                            Build a website
-                        </ButtonLink>
-                    </section>
-                )}
-            </div>
+            </PageShell>
         </AdminLayout>
+    );
+}
+
+/** A panel's title row: the same height, padding and type in every dashboard panel. */
+function PanelHeading({ id, title, aside }: { id: string; title: string; aside?: ReactNode }) {
+    return (
+        <div className="flex min-h-14 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-line px-6 py-3">
+            <h2 id={id} className="t-section">
+                {title}
+            </h2>
+            {aside}
+        </div>
+    );
+}
+
+/** Live, changed and unpublished as one proportional bar (the metrics above it carry the words). */
+function StateBar({ counts }: { counts: Record<Filter, number> }) {
+    const total = Math.max(1, counts.all);
+    const segments: [number, string][] = [
+        [counts.published, 'bg-live'],
+        [counts.changed, 'bg-changed'],
+        [counts.draft, 'bg-line-strong'],
+    ];
+    return (
+        <div aria-hidden="true" className="mt-4 flex h-2 gap-0.5 overflow-hidden rounded-full bg-sunken">
+            {counts.all > 0 &&
+                segments.map(([count, color], i) =>
+                    count ? <span key={i} className={`${color} h-full`} style={{ width: `${(count / total) * 100}%` }} /> : null,
+                )}
+        </div>
+    );
+}
+
+function Metric({ status, count, label }: { status: PageStatus; count: number; label: string }) {
+    return (
+        <li>
+            <Link href={`/admin/pages?status=${status}`} aria-label={`${count} ${label.toLowerCase()}`} className="group block rounded-md outline-offset-4">
+                <span className="flex items-center gap-1.5 t-label group-hover:text-fg">
+                    <StatusMark status={status} />
+                    {label}
+                </span>
+                <span className="mt-1 block text-2xl font-semibold t-num">{count}</span>
+            </Link>
+        </li>
+    );
+}
+
+function QuickAction({ href, icon, label, detail }: { href: string; icon: IconName; label: string; detail: string }) {
+    return (
+        <li>
+            <Link href={href} className="group flex items-center gap-3 rounded-md px-3 py-2.5 hover:bg-hover">
+                <span className="grid size-9 shrink-0 place-items-center rounded-md border border-line bg-raised text-muted group-hover:text-accent">
+                    <Icon name={icon} className="size-[18px]" />
+                </span>
+                <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium">{label}</span>
+                    <span className="block truncate t-meta">{detail}</span>
+                </span>
+                <Icon name="chevronRight" className="size-4 text-faint opacity-0 transition-opacity group-hover:opacity-100" />
+            </Link>
+        </li>
     );
 }

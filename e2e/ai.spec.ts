@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { E2E_EDITOR } from './fixtures';
 import { E2E_ENV, E2E_MCP_TOKEN_FILE, FAKE_CLAUDE_LOG, PHP } from './env';
-import { BASE_URL, createPage, db, publicationCount, revisionCount } from './support';
+import { BASE_URL, createPage, db, greeting, publicationCount, revisionCount } from './support';
 
 const LANDSCAPING = 'Build a homepage for a landscaping business, with a hero, services, about section and contact button.';
 
@@ -291,7 +291,7 @@ test.describe('as an editor', () => {
         await page.getByLabel('Email').fill(E2E_EDITOR.email);
         await page.getByLabel('Password').fill(E2E_EDITOR.password);
         await page.getByRole('button', { name: 'Sign in' }).click();
-        await expect(page.getByRole('heading', { name: `Welcome, ${E2E_EDITOR.name}` })).toBeVisible();
+        await expect(page.getByRole('heading', { name: greeting(E2E_EDITOR.name) })).toBeVisible();
         await page.goto(`/admin/editor/${id}`);
         await ask(page, LANDSCAPING);
         await proposal(page).getByRole('button', { name: 'Apply to draft' }).click();

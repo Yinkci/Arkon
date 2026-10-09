@@ -66,15 +66,15 @@ export function PageSettings({ title, path, live, canEdit, blockedReason, onAppl
                     />
                 </div>
                 {live && (live.path !== path || live.title !== title) && (
-                    <p className="flex items-start gap-1.5 text-[11px] text-changed" data-testid="live-meta">
+                    <p className="flex items-start gap-1.5 text-2xs text-changed" data-testid="live-meta">
                         <Icon name="clock" className="mt-px size-3.5" />
                         Live now as “{live.title}” at {live.path} until you publish.
                     </p>
                 )}
                 {live && changed && draftPath !== live.path && (
-                    <p className="text-[11px] text-muted">When published, {live.path} will redirect (301) to the new URL.</p>
+                    <p className="text-2xs text-muted">When published, {live.path} will redirect (301) to the new URL.</p>
                 )}
-                {blockedReason && changed && <p className="text-[11px] text-changed">{blockedReason}</p>}
+                {blockedReason && changed && <p className="text-2xs text-changed">{blockedReason}</p>}
                 <Button type="submit" className="w-full" busy={pending} disabled={!canEdit || !changed || pending || blockedReason !== null}>
                     {pending ? 'Updating…' : 'Update title & URL'}
                 </Button>

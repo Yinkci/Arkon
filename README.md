@@ -6,6 +6,7 @@ clean HTML with small conditional enhancements for animations and sliders. This 
 - Backend: Laravel 13, PostgreSQL. Admin and editor: React + TypeScript through Inertia.
 - Served by Laravel Herd at **http://arkonlaravel.test**. No Node server at runtime.
 - Architecture, decisions and status: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Migration plan: [docs/MIGRATION_PLAN.md](docs/MIGRATION_PLAN.md).
+- Admin and builder UI conventions (tokens, type roles, components, workspace): [docs/ADMIN_DESIGN_SYSTEM.md](docs/ADMIN_DESIGN_SYSTEM.md).
 
 ## Requirements
 
@@ -66,6 +67,9 @@ Five wrong passwords lock the address for a minute.
   Ctrl+Z / Ctrl+Shift+Z undo and redo outside text fields. The toolbar shows the draft's state in words (Draft saved,
   Unsaved changes, Saving…, Save not confirmed, invalid fields not saved, Out of date, Previewing AI proposal) and
   whether the page is live; **Preview**, **Save draft** and **Publish** are separate buttons.
+- **Workspace.** On screens 1536 px and wider the builder shows the outline (Layers, History, AI) on the left and
+  Properties on the right, beside the canvas; the sidebar button next to the back arrow hides or shows the outline
+  (remembered). Narrower screens use one sidebar with Properties / Layers / History / AI tabs.
 - **Layers** tab: **+ Section / Group / Hero / Text / Image / Button / Columns** adds a block after the selection
   (or inside a selected container); a published **reusable component** can be added the same way. Or use the ↑ ↓ ✕
   buttons (the toolbar above the properties does the same, plus **Select parent** and **Make reusable**). Sections

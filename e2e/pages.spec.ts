@@ -1,6 +1,6 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { E2E_EDITOR } from './fixtures';
-import { BASE_URL, createPage } from './support';
+import { BASE_URL, createPage, greeting } from './support';
 
 const notice = (page: Page) => page.getByTestId('notice');
 const row = (page: Page, path: string) => page.locator(`[data-testid="page-row"][data-path="${path}"]`);
@@ -142,7 +142,7 @@ test.describe('as an editor', () => {
         await page.getByLabel('Email').fill(E2E_EDITOR.email);
         await page.getByLabel('Password').fill(E2E_EDITOR.password);
         await page.getByRole('button', { name: 'Sign in' }).click();
-        await expect(page.getByRole('heading', { name: `Welcome, ${E2E_EDITOR.name}` })).toBeVisible();
+        await expect(page.getByRole('heading', { name: greeting(E2E_EDITOR.name) })).toBeVisible();
 
         await createViaForm(page, 'Editor draft');
         await expect(page).toHaveURL(/\/admin\/editor\//);

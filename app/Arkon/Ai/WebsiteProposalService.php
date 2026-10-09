@@ -567,7 +567,7 @@ final class WebsiteProposalService
                 throw new ConflictException('This website proposal is not ready to apply.');
             }
             $snapshot = Json::decode($row->website_snapshot);
-            $result = Json::decode($row->website_result);
+            $result = $this->storedResult($row->website_result);
             // Lock every captured page in a stable order before taking the shared path lock.
             foreach ($snapshot['pages'] as $p) {
                 [$current,$draft] = $this->store->lockForWrite($ctx->siteId, $p['id']);
@@ -712,7 +712,7 @@ final class WebsiteProposalService
         $r = $this->row($ctx, $id);
         if (! in_array($r->status, ['proposed', 'applied'], true)) {
             throw new NotFoundException('Proposal preview');
-        }$result = Json::decode($r->website_result);
+        }$result = $this->storedResult($r->website_result);
         $p = $result['pages'][$index] ?? throw new NotFoundException('Proposal page');
         $snapshot = Json::decode($r->website_snapshot);
         $resources = app(DesignResources::class)->published($ctx->siteId, $p['document']);
@@ -740,6 +740,24 @@ final class WebsiteProposalService
         }$media = app(MediaService::class)->signedMediaMap($ctx->siteId, array_unique($refs), $signer);
 
         return app(PageRenderer::class)->render($p['document'], 'editor', ['title' => $p['title'], 'path' => $p['path']], $snapshot['site'], $media, resources: $resources)['html'];
+    }
+
+    /**
+     * A stored website result with every page and shared-layout document brought to the current
+     * component versions, in memory. A proposal can outlive a component version bump (like a
+     * draft can), and the renderer and save validation accept only current versions.
+     */
+    private function storedResult(string $json): array
+    {
+        $result = Json::decode($json);
+        foreach ($result['pages'] as $i => $page) {
+            $result['pages'][$i]['document'] = $this->registry->migrateDocument($page['document']);
+        }
+        foreach ($result['shared'] ?? [] as $slot => $shared) {
+            $result['shared'][$slot]['document'] = $this->registry->migrateDocument($shared['document']);
+        }
+
+        return $result;
     }
 
     private function row(SiteContext $ctx, string $id, bool $lock = false): object

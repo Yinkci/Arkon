@@ -2,7 +2,7 @@ import { Head, router, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { AdminLayout } from '@/Components/AdminLayout';
 import { AdminPageHeader } from '@/Components/AdminPageHeader';
-import { Button, EmptyState, Notice } from '@/Components/ui';
+import { Button, EmptyState, Notice, Spinner } from '@/Components/ui';
 import { api, newRequestKey } from '@/lib/api';
 import { uploadMedia } from '@/lib/mediaUpload';
 import { formatBytes as bytes, uploadHelp } from '@/lib/mediaPolicy';
@@ -189,7 +189,7 @@ export default function Media({ library }: { library: Library }) {
     return (
         <AdminLayout>
             <Head title="Media library" />
-            <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-8 sm:py-8">
+            <div className="ak-page space-y-8">
                 <AdminPageHeader
                     title="Media library"
                     description="Upload once, add useful descriptions, and reuse optimized images across your site."
@@ -221,19 +221,19 @@ export default function Media({ library }: { library: Library }) {
                 )}
                 {error && !selected && <Notice tone="error">{error}</Notice>}
                 <div className="flex flex-wrap items-end gap-3">
-                    <label className="flex-1 text-sm">
+                    <label className="ui-field flex-1">
                         Search images
                         <input
-                            className="ui-input mt-1 w-full"
+                            className="ui-input w-full"
                             value={query}
                             maxLength={120}
                             onChange={(e) => setQuery(e.target.value)}
                             placeholder="Title, filename, alt text or caption"
                         />
                     </label>
-                    <label className="text-sm">
+                    <label className="ui-field">
                         Sort
-                        <select className="ui-input mt-1 block" value={sort} onChange={(e) => setSort(e.target.value)}>
+                        <select className="ui-input block w-36" value={sort} onChange={(e) => setSort(e.target.value)}>
                             {[
                                 ['newest', 'Newest'],
                                 ['oldest', 'Oldest'],
@@ -248,30 +248,30 @@ export default function Media({ library }: { library: Library }) {
                         </select>
                     </label>
                 </div>
-                <p className="text-sm text-muted">
+                <p className="t-meta t-num">
                     {library.total} {library.total === 1 ? 'image' : 'images'} · Images remain private until used on a live page.
                 </p>
                 {library.items.length ? (
-                    <ul className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+                    <ul className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
                         {library.items.map((a) => (
                             <li key={a.id}>
                                 <button
                                     type="button"
                                     aria-label={`Open ${a.title}`}
                                     onClick={() => void open(a)}
-                                    className="group block w-full overflow-hidden rounded-lg border border-line bg-surface text-left transition hover:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                                    className="group block w-full overflow-hidden rounded-lg border border-line bg-surface text-left shadow-hairline transition-[border-color,box-shadow] duration-100 hover:border-line-strong hover:shadow-raise focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                                 >
-                                    <span className="flex aspect-[4/3] items-center justify-center bg-sunken p-3">
+                                    <span className="flex aspect-[4/3] items-center justify-center border-b border-line bg-raised p-3">
                                         <img src={a.previewUrl} alt="" loading="lazy" className="max-h-full max-w-full object-contain" />
                                     </span>
                                     <span className="block p-3">
-                                        <span className="block truncate text-sm font-medium" title={a.title}>
+                                        <span className="block truncate t-title" title={a.title}>
                                             {a.title}
                                         </span>
-                                        <span className="mt-1 block text-xs text-muted">
+                                        <span className="mt-0.5 block text-2xs text-muted t-num">
                                             {a.width} × {a.height} · Original {a.mime.replace('image/', '').toUpperCase()}
                                         </span>
-                                        <span className="mt-1 block text-xs text-muted">
+                                        <span className="mt-0.5 block text-2xs text-muted t-num">
                                             {a.optimization.count > 0
                                                 ? `WebP optimized · ${a.optimization.count} sizes`
                                                 : 'Original only · no WebP copies recorded'}
@@ -294,7 +294,7 @@ export default function Media({ library }: { library: Library }) {
                     >
                         Previous page
                     </Button>
-                    <span className="text-sm">
+                    <span className="t-meta t-num">
                         Page {library.page} of {library.pages}
                     </span>
                     <Button
@@ -308,7 +308,7 @@ export default function Media({ library }: { library: Library }) {
             <dialog
                 ref={dialog}
                 aria-labelledby="media-detail-title"
-                className="m-auto max-h-[92dvh] w-[min(70rem,96vw)] overflow-y-auto rounded-xl border border-line bg-surface p-0 text-fg shadow-xl backdrop:bg-black/50"
+                className="ak-scroll m-auto max-h-[92dvh] w-[min(70rem,96vw)] rounded-xl border border-line bg-surface p-0 text-fg shadow-pop backdrop:bg-scrim"
                 onCancel={(e) => {
                     e.preventDefault();
                     close();
@@ -317,7 +317,7 @@ export default function Media({ library }: { library: Library }) {
                 {selected && fields && (
                     <>
                         <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 border-b border-line bg-surface p-4">
-                            <h2 id="media-detail-title" className="text-lg font-semibold">
+                            <h2 id="media-detail-title" className="t-section">
                                 Image details
                             </h2>
                             <div className="flex gap-2">
@@ -340,7 +340,7 @@ export default function Media({ library }: { library: Library }) {
                                 <div className="flex h-64 items-center justify-center rounded-lg bg-sunken p-4 sm:h-96">
                                     <img src={selected.previewUrl} alt={fields.alt} className="max-h-full max-w-full object-contain" />
                                 </div>
-                                <a href={selected.url} target="_blank" rel="noopener" className="text-sm text-accent underline">
+                                <a href={selected.url} target="_blank" rel="noopener" className="ui-link text-ui">
                                     Open full-size image
                                 </a>
                                 <details className="rounded-lg border border-line p-4" open>
@@ -373,7 +373,8 @@ export default function Media({ library }: { library: Library }) {
                             </div>
                             <div className="min-w-0 space-y-4">
                                 {loadingDetails && (
-                                    <p role="status" className="text-sm text-muted">
+                                    <p role="status" className="flex items-center gap-2 text-ui text-muted">
+                                        <Spinner />
                                         Loading image details…
                                     </p>
                                 )}
@@ -388,7 +389,7 @@ export default function Media({ library }: { library: Library }) {
                                         <label key={k} className="block text-sm font-medium">
                                             {{ title: 'Title', alt: 'Alt text', caption: 'Default caption', description: 'Description' }[k]}
                                             <textarea
-                                                className="ui-input mt-1 w-full"
+                                                className="ui-input w-full"
                                                 rows={k === 'description' ? 3 : 2}
                                                 aria-label={{ title: 'Title', alt: 'Alt text', caption: 'Default caption', description: 'Description' }[k]}
                                                 value={fields[k]}
@@ -479,7 +480,7 @@ export default function Media({ library }: { library: Library }) {
                                                         href={new URL(variant.url, site?.url || window.location.origin).href}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="text-xs text-accent underline"
+                                                        className="ui-link text-xs"
                                                         aria-label={`Open ${variant.width}px WebP image`}
                                                     >
                                                         Open image
@@ -493,7 +494,7 @@ export default function Media({ library }: { library: Library }) {
                                 </section>
                                 {selected.usage && (
                                     <div className="space-y-2 border-t border-line pt-4 text-sm">
-                                        <h3 className="font-medium">Where it is used</h3>
+                                        <h3 className="t-title">Where it is used</h3>
                                         {(
                                             [
                                                 ['Live pages', selected.usage.livePages],

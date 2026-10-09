@@ -2,6 +2,8 @@ import { Head, router } from '@inertiajs/react';
 import { useRef, useState } from 'react';
 import { AdminPageHeader } from '@/Components/AdminPageHeader';
 import { AdminLayout } from '@/Components/AdminLayout';
+import { Icon } from '@/Components/Icon';
+import { buttonClass, EmptyState, Notice, SectionHeader } from '@/Components/ui';
 import { api, newRequestKey } from '@/lib/api';
 type Field = { id: string; label: string; type: 'text' | 'email' | 'tel' | 'textarea' | 'select' | 'checkbox'; required: boolean; options?: string[] };
 type Definition = { name: string; submitLabel: string; successMessage: string; fields: Field[] };
@@ -22,7 +24,7 @@ const newsletter: Definition = {
     successMessage: 'Thank you. Your signup has been recorded.',
     fields: [{ id: 'email', label: 'Email address', type: 'email', required: true }],
 };
-const control = 'w-full rounded-md border border-line bg-surface p-2 text-sm';
+const control = 'ui-input';
 export default function Forms({
     forms,
     submissions,
@@ -117,50 +119,68 @@ export default function Forms({
     return (
         <AdminLayout>
             <Head title="Forms" />
-            <div className="mx-auto max-w-6xl space-y-6 p-6">
+            <div className="ak-page space-y-8">
                 <AdminPageHeader
                     title="Forms & enquiries"
                     description="Build a form once, publish it, and select it in any page. Enquiries are saved even if email delivery fails."
                 />
                 {notice && (
-                    <p role="status" className="rounded border border-line bg-raised p-3 text-sm">
-                        {notice}
-                    </p>
+                    <Notice tone="info">
+                        <p>{notice}</p>
+                    </Notice>
                 )}
-                <div className="grid gap-6 md:grid-cols-[15rem_1fr]">
-                    <aside className="space-y-2">
+                <div className="grid items-start gap-6 md:grid-cols-[14rem_minmax(0,1fr)]">
+                    <aside className="space-y-1" aria-label="Forms">
+                        <p className="mb-2 px-3 t-eyebrow">Forms</p>
                         {forms.map((f) => (
                             <button
-                                className={`block w-full rounded p-3 text-left text-sm ${selected?.id === f.id ? 'bg-accent text-white' : 'border border-line bg-raised'}`}
+                                aria-current={selected?.id === f.id ? 'true' : undefined}
+                                className={`block w-full rounded-md px-3 py-2 text-left text-ui font-medium transition-colors ${selected?.id === f.id ? 'bg-accent-soft text-fg ring-1 ring-accent-line ring-inset' : 'hover:bg-hover'}`}
                                 key={f.id}
                                 disabled={busy || saveUnconfirmed}
                                 onClick={() => select(f)}
                             >
                                 {f.definition.name}
-                                <span className="block text-xs">{f.publishedVersion ? 'Published' : 'Draft'}</span>
+                                <span className="mt-0.5 flex items-center gap-1.5 text-xs font-normal text-muted">
+                                    <span aria-hidden="true" className={`size-1.5 rounded-full ${f.publishedVersion ? 'bg-live' : 'bg-draft'}`} />
+                                    {f.publishedVersion ? 'Published' : 'Draft'}
+                                </span>
                             </button>
                         ))}
                         {permissions.edit && (
-                            <button disabled={busy || saveUnconfirmed} className={control} onClick={() => select(null)}>
-                                + New form
-                            </button>
+                            <div className="pt-2">
+                                <button
+                                    disabled={busy || saveUnconfirmed}
+                                    className={buttonClass('ghost', 'sm', 'w-full justify-start')}
+                                    onClick={() => select(null)}
+                                >
+                                    <Icon name="plus" className="size-3.5" />
+                                    New form
+                                </button>
+                            </div>
                         )}
-                        <button className={control} disabled={!permissions.edit || busy || saveUnconfirmed} onClick={newNewsletter}>
-                            + Newsletter form
+                        <button
+                            className={buttonClass('ghost', 'sm', 'w-full justify-start')}
+                            disabled={!permissions.edit || busy || saveUnconfirmed}
+                            onClick={newNewsletter}
+                        >
+                            <Icon name="plus" className="size-3.5" />
+                            Newsletter form
                         </button>
                     </aside>
-                    <section className="space-y-4 rounded-lg border border-line bg-raised p-5">
+                    <section className="space-y-5 rounded-lg border border-line p-5 shadow-hairline">
                         <fieldset disabled={!permissions.edit || busy || saveUnconfirmed} className="space-y-4">
-                            <label className="block text-sm">
+                            <label className="ui-field">
                                 Form name
                                 <input className={control} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
                             </label>
                             {draft.fields.map((f, i) => (
-                                <div key={i} className="space-y-3 rounded border border-line p-3">
+                                <div key={i} className="space-y-3 rounded-lg border border-line bg-raised p-4">
                                     <div className="flex items-center justify-between">
-                                        <strong className="text-sm">Field {i + 1}</strong>
-                                        <div className="flex gap-3 text-xs">
+                                        <strong className="t-title">Field {i + 1}</strong>
+                                        <div className="flex gap-1 text-xs">
                                             <button
+                                                className={buttonClass('ghost', 'sm')}
                                                 disabled={i === 0}
                                                 onClick={() =>
                                                     setDraft({
@@ -172,6 +192,7 @@ export default function Forms({
                                                 Move up
                                             </button>
                                             <button
+                                                className={buttonClass('quiet-danger', 'sm')}
                                                 disabled={draft.fields.length <= 1}
                                                 onClick={() => setDraft({ ...draft, fields: draft.fields.filter((_, n) => n !== i) })}
                                             >
@@ -180,11 +201,11 @@ export default function Forms({
                                         </div>
                                     </div>
                                     <div className="grid gap-3 sm:grid-cols-2">
-                                        <label className="text-sm">
+                                        <label className="ui-field">
                                             Label
                                             <input className={control} value={f.label} onChange={(e) => update(i, { label: e.target.value })} />
                                         </label>
-                                        <label className="text-sm">
+                                        <label className="ui-field">
                                             Type
                                             <select
                                                 className={control}
@@ -202,12 +223,12 @@ export default function Forms({
                                             </select>
                                         </label>
                                     </div>
-                                    <label className="block text-xs text-muted">
+                                    <label className="ui-field">
                                         Field key (letters, numbers and underscores)
                                         <input className={control} value={f.id} onChange={(e) => update(i, { id: e.target.value })} />
                                     </label>
                                     {f.type === 'select' && (
-                                        <label className="block text-sm">
+                                        <label className="ui-field">
                                             Options, one per line
                                             <textarea
                                                 className={control}
@@ -216,14 +237,14 @@ export default function Forms({
                                             />
                                         </label>
                                     )}
-                                    <label className="flex gap-2 text-sm">
+                                    <label className="ui-check">
                                         <input type="checkbox" checked={f.required} onChange={(e) => update(i, { required: e.target.checked })} />
                                         Required
                                     </label>
                                 </div>
                             ))}
                             <button
-                                className={control}
+                                className={buttonClass('secondary', 'sm')}
                                 disabled={draft.fields.length >= 20}
                                 onClick={() =>
                                     setDraft({
@@ -235,13 +256,14 @@ export default function Forms({
                                     })
                                 }
                             >
-                                + Add field
+                                <Icon name="plus" className="size-3.5" />
+                                Add field
                             </button>
-                            <label className="block text-sm">
+                            <label className="ui-field">
                                 Submit button
                                 <input className={control} value={draft.submitLabel} onChange={(e) => setDraft({ ...draft, submitLabel: e.target.value })} />
                             </label>
-                            <label className="block text-sm">
+                            <label className="ui-field">
                                 Confirmation message
                                 <textarea
                                     className={control}
@@ -250,22 +272,26 @@ export default function Forms({
                                 />
                             </label>
                         </fieldset>
-                        {permissions.edit && (
-                            <button disabled={busy} className="rounded bg-accent px-4 py-2 text-sm text-white disabled:opacity-50" onClick={() => void save()}>
-                                Save draft
-                            </button>
-                        )}
-                        {permissions.publish && (
-                            <>
+                        <div className="flex flex-wrap gap-2 border-t border-line pt-4">
+                            {permissions.edit && (
+                                <button disabled={busy} className={buttonClass('primary')} onClick={() => void save()}>
+                                    Save draft
+                                </button>
+                            )}
+                            {permissions.publish && (
                                 <button
                                     disabled={busy || saveUnconfirmed || dirty || !selected}
-                                    className="rounded border border-line px-4 py-2 text-sm disabled:opacity-50"
+                                    className={buttonClass('secondary')}
                                     onClick={() => void publish()}
                                 >
                                     Publish form
                                 </button>
-                                <div className="border-t border-line pt-4">
-                                    <label className="block text-sm">
+                            )}
+                        </div>
+                        {permissions.publish && (
+                            <>
+                                <div className="space-y-2 border-t border-line pt-4">
+                                    <label className="ui-field">
                                         Notification email (optional)
                                         <input
                                             type="email"
@@ -275,10 +301,10 @@ export default function Forms({
                                             onChange={(e) => setEmail(e.target.value)}
                                         />
                                     </label>
-                                    <p className="my-2 text-xs text-muted">Uses the server’s configured mail service. Blank means store enquiries only.</p>
+                                    <p className="ui-hint">Uses the server’s configured mail service. Blank means store enquiries only.</p>
                                     <button
                                         disabled={busy || saveUnconfirmed || !selected}
-                                        className="text-sm text-accent"
+                                        className={buttonClass('secondary', 'sm')}
                                         onClick={async () => {
                                             if (!selected) return;
                                             setBusy(true);
@@ -300,22 +326,29 @@ export default function Forms({
                     </section>
                 </div>
                 {permissions.publish && (
-                    <section className="space-y-3">
-                        <h2 className="text-lg font-semibold">Recent enquiries</h2>
-                        <p className="text-xs text-muted">Latest 100 submissions. Only owners and admins can read enquiries.</p>
+                    <section className="space-y-4" aria-labelledby="enquiries-title">
+                        <SectionHeader
+                            id="enquiries-title"
+                            title="Recent enquiries"
+                            description="Latest 100 submissions. Only owners and admins can read enquiries."
+                        />
                         {submissions.length === 0 ? (
-                            <p className="text-sm text-muted">No enquiries yet.</p>
+                            <div className="rounded-lg border border-dashed border-line-strong">
+                                <EmptyState icon="form" title="No enquiries yet" compact>
+                                    Submissions from published forms appear here.
+                                </EmptyState>
+                            </div>
                         ) : (
                             submissions.map((s) => (
-                                <article key={s.id} className="rounded border border-line bg-raised p-4">
-                                    <p className="mb-2 text-xs text-muted">
+                                <article key={s.id} className="rounded-lg border border-line p-4">
+                                    <p className="mb-3 t-meta t-num">
                                         {s.createdAt} · Email: {s.notificationStatus}
                                     </p>
-                                    <dl className="grid gap-2">
+                                    <dl className="grid gap-3 sm:grid-cols-2">
                                         {Object.entries(s.values).map(([k, v]) => (
                                             <div key={k}>
-                                                <dt className="text-xs font-semibold">{k}</dt>
-                                                <dd className="whitespace-pre-wrap text-sm">{v}</dd>
+                                                <dt className="t-label">{k}</dt>
+                                                <dd className="mt-0.5 text-ui whitespace-pre-wrap">{v}</dd>
                                             </div>
                                         ))}
                                     </dl>

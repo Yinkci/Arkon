@@ -6,5 +6,6 @@ Read docs/ARCHITECTURE.md before changing behaviour.
 - Schema changes: add a migration, then `php artisan arkon:migrate` (plain `migrate` is refused). Never edit an applied migration.
 - Validation rules live in `resources/arkon/*.json` and are interpreted by PHP and TypeScript twins. After changing either side run
   `php tests/Conformance/build.php`, review `tests/Conformance/fixtures.json`, then `composer test` and `npm test`.
+- Admin UI: follow `docs/ADMIN_DESIGN_SYSTEM.md` (tokens, `Components/ui.tsx`, `PageShell`); no ad hoc sizes, colours or buttons.
 - Components are versioned and immutable: add `vN+1.json`, a renderer and a migration instead of editing a released version.
 - Never put `.migrate.env` values or superuser credentials into `.env` or the app's environment.

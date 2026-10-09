@@ -4,7 +4,7 @@ import { APP_ORIGIN, SERVER_URL, E2E_HOST, PORT } from './env';
 
 test('an uncertain form save locks editing and retries the same immutable request', async ({ page }) => {
     await page.goto('/admin/forms');
-    await page.getByRole('button', { name: '+ New form', exact: true }).click();
+    await page.getByRole('button', { name: 'New form', exact: true }).click();
     await page.getByLabel('Form name', { exact: true }).fill('Retry-safe browser form');
     let dropped = false;
     const keys: string[] = [];
@@ -23,7 +23,7 @@ test('an uncertain form save locks editing and retries the same immutable reques
     await page.getByRole('button', { name: 'Save draft', exact: true }).click();
     await expect(page.getByRole('status')).toContainText('Retry Save before editing');
     await expect(page.getByLabel('Form name', { exact: true })).toBeDisabled();
-    await expect(page.getByRole('button', { name: '+ New form', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'New form', exact: true })).toBeDisabled();
     await page.getByRole('button', { name: 'Save draft', exact: true }).click();
     await expect(page.getByRole('status')).toContainText('Form draft saved');
     await expect(page.getByLabel('Form name', { exact: true })).toBeEnabled();

@@ -105,7 +105,7 @@ export default function Themes({ init, manage }: { init: ThemeState; manage: boo
     return (
         <AdminLayout>
             <Head title="Themes" />
-            <div className="mx-auto max-w-6xl px-4 pt-6 sm:px-8 sm:pt-8">
+            <div className="ak-page pb-0!">
                 <AdminPageHeader
                     title="Themes"
                     description="Choose the custom components available for this site. Themes provide builder components; they do not replace your page layouts, colours or content."
@@ -124,8 +124,8 @@ export default function Themes({ init, manage }: { init: ThemeState; manage: boo
                     }
                 />
             </div>
-            <div className="mx-auto max-w-6xl space-y-5 px-4 py-6 sm:px-8">
-                <section aria-label="Current theme" className="rounded-xl border border-line bg-surface p-4 text-sm">
+            <div className="ak-page space-y-6 pt-8!">
+                <section aria-label="Current theme" className="rounded-lg border border-line bg-surface shadow-hairline p-4 text-sm">
                     <p>
                         <strong>Active for editing:</strong> {state.draft?.name ?? 'Arkon core'}
                     </p>
@@ -159,9 +159,13 @@ export default function Themes({ init, manage }: { init: ThemeState; manage: boo
                     {[builtin, ...state.themes].map((theme) => {
                         const active = (state.draft?.id ?? '') === theme.id;
                         return (
-                            <article key={theme.id} aria-label={theme.name} className="flex flex-col rounded-xl border border-line bg-surface p-5">
+                            <article
+                                key={theme.id}
+                                aria-label={theme.name}
+                                className="flex flex-col rounded-lg border border-line bg-surface shadow-hairline p-5"
+                            >
                                 <div className="flex items-center justify-between gap-2">
-                                    <h2 className="font-semibold">{theme.name}</h2>
+                                    <h2 className="t-title">{theme.name}</h2>
                                     {active && <StatusPill tone="live">Active for editing</StatusPill>}
                                 </div>
                                 <p className="mt-2 min-h-12 text-sm text-muted">
@@ -203,9 +207,9 @@ export default function Themes({ init, manage }: { init: ThemeState; manage: boo
                     })}
                 </div>
                 {preview && (
-                    <section aria-label="Theme component preview" className="rounded-xl border border-line bg-surface p-4">
+                    <section aria-label="Theme component preview" className="rounded-lg border border-line bg-surface shadow-hairline p-4">
                         <div className="mb-3 flex items-center justify-between">
-                            <h2 className="font-semibold">Component preview</h2>
+                            <h2 className="t-title">Component preview</h2>
                             <Button onClick={() => setPreview(null)}>Close preview</Button>
                         </div>
                         <p className="mb-3 text-sm text-muted">Sample components only. Previewing does not activate a theme or change your pages.</p>

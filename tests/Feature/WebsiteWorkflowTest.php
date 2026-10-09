@@ -104,6 +104,23 @@ final class WebsiteWorkflowTest extends DatabaseTestCase
         $this->assertSame(1, DB::table('form_submissions')->count());
     }
 
+    public function test_a_proposal_made_before_a_component_version_bump_still_previews_and_applies(): void
+    {
+        $f = $this->siteFixture();
+        [$s,$id] = $this->runProposal($f);
+        // As stored before page v6 existed: the renderer and save validation accept only current versions.
+        $result = Json::decode(DB::table('ai_proposals')->where('id', $id)->value('website_result'));
+        foreach ($result['pages'] as $i => $page) {
+            $result['pages'][$i]['document']['nodes'][$page['document']['root']]['version'] = 5;
+        }
+        DB::table('ai_proposals')->where('id', $id)->update(['website_result' => Json::encode($result)]);
+
+        $this->assertStringContainsString('Gardens made for everyday life', $s->preview($f['ctx'], $id, 0, app(MediaSigner::class)));
+        $applied = $s->apply($f['ctx'], $id);
+        $draft = Json::decode(DB::table('page_drafts')->where('page_id', $applied['pages'][0]['id'])->value('document'));
+        $this->assertSame(6, $draft['nodes'][$draft['root']]['version']);
+    }
+
     public function test_stale_page_rejects_every_draft_resource_change(): void
     {
         $f = $this->siteFixture();
