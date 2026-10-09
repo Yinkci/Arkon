@@ -33,6 +33,10 @@ final class RenderContext
         public readonly float $widthFraction = 1.0,
         private readonly ?Closure $claimPriority = null,
         private readonly ?Closure $notePriority = null,
+        public readonly array $forms = [],
+        public readonly string $occurrence = '',
+        public readonly array $menus = [],
+        public readonly array $screenShares = ['base' => 1.0, 'tablet' => 1.0, 'mobile' => 1.0],
     ) {}
 
     /** @return array{id: string, url: string, width: int, height: int, mime: string, variants?: list<array{url: string, width: int}>}|null */
@@ -92,7 +96,7 @@ final class RenderContext
      * @param  array{url: string, width: int, height: int, variants?: list<array{url: string, width: int}>}  $media
      * @return array<string, string|int|null>
      */
-    public function imageAttributes(array $media, string $alt, string $loading = 'auto', float $share = 1.0): array
+    public function imageAttributes(array $media, string $alt, string $loading = 'auto', float $share = 1.0, bool $adaptive = false): array
     {
         $priority = match ($loading) {
             'eager' => true,
@@ -110,7 +114,7 @@ final class RenderContext
         return [
             'src' => $media['url'],
             'srcset' => $srcset,
-            'sizes' => $srcset === null ? null : "(max-width: 899px) 100vw, {$wide}px",
+            'sizes' => $srcset === null ? null : ($adaptive ? ImageSizes::attribute($this->screenShares, $this->props['style'] ?? []) : "(max-width: 899px) 100vw, {$wide}px"),
             'alt' => $alt,
             'width' => $media['width'],
             'height' => $media['height'],

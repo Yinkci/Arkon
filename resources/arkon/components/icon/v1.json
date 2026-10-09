@@ -1,0 +1,94 @@
+{
+  "type": "icon",
+  "version": 1,
+  "label": "Icon",
+  "children": false,
+  "props": {
+    "name": {
+      "type": "enum",
+      "values": [
+        "arrow-up",
+        "arrow-right",
+        "mail",
+        "phone",
+        "pin",
+        "screen",
+        "share",
+        "chart",
+        "gift",
+        "leaf",
+        "check",
+        "facebook",
+        "instagram",
+        "linkedin",
+        "youtube"
+      ],
+      "default": "screen"
+    },
+    "label": {
+      "type": "string",
+      "maxLength": 100,
+      "default": ""
+    },
+    "href": {
+      "type": "link",
+      "maxLength": 2000,
+      "default": "#"
+    },
+    "linked": {
+      "type": "boolean",
+      "default": false
+    },
+    "style": {
+      "type": "style",
+      "slots": {
+        "root": {
+          "label": "Icon",
+          "groups": [
+            "layout",
+            "spacing",
+            "size",
+            "typography",
+            "background",
+            "border",
+            "effects",
+            "interaction",
+            "motion"
+          ]
+        }
+      },
+      "default": {}
+    }
+  },
+  "defaultProps": {
+    "name": "screen",
+    "label": "",
+    "href": "#",
+    "linked": false,
+    "style": {}
+  },
+  "publishChecks": [
+    {
+      "rule": "notBlank",
+      "prop": "label",
+      "when": "linked",
+      "message": "Give linked icons an accessible label"
+    }
+  ],
+  "editor": {
+    "fields": {
+      "name": {
+        "label": "Icon"
+      },
+      "label": {
+        "label": "Accessible label (blank = decorative)"
+      },
+      "linked": {
+        "label": "Make icon a link"
+      },
+      "href": {
+        "label": "Icon destination"
+      }
+    }
+  }
+}

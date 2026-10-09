@@ -28,18 +28,28 @@ class MediaController extends Controller
         if ($decision === null && ($userId = SessionUser::id($request)) !== null) {
             $decision = $media->resolveAccess($file, $host, $userId, $token, $signer);
         }
-        $data = $decision ? $storage->read($file) : null;
-        if ($data === null) {
+        $path = $decision ? $storage->path($file) : null;
+        if ($path === null) {
             return response('Not found', 404, ['Content-Type' => 'text/plain; charset=utf-8', 'Cache-Control' => 'no-store']);
         }
 
-        return response($data, 200, [
+        // BinaryFileResponse streams bytes and supports HEAD/ranges without copying
+        // the whole image into PHP memory. Authorization precedes every file response.
+        $response = response()->file($path, [
             'Content-Type' => $decision['mime'],
-            'Content-Length' => (string) strlen($data),
-            // Public files never change (unique key per upload). Private ones must not be stored by shared caches.
-            'Cache-Control' => $decision['access'] === 'public' ? 'public, max-age=31536000, immutable' : 'private, no-store',
             'Content-Security-Policy' => "default-src 'none'; sandbox",
             'X-Content-Type-Options' => 'nosniff',
         ]);
+        // BinaryFileResponse defaults to public; explicitly restore our access policy.
+        $response->headers->set('Cache-Control', $decision['access'] === 'public' ? 'public, max-age=31536000, immutable' : 'private, no-store');
+        // Private URLs are never conditionally cacheable. Public immutable keys are
+        // validators without hashing/reading file contents, after checking live access.
+        $response->headers->remove('Last-Modified');
+        if ($decision['access'] === 'public') {
+            $response->setEtag($file);
+            $response->isNotModified($request);
+        }
+
+        return $response;
     }
 }

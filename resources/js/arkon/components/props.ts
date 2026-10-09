@@ -3,7 +3,7 @@ import { isPlainObject, matches, message } from '../rules';
 import { parseStyle, type StyleField } from '../style/schema';
 
 export type Field =
-    | { type: 'string'; maxLength?: number; minLength?: number; default?: unknown }
+    | { type: 'string'; pattern?: string; maxLength?: number; minLength?: number; default?: unknown }
     | { type: 'enum'; values: string[]; default?: unknown }
     | { type: 'boolean'; default?: unknown }
     | { type: 'uuid'; ref?: 'component'; default?: unknown }
@@ -55,6 +55,8 @@ function parseField(field: Field, value: unknown, at: string, issues: PropIssue[
                 issues.push({ path: at, message: message('tooLong', { max: field.maxLength }) });
             if (field.minLength !== undefined && value.length < field.minLength)
                 issues.push({ path: at, message: message('tooShort', { min: field.minLength }) });
+            if (field.pattern && value.match(new RegExp(field.pattern))?.[0] !== value)
+                issues.push({ path: at, message: 'Use letters, numbers, hyphens or underscores, starting with a letter.' });
             return value;
         case 'enum':
             if (!field.values.includes(value as string)) issues.push({ path: at, message: message('oneOf', { values: field.values.join(', ') }) });

@@ -16,6 +16,14 @@ class DashboardController extends Controller
     {
         $ctx = AdminContext::of($request)->ctx();
 
-        return Inertia::render('Admin/Dashboard', ['pages' => $pages->listPages($ctx), 'overview' => $overview->forDashboard($ctx)]);
+        $all = $pages->listPages($ctx);
+        $counts = ['all' => count($all), 'draft' => 0, 'published' => 0, 'changed' => 0];
+        foreach ($all as $page) {
+            $counts[$page['status']]++;
+        }
+        $home = collect($all)->first(fn ($p) => $p['path'] === '/' || $p['livePath'] === '/');
+        usort($all, fn ($a, $b) => strcmp($b['updatedAt'] ?? '', $a['updatedAt'] ?? ''));
+
+        return Inertia::render('Admin/Dashboard', ['pages' => array_slice($all, 0, 5), 'counts' => $counts, 'homepage' => $home, 'overview' => $overview->forDashboard($ctx)]);
     }
 }

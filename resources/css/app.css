@@ -188,3 +188,19 @@ html.ak-dragging * {
     cursor: grabbing !important;
     user-select: none !important;
 }
+
+/* Native admin controls should communicate clickability. Utilities retain drag cursors. */
+@layer base {
+    [data-theme]
+        :is(button, select, input[type='button'], input[type='submit'], input[type='reset'], input[type='checkbox'], input[type='radio']):not(:disabled):not(
+            [aria-disabled='true']
+        ),
+    [data-theme] :is(a[href], summary, [role='button']):not([aria-disabled='true']) {
+        cursor: pointer;
+    }
+
+    [data-theme] :is(button, select, input, [role='button']):disabled,
+    [data-theme] [aria-disabled='true'] {
+        cursor: not-allowed;
+    }
+}

@@ -84,9 +84,10 @@ export function useBlockActions(options: {
 
     // A preview of a block's entrance, for the document as it is now: the canvas plays it once its render of
     // exactly this version is shown (a later setting asks again; any other edit makes it obsolete).
-    const [replay, setReplay] = useState<{ nodeId: string; seq: number; version: number } | null>(null);
+    const [replay, setReplay] = useState<{ nodeId: string; seq: number; version: number; action?: 'slider-play' | 'slider-pause' } | null>(null);
     const replayBlock = useCallback(
-        (nodeId: string) => setReplay((previous) => ({ nodeId, seq: (previous?.seq ?? 0) + 1, version: latest.current.documentVersion() })),
+        (nodeId: string, action?: 'slider-play' | 'slider-pause') =>
+            setReplay((previous) => ({ nodeId, action, seq: (previous?.seq ?? 0) + 1, version: latest.current.documentVersion() })),
         [],
     );
 

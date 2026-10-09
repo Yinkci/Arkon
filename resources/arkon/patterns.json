@@ -1,0 +1,1067 @@
+[
+  {
+    "id": "agency-header",
+    "name": "Header with navigation",
+    "description": "Linked logo, native menu and call to action. Select your logo and published menu.",
+    "template": {
+      "type": "group",
+      "props": {
+        "element": "header",
+        "style": {
+          "root": {
+            "base": {
+              "direction": "row",
+              "color": "#ffffff",
+              "position": "sticky",
+              "top": "0px",
+              "zIndex": "20",
+              "backgroundColor": "#1b2732",
+              "align": "center",
+              "justify": "space-between",
+              "paddingTop": "1rem",
+              "paddingRight": "1rem",
+              "paddingBottom": "1rem",
+              "paddingLeft": "1rem"
+            },
+            "mobile": {
+              "wrap": "wrap"
+            }
+          }
+        }
+      },
+      "children": [
+        {
+          "type": "logo",
+          "props": {}
+        },
+        {
+          "type": "navigation",
+          "props": {}
+        },
+        {
+          "type": "button",
+          "props": {
+            "label": "Contact us",
+            "href": "#contact",
+            "style": {
+              "button": {
+                "base": {
+                  "color": "#ffffff",
+                  "hoverBackground": "#173c62",
+                  "borderRadius": "0.35rem",
+                  "backgroundColor": "#21568b",
+                  "borderColor": "#21568b"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "agency-hero",
+    "name": "Image hero slider",
+    "description": "Two editable slides with controls. Choose background images in each slide. Autoplay is off.",
+    "template": {
+      "type": "slider",
+      "props": {
+        "label": "Featured services",
+        "autoplay": false
+      },
+      "children": [
+        {
+          "type": "slide",
+          "props": {
+            "style": {
+              "root": {
+                "base": {
+                  "minHeight": "32rem",
+                  "backgroundGradient": "90deg #102030ff #10203044",
+                  "color": "#ffffff",
+                  "backgroundColor": "#102030"
+                }
+              }
+            }
+          },
+          "children": [
+            {
+              "type": "text",
+              "props": {
+                "text": "CREATIVE DIGITAL MARKETING",
+                "element": "p",
+                "style": {
+                  "root": {
+                    "base": {
+                      "fontSize": ".75rem",
+                      "letterSpacing": ".12em",
+                      "fontWeight": "600",
+                      "color": "#9cc7ec"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "text",
+              "props": {
+                "text": "Make your brand impossible to ignore.",
+                "element": "h1",
+                "style": {
+                  "root": {
+                    "base": {
+                      "fontSize": "3.5rem",
+                      "fontWeight": "700",
+                      "lineHeight": "1.08",
+                      "maxWidth": "38rem"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "text",
+              "props": {
+                "text": "Thoughtful strategy. Compelling creative. A stronger connection with your audience.",
+                "element": "p",
+                "style": {
+                  "root": {
+                    "base": {
+                      "maxWidth": "30rem",
+                      "fontSize": "1.1rem"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "button",
+              "props": {
+                "label": "Discuss your project",
+                "href": "#contact",
+                "style": {
+                  "button": {
+                    "base": {
+                      "color": "#ffffff",
+                      "hoverBackground": "#173c62",
+                      "borderRadius": "0.35rem",
+                      "backgroundColor": "#21568b",
+                      "borderColor": "#21568b"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "slide",
+          "props": {
+            "style": {
+              "root": {
+                "base": {
+                  "minHeight": "32rem",
+                  "backgroundGradient": "90deg #102030ff #10203044",
+                  "color": "#ffffff",
+                  "backgroundColor": "#102030"
+                }
+              }
+            }
+          },
+          "children": [
+            {
+              "type": "text",
+              "props": {
+                "text": "STRATEGY AND CREATIVE",
+                "element": "p",
+                "style": {
+                  "root": {
+                    "base": {
+                      "fontSize": ".75rem",
+                      "letterSpacing": ".12em",
+                      "fontWeight": "600",
+                      "color": "#9cc7ec"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "text",
+              "props": {
+                "text": "Turn your next idea into meaningful impact.",
+                "element": "h2",
+                "style": {
+                  "root": {
+                    "base": {
+                      "fontSize": "3rem",
+                      "fontWeight": "700",
+                      "maxWidth": "38rem"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "text",
+              "props": {
+                "text": "Discover new ways to connect with the people who matter to your business.",
+                "element": "p",
+                "style": {
+                  "root": {
+                    "base": {}
+                  }
+                }
+              }
+            },
+            {
+              "type": "button",
+              "props": {
+                "label": "Explore our services",
+                "href": "#services",
+                "style": {
+                  "button": {
+                    "base": {
+                      "color": "#ffffff",
+                      "hoverBackground": "#173c62",
+                      "borderRadius": "0.35rem",
+                      "backgroundColor": "#21568b",
+                      "borderColor": "#21568b"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "agency-intro",
+    "name": "Image introduction",
+    "description": "A spacious image-backed introduction with a directional overlay.",
+    "template": {
+      "type": "section",
+      "props": {
+        "anchor": "",
+        "contentWidth": "wide",
+        "style": {
+          "root": {
+            "base": {
+              "paddingTop": "4rem",
+              "paddingBottom": "4rem"
+            }
+          }
+        }
+      },
+      "children": [
+        {
+          "type": "group",
+          "props": {
+            "style": {
+              "root": {
+                "base": {
+                  "backgroundGradient": "90deg #102030ff #10203066",
+                  "color": "#ffffff",
+                  "minHeight": "22rem",
+                  "borderRadius": ".5rem",
+                  "backgroundColor": "#102030",
+                  "justify": "center",
+                  "paddingTop": "3rem",
+                  "paddingRight": "3rem",
+                  "paddingBottom": "3rem",
+                  "paddingLeft": "3rem"
+                },
+                "mobile": {
+                  "paddingTop": "1.5rem",
+                  "paddingRight": "1.5rem",
+                  "paddingBottom": "1.5rem",
+                  "paddingLeft": "1.5rem"
+                }
+              }
+            }
+          },
+          "children": [
+            {
+              "type": "text",
+              "props": {
+                "text": "INNOVATION · MARKETING · COMMUNICATIONS",
+                "element": "p",
+                "style": {
+                  "root": {
+                    "base": {
+                      "fontSize": ".75rem",
+                      "letterSpacing": ".12em",
+                      "fontWeight": "600",
+                      "color": "#9cc7ec"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "text",
+              "props": {
+                "text": "A creative partner for your next chapter.",
+                "element": "h2",
+                "style": {
+                  "root": {
+                    "base": {
+                      "fontSize": "2rem",
+                      "fontWeight": "700",
+                      "lineHeight": "1.2"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "text",
+              "props": {
+                "text": "Bring your strategy, design and communications together with a focused approach to growth.",
+                "element": "p",
+                "style": {
+                  "root": {
+                    "base": {}
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "agency-services",
+    "name": "Introduction and service cards",
+    "description": "Responsive services introduction alongside a two-by-two grid of editable cards.",
+    "template": {
+      "type": "section",
+      "props": {
+        "anchor": "services",
+        "contentWidth": "wide",
+        "style": {
+          "root": {
+            "base": {
+              "paddingTop": "4rem",
+              "paddingBottom": "4rem"
+            }
+          }
+        }
+      },
+      "children": [
+        {
+          "type": "group",
+          "props": {
+            "style": {
+              "root": {
+                "base": {
+                  "display": "grid",
+                  "columns": "1fr 1.5fr",
+                  "gap": "3rem"
+                },
+                "mobile": {
+                  "columns": "1",
+                  "gap": "2rem"
+                }
+              }
+            }
+          },
+          "children": [
+            {
+              "type": "group",
+              "props": {
+                "style": {
+                  "root": {
+                    "base": {
+                      "gap": "1.25rem"
+                    }
+                  }
+                }
+              },
+              "children": [
+                {
+                  "type": "text",
+                  "props": {
+                    "text": "OUR SERVICES",
+                    "element": "p",
+                    "style": {
+                      "root": {
+                        "base": {
+                          "fontSize": ".75rem",
+                          "letterSpacing": ".12em",
+                          "fontWeight": "600",
+                          "color": "#21568b"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "text": "What we do for our clients",
+                    "element": "h2",
+                    "style": {
+                      "root": {
+                        "base": {
+                          "fontSize": "2rem",
+                          "fontWeight": "700",
+                          "lineHeight": "1.2"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "text": "Connect strategy, creative and delivery in one focused partnership.",
+                    "element": "p",
+                    "style": {
+                      "root": {
+                        "base": {}
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "button",
+                  "props": {
+                    "label": "Discuss your project",
+                    "href": "#contact",
+                    "style": {
+                      "button": {
+                        "base": {
+                          "color": "#ffffff",
+                          "hoverBackground": "#173c62",
+                          "borderRadius": "0.35rem",
+                          "backgroundColor": "#21568b",
+                          "borderColor": "#21568b"
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "group",
+              "props": {
+                "style": {
+                  "root": {
+                    "base": {
+                      "display": "grid",
+                      "columns": "2",
+                      "gap": "0px"
+                    },
+                    "mobile": {
+                      "columns": "1"
+                    }
+                  }
+                }
+              },
+              "children": [
+                {
+                  "type": "group",
+                  "props": {
+                    "style": {
+                      "root": {
+                        "base": {
+                          "gap": "1rem",
+                          "borderWidth": "1px",
+                          "borderStyle": "solid",
+                          "borderColor": "#e3e8ef",
+                          "backgroundColor": "#ffffff",
+                          "paddingTop": "1.5rem",
+                          "paddingRight": "1.5rem",
+                          "paddingBottom": "1.5rem",
+                          "paddingLeft": "1.5rem"
+                        }
+                      }
+                    }
+                  },
+                  "children": [
+                    {
+                      "type": "icon",
+                      "props": {
+                        "name": "screen"
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "props": {
+                        "text": "Outdoor campaigns",
+                        "element": "h3",
+                        "style": {
+                          "root": {
+                            "base": {
+                              "fontSize": "1.1rem",
+                              "fontWeight": "700"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "props": {
+                        "text": "Build a clear strategy and create campaigns that help your business connect with its audience.",
+                        "element": "p",
+                        "style": {
+                          "root": {
+                            "base": {}
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "type": "button",
+                      "props": {
+                        "label": "Explore this service",
+                        "href": "#",
+                        "style": {
+                          "button": {
+                            "base": {
+                              "color": "#ffffff",
+                              "hoverBackground": "#173c62",
+                              "borderRadius": "0.35rem",
+                              "backgroundColor": "#21568b",
+                              "borderColor": "#21568b"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "group",
+                  "props": {
+                    "style": {
+                      "root": {
+                        "base": {
+                          "gap": "1rem",
+                          "borderWidth": "1px",
+                          "borderStyle": "solid",
+                          "borderColor": "#e3e8ef",
+                          "backgroundColor": "#ffffff",
+                          "paddingTop": "1.5rem",
+                          "paddingRight": "1.5rem",
+                          "paddingBottom": "1.5rem",
+                          "paddingLeft": "1.5rem"
+                        }
+                      }
+                    }
+                  },
+                  "children": [
+                    {
+                      "type": "icon",
+                      "props": {
+                        "name": "share"
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "props": {
+                        "text": "Social media",
+                        "element": "h3",
+                        "style": {
+                          "root": {
+                            "base": {
+                              "fontSize": "1.1rem",
+                              "fontWeight": "700"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "props": {
+                        "text": "Build a clear strategy and create campaigns that help your business connect with its audience.",
+                        "element": "p",
+                        "style": {
+                          "root": {
+                            "base": {}
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "type": "button",
+                      "props": {
+                        "label": "Explore this service",
+                        "href": "#",
+                        "style": {
+                          "button": {
+                            "base": {
+                              "color": "#ffffff",
+                              "hoverBackground": "#173c62",
+                              "borderRadius": "0.35rem",
+                              "backgroundColor": "#21568b",
+                              "borderColor": "#21568b"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "group",
+                  "props": {
+                    "style": {
+                      "root": {
+                        "base": {
+                          "gap": "1rem",
+                          "borderWidth": "1px",
+                          "borderStyle": "solid",
+                          "borderColor": "#e3e8ef",
+                          "backgroundColor": "#ffffff",
+                          "paddingTop": "1.5rem",
+                          "paddingRight": "1.5rem",
+                          "paddingBottom": "1.5rem",
+                          "paddingLeft": "1.5rem"
+                        }
+                      }
+                    }
+                  },
+                  "children": [
+                    {
+                      "type": "icon",
+                      "props": {
+                        "name": "chart"
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "props": {
+                        "text": "Digital marketing",
+                        "element": "h3",
+                        "style": {
+                          "root": {
+                            "base": {
+                              "fontSize": "1.1rem",
+                              "fontWeight": "700"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "props": {
+                        "text": "Build a clear strategy and create campaigns that help your business connect with its audience.",
+                        "element": "p",
+                        "style": {
+                          "root": {
+                            "base": {}
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "type": "button",
+                      "props": {
+                        "label": "Explore this service",
+                        "href": "#",
+                        "style": {
+                          "button": {
+                            "base": {
+                              "color": "#ffffff",
+                              "hoverBackground": "#173c62",
+                              "borderRadius": "0.35rem",
+                              "backgroundColor": "#21568b",
+                              "borderColor": "#21568b"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "group",
+                  "props": {
+                    "style": {
+                      "root": {
+                        "base": {
+                          "gap": "1rem",
+                          "borderWidth": "1px",
+                          "borderStyle": "solid",
+                          "borderColor": "#e3e8ef",
+                          "backgroundColor": "#ffffff",
+                          "paddingTop": "1.5rem",
+                          "paddingRight": "1.5rem",
+                          "paddingBottom": "1.5rem",
+                          "paddingLeft": "1.5rem"
+                        }
+                      }
+                    }
+                  },
+                  "children": [
+                    {
+                      "type": "icon",
+                      "props": {
+                        "name": "gift"
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "props": {
+                        "text": "Brand experiences",
+                        "element": "h3",
+                        "style": {
+                          "root": {
+                            "base": {
+                              "fontSize": "1.1rem",
+                              "fontWeight": "700"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "props": {
+                        "text": "Build a clear strategy and create campaigns that help your business connect with its audience.",
+                        "element": "p",
+                        "style": {
+                          "root": {
+                            "base": {}
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "type": "button",
+                      "props": {
+                        "label": "Explore this service",
+                        "href": "#",
+                        "style": {
+                          "button": {
+                            "base": {
+                              "color": "#ffffff",
+                              "hoverBackground": "#173c62",
+                              "borderRadius": "0.35rem",
+                              "backgroundColor": "#21568b",
+                              "borderColor": "#21568b"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "agency-newsletter",
+    "name": "Newsletter signup",
+    "description": "Dark signup band. Choose a published email-only form; entries are saved in Forms.",
+    "template": {
+      "type": "section",
+      "props": {
+        "anchor": "contact",
+        "contentWidth": "wide",
+        "style": {
+          "root": {
+            "base": {
+              "paddingTop": "4rem",
+              "paddingBottom": "4rem",
+              "backgroundColor": "#f3f6fa"
+            }
+          }
+        }
+      },
+      "children": [
+        {
+          "type": "group",
+          "props": {
+            "style": {
+              "root": {
+                "base": {
+                  "display": "grid",
+                  "columns": "1fr 1fr",
+                  "gap": "2rem",
+                  "borderRadius": ".5rem",
+                  "backgroundGradient": "45deg #102030ff #173d63ff",
+                  "color": "#ffffff",
+                  "backgroundColor": "#102030",
+                  "align": "center",
+                  "paddingTop": "2rem",
+                  "paddingRight": "2rem",
+                  "paddingBottom": "2rem",
+                  "paddingLeft": "2rem"
+                },
+                "mobile": {
+                  "columns": "1",
+                  "paddingTop": "1.5rem",
+                  "paddingRight": "1.5rem",
+                  "paddingBottom": "1.5rem",
+                  "paddingLeft": "1.5rem"
+                }
+              }
+            }
+          },
+          "children": [
+            {
+              "type": "group",
+              "props": {
+                "style": {
+                  "root": {
+                    "base": {
+                      "gap": "1rem"
+                    }
+                  }
+                }
+              },
+              "children": [
+                {
+                  "type": "icon",
+                  "props": {
+                    "name": "mail"
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "text": "Stay in the loop",
+                    "element": "h2",
+                    "style": {
+                      "root": {
+                        "base": {
+                          "fontSize": "2rem",
+                          "fontWeight": "700",
+                          "lineHeight": "1.2"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "text": "Ideas, inspiration and product updates. Sign up to hear what is next.",
+                    "element": "p",
+                    "style": {
+                      "root": {
+                        "base": {}
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "form",
+              "props": {
+                "purpose": "newsletter",
+                "layout": "inline",
+                "notice": "Your signup is collected by this website. Email delivery is not connected."
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "agency-footer",
+    "name": "Footer with social links",
+    "description": "Logo, navigation, contact copy, social icons and back-to-top. Set your menu and actual social destinations.",
+    "template": {
+      "type": "group",
+      "props": {
+        "element": "footer",
+        "style": {
+          "root": {
+            "base": {
+              "color": "#ffffff",
+              "gap": "2rem",
+              "backgroundColor": "#102030",
+              "paddingTop": "3rem",
+              "paddingRight": "3rem",
+              "paddingBottom": "3rem",
+              "paddingLeft": "3rem"
+            },
+            "mobile": {
+              "paddingTop": "1.5rem",
+              "paddingRight": "1.5rem",
+              "paddingBottom": "1.5rem",
+              "paddingLeft": "1.5rem"
+            }
+          }
+        }
+      },
+      "children": [
+        {
+          "type": "back-to-top",
+          "props": {}
+        },
+        {
+          "type": "group",
+          "props": {
+            "style": {
+              "root": {
+                "base": {
+                  "display": "grid",
+                  "columns": "1fr 1fr 1fr",
+                  "gap": "3rem"
+                },
+                "mobile": {
+                  "columns": "1"
+                }
+              }
+            }
+          },
+          "children": [
+            {
+              "type": "group",
+              "props": {
+                "style": {
+                  "root": {
+                    "base": {
+                      "gap": "1rem"
+                    }
+                  }
+                }
+              },
+              "children": [
+                {
+                  "type": "logo",
+                  "props": {}
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "text": "A creative partner across design, marketing and communications.",
+                    "element": "p",
+                    "style": {
+                      "root": {
+                        "base": {}
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "group",
+                  "props": {
+                    "style": {
+                      "root": {
+                        "base": {
+                          "direction": "row",
+                          "gap": "1rem"
+                        }
+                      }
+                    }
+                  },
+                  "children": [
+                    {
+                      "type": "icon",
+                      "props": {
+                        "name": "facebook",
+                        "label": "facebook profile",
+                        "linked": true,
+                        "href": "#"
+                      }
+                    },
+                    {
+                      "type": "icon",
+                      "props": {
+                        "name": "instagram",
+                        "label": "instagram profile",
+                        "linked": true,
+                        "href": "#"
+                      }
+                    },
+                    {
+                      "type": "icon",
+                      "props": {
+                        "name": "linkedin",
+                        "label": "linkedin profile",
+                        "linked": true,
+                        "href": "#"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "navigation",
+              "props": {
+                "label": "Explore"
+              }
+            },
+            {
+              "type": "group",
+              "props": {
+                "style": {
+                  "root": {
+                    "base": {
+                      "gap": "1rem"
+                    }
+                  }
+                }
+              },
+              "children": [
+                {
+                  "type": "text",
+                  "props": {
+                    "text": "GET IN TOUCH",
+                    "element": "p",
+                    "style": {
+                      "root": {
+                        "base": {
+                          "fontSize": ".75rem",
+                          "letterSpacing": ".12em",
+                          "fontWeight": "600",
+                          "color": "#9cc7ec"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "text",
+                  "props": {
+                    "text": "Add your contact details here before publishing.",
+                    "element": "p",
+                    "style": {
+                      "root": {
+                        "base": {}
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "props": {
+            "text": "Replace this line with your business copyright details.",
+            "element": "p",
+            "style": {
+              "root": {
+                "base": {
+                  "fontSize": ".85rem"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+]

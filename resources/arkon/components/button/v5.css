@@ -1,0 +1,8 @@
+:where(.ak-action2){margin:0}
+.ak-btn2{display:inline-flex;align-items:center;justify-content:center;padding:.75rem 1.25rem;border:2px solid var(--ak-t-color-primary);border-radius:var(--ak-t-radius-md);font-weight:600;line-height:1.2;text-decoration:none}
+.ak-btn2:focus-visible{outline:2px solid var(--ak-t-color-primary);outline-offset:2px}
+.ak-btn2--primary{background:var(--ak-t-color-primary);color:var(--ak-t-color-onPrimary)}
+.ak-btn2--secondary{background:transparent;color:var(--ak-t-color-primary)}
+.ak-btn2--small{padding:.5rem .875rem;font-size:.875rem}
+.ak-btn2--large{padding:1rem 1.75rem;font-size:1.125rem}
+.ak-btn2--text{background:transparent;color:var(--ak-t-color-primary);border-color:transparent;padding-inline:0;text-decoration:underline}

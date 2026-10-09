@@ -1,0 +1,25 @@
+{
+  "type": "fragment",
+  "version": 4,
+  "label": "Reusable component",
+  "children": {
+    "allow": [
+      "section",
+      "hero",
+      "text",
+      "image",
+      "button",
+      "columns",
+      "group",
+      "form",
+      "navigation",
+      "logo",
+      "icon",
+      "slider",
+      "back-to-top"
+    ],
+    "max": 30
+  },
+  "props": {},
+  "defaultProps": {}
+}

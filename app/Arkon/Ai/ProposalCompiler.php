@@ -138,7 +138,13 @@ final class ProposalCompiler
             throw self::invalid($issues);
         }
 
-        $warnings = array_values(array_unique(array_column($this->validator->publishIssues($working), 'message')));
+        $placeholder = [];
+        foreach (Json::entries($working['nodes']) as $node) {
+            if ($node['type'] === 'button' && (Json::entries($node['props'])['href'] ?? '') === '#') {
+                $placeholder[] = 'Button uses a placeholder destination (#)';
+            }
+        }
+        $warnings = array_values(array_unique([...array_column($this->validator->publishIssues($working), 'message'), ...$placeholder]));
 
         return [
             'operations' => $operations,
@@ -193,6 +199,21 @@ final class ProposalCompiler
     private function convertProps(array $fields, array $props, array $current): array
     {
         foreach ($props as $key => $value) {
+            if ($key === 'responsive' && isset($fields[$key]['properties']['tablet']) && Json::isList($value)) {
+                $overrides = Json::toArray($current[$key] ?? []);
+                foreach ($value as $setting) {
+                    $setting = Json::entries($setting);
+                    $screen = $setting['screen'] ?? '';
+                    $property = $setting['property'] ?? '';
+                    $v = $setting['value'] ?? null;
+                    $field = $fields[$key]['properties'][$screen]['properties'][$property] ?? null;
+                    if (array_diff(array_keys($setting), ['screen', 'property', 'value']) !== [] || ! in_array($screen, ['tablet', 'mobile'], true) || ! $field || ! in_array($v, $field['values'], true)) {
+                        throw new ProposalProblem('Invalid responsive component setting');
+                    }
+                    $overrides[$screen][$property] = $v;
+                }
+                $props[$key] = $overrides;
+            }
             if (($fields[$key]['type'] ?? null) === 'style' && Json::isList($value)) {
                 $props[$key] = $this->applyStyle(Json::toArray($current[$key] ?? []), $value);
             }
@@ -370,6 +391,9 @@ final class ProposalCompiler
         }
         $given = is_array($block['props'] ?? null) ? $block['props'] : [];
         $props = [...$definition->defaultProps, ...$this->convertProps($definition->props->fields(), $given, $definition->defaultProps)];
+        if ($definition->type === 'button' && ($props['href'] ?? '') === '') {
+            $props['href'] = '#';
+        }
         $node = ['id' => Operations::newNodeId(), 'type' => $definition->type, 'version' => $definition->version, 'props' => $props === [] ? new stdClass : $props];
         $descendants = [];
         if ($definition->children !== false) {

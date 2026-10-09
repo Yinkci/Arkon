@@ -60,6 +60,39 @@ class McpServerTest extends DatabaseTestCase
         ], $token);
     }
 
+    public function test_website_mcp_submission_is_reviewed_and_exact_retry_survives_draft_changes(): void
+    {
+        $context = $this->tool('arkon_get_website_context');
+        $this->assertFalse($context['error']);
+        $this->assertSame([$this->f['pageId']], array_keys($context['data']['context']['pages']));
+        $this->assertLessThan(30000, strlen(Json::encode($context['data']['schema'])), 'Schema must fit the locked CLI argument budget.');
+        $input = ['contextId' => $context['data']['contextId'], 'prompt' => 'Update the website', 'requestKey' => self::key(), 'proposal' => [
+            'summary' => 'Website update', 'pages' => [['pageId' => $this->f['pageId'], 'title' => 'Home', 'path' => '/', 'seo' => ['title' => 'Garden Studio', 'description' => 'Landscaping services'], 'proposal' => [...$this->proposal(), 'tokenChanges' => []]]],
+            'header' => null, 'footer' => null, 'form' => null, 'tokenChanges' => [],
+        ]];
+        $original = DB::table('page_drafts')->where('page_id', $this->f['pageId'])->value('document');
+        $submitted = $this->tool('arkon_submit_website_proposal', $input);
+        $this->assertFalse($submitted['error'], Json::encode($submitted));
+        $this->assertSame('proposed', $submitted['data']['status']);
+        $this->assertSame($original, DB::table('page_drafts')->where('page_id', $this->f['pageId'])->value('document'));
+        DB::table('page_drafts')->where('page_id', $this->f['pageId'])->update(['version' => 2]);
+        DB::table('website_contexts')->where('id', $input['contextId'])->update(['created_at' => DB::raw("now() - interval '1 hour'")]);
+        $retry = $this->tool('arkon_submit_website_proposal', $input);
+        $this->assertFalse($retry['error']);
+        $this->assertSame($submitted['data']['id'], $retry['data']['id']);
+        $this->assertSame(1, DB::table('ai_proposals')->count());
+        $changed = $this->tool('arkon_submit_website_proposal', [...$input, 'prompt' => 'A different request']);
+        $this->assertTrue($changed['error']);
+        $other = $this->siteFixture();
+        $pair = app(AiConnections::class)->create($other['siteId'], $other['ctx']->userId, 'mcp', 'Other site');
+        $foreign = $this->tool('arkon_get_website_proposal_status', ['proposalId' => $submitted['data']['id']], $pair['token']);
+        $this->assertTrue($foreign['error']);
+        $foreign = $this->tool('arkon_submit_website_proposal', [...$input, 'requestKey' => self::key()], $pair['token']);
+        $this->assertTrue($foreign['error']);
+        app(AiConnections::class)->revoke($this->connectionId);
+        $this->assertTrue($this->tool('arkon_get_website_context')['error']);
+    }
+
     public function test_protocol_basics_and_a_narrow_tool_set(): void
     {
         $server = $this->server();
@@ -71,7 +104,7 @@ class McpServerTest extends DatabaseTestCase
         $this->assertSame(-32700, json_decode($server->handleLine('{not json'), true)['error']['code']);
 
         $names = array_column($server->handle(['jsonrpc' => '2.0', 'id' => 3, 'method' => 'tools/list'])['result']['tools'], 'name');
-        $this->assertSame(['arkon_list_pages', 'arkon_get_page', 'arkon_get_proposal_format', 'arkon_submit_proposal', 'arkon_get_proposal_status'], $names);
+        $this->assertSame(['arkon_get_website_context', 'arkon_submit_website_proposal', 'arkon_get_website_proposal_status', 'arkon_list_pages', 'arkon_get_page', 'arkon_get_proposal_format', 'arkon_submit_proposal', 'arkon_get_proposal_status'], $names);
         foreach ($names as $name) {
             $this->assertDoesNotMatchRegularExpression('/publish|apply|sql|shell|exec|file|delete/i', $name);
         }

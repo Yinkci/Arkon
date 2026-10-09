@@ -1,3 +1,4 @@
+import { uploadMedia } from '@/lib/mediaUpload';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createSaveCoordinator } from '@/arkon/editor/saveCoordinator';
 import { dispatch, hasUnsavedChanges, initialState, redo, undo, type EditorDocState } from '@/arkon/editor/state';
@@ -349,17 +350,15 @@ export function ComponentEditor({ init }: { init: ComponentEditorInit }) {
     useEffect(() => setNotice(withoutStaleAction), [doc.document, doc.undo]);
     useLeaveGuard(() => saver.hasUnsaved() || Object.keys(unresolvedRef.current).length > 0);
 
-    const upload = useCallback(async (file: File): Promise<MediaInfo | null> => {
-        const form = new FormData();
-        form.set('file', file);
-        const result = await api<MediaInfo>('/media', { form });
-        if (!result.ok) {
-            setNotice({ tone: 'error', message: result.message });
-            return null;
+    const upload = useCallback(async (file: File, progress?: (percent: number) => void): Promise<MediaInfo | null> => {
+        try {
+            const asset = await uploadMedia(file, progress);
+            setMedia((list) => [asset, ...list]);
+            return asset;
+        } catch (error) {
+            setNotice({ tone: 'error', message: error instanceof Error ? error.message : 'The upload failed. Please try again.' });
+            throw error;
         }
-        const asset: MediaInfo = { ...result.data, name: (result.data as MediaInfo & { originalName?: string }).originalName };
-        setMedia((list) => [asset, ...list]);
-        return asset;
     }, []);
 
     const selected = selectedId ? (doc.document.nodes[selectedId] ?? null) : null;
@@ -384,7 +383,7 @@ export function ComponentEditor({ init }: { init: ComponentEditorInit }) {
             />
             <div data-theme={theme} className="flex h-dvh flex-col bg-canvas text-fg">
                 <header className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-line bg-surface px-2 py-1.5 sm:px-3">
-                    <BackMark href="/admin/design" label="Back to Design" />
+                    <BackMark href="/admin/design/components" label="Back to reusable components" />
                     <div className="flex min-w-0 items-center gap-2 border-l border-line pl-2.5">
                         <span className="hidden items-center gap-1 rounded-full bg-site-soft px-2 py-0.5 text-[11px] font-medium text-site sm:inline-flex">
                             <Icon name="component" className="size-3" />

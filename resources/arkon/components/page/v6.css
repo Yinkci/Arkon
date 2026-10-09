@@ -1,0 +1,2 @@
+.ak-main{display:flow-root}
+:where(.ak-main,.ak-main>.ak-instance)>.ak-flow{max-width:var(--ak-t-container-default);margin:var(--ak-t-space-lg) auto;padding-inline:var(--ak-gutter)}

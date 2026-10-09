@@ -54,6 +54,13 @@ final class ProposalSchema
         $this->componentIds = $componentIds;
         $definitions = $this->insertable($themeTypes);
         $defs = ['style' => $this->styleSettingSchema()];
+        $responsiveKeys = [];
+        foreach ($definitions as $definition) {
+            foreach (array_keys($definition->props->fields()['responsive']['properties']['tablet']['properties'] ?? []) as $key) {
+                $responsiveKeys[$key] = true;
+            }
+        }
+        $defs['responsive'] = ['type' => 'array', 'items' => ['type' => 'object', 'additionalProperties' => false, 'required' => ['screen', 'property', 'value'], 'properties' => ['screen' => ['type' => 'string', 'enum' => ['tablet', 'mobile']], 'property' => ['type' => 'string', 'enum' => array_keys($responsiveKeys)], 'value' => ['type' => 'string', 'maxLength' => 64]]]];
         foreach ($definitions as $type => $definition) {
             $defs["block_{$type}"] = $this->blockSchema($definition, $assetIds);
             $defs["update_{$type}"] = $this->updateSchema($definition, $assetIds);
@@ -61,7 +68,7 @@ final class ProposalSchema
         $addable = array_values(array_filter(array_keys($definitions), fn ($type) => $this->offerable($definitions[$type], $assetIds)));
         $nullableInt = ['anyOf' => [['type' => 'integer'], ['type' => 'null']]];
 
-        return [
+        $schema = [
             'type' => 'object',
             'additionalProperties' => false,
             'required' => ['summary', 'notes', 'tokenChanges', 'changes'],
@@ -116,6 +123,8 @@ final class ProposalSchema
             ],
             '$defs' => $defs,
         ];
+
+        return $schema;
     }
 
     /** The catalogue part of the instructions: blocks, props, nesting, design settings and tokens, from the registries. */
@@ -125,7 +134,7 @@ final class ProposalSchema
         foreach ($this->insertable($themeTypes) as $type => $definition) {
             $props = [];
             foreach ($definition->props->fields() as $name => $field) {
-                $props[] = "{$name}: ".$this->describeField($field);
+                $props[] = $name === 'responsive' && isset($field['properties']['tablet']) ? 'responsive: a list of {screen: tablet or mobile, property, value}; values are strings, including true/false. Use inherit to reset. Allowed properties/values: '.json_encode(array_map(fn ($f) => $f['values'], $field['properties']['tablet']['properties']), JSON_UNESCAPED_SLASHES) : "{$name}: ".$this->describeField($field);
             }
             $lines[] = "- {$type} ({$definition->label}, version {$definition->version})".($props === [] ? ': no props' : ': '.implode('; ', $props));
         }
@@ -236,7 +245,7 @@ final class ProposalSchema
     {
         $properties = [];
         foreach ($definition->props->fields() as $name => $field) {
-            $schema = $this->fieldSchema($field, $assetIds);
+            $schema = $name === 'responsive' && isset($field['properties']['tablet']) ? ['$ref' => '#/$defs/responsive'] : $this->fieldSchema($field, $assetIds);
             // In an update, null means "leave unchanged".
             $properties[$name] = $nullable ? ['anyOf' => [$schema, ['type' => 'null']]] : $schema;
         }
@@ -246,8 +255,14 @@ final class ProposalSchema
 
     private function fieldSchema(array $field, array $assetIds): array
     {
+        // The 60 whole-second slider intervals have an equivalent compact expression.
+        // This keeps the structured schema below Windows' quoted command-line limit.
+        if ($field['type'] === 'enum' && $field['values'] === array_map(fn ($n) => (string) ($n * 1000), range(1, 60))) {
+            return ['type' => 'string', 'pattern' => '^(?:[1-9]|[1-5][0-9]|60)000$'];
+        }
+
         return match ($field['type']) {
-            'string', 'link' => ['type' => 'string'],
+            'string', 'link' => ['type' => 'string', ...array_intersect_key($field, array_flip(['minLength', 'maxLength', 'pattern']))],
             'enum' => ['type' => 'string', 'enum' => $field['values']],
             'boolean' => ['type' => 'boolean'],
             'uuid' => ($field['ref'] ?? null) === 'component'
@@ -280,7 +295,12 @@ final class ProposalSchema
             $properties[$name] = $this->fieldSchema($inner, $assetIds);
         }
         $object = ['type' => 'object', 'additionalProperties' => false, 'required' => array_keys($properties), 'properties' => $properties];
-        $holdsMedia = in_array('uuid', array_column($field['properties'] ?? [], 'type'), true);
+        $holdsMedia = isset($field['properties']['assetId']);
+        if (isset($field['properties']['id']) && ($field['properties']['id']['type'] ?? '') === 'uuid') {
+            // A form reference is not an image id; authorization and site membership are checked by the services.
+            $properties['id'] = ['type' => 'string', 'pattern' => Rules::get('patterns.uuid')];
+            $object['properties'] = $properties;
+        }
         if (($field['nullable'] ?? false) && $holdsMedia && $assetIds === []) {
             // No images may be referenced: the only allowed value is null.
             return ['type' => 'null'];
@@ -292,8 +312,8 @@ final class ProposalSchema
     private function describeField(array $field): string
     {
         $parts = match ($field['type']) {
-            'string' => ['plain text'.(isset($field['maxLength']) ? " up to {$field['maxLength']} characters" : '')],
-            'link' => ['a link: /path, #section, ?query, https://..., http://..., mailto: or tel: (no spaces or backslashes); "" when the destination is unknown'],
+            'string' => ['plain text'.(isset($field['maxLength']) ? " up to {$field['maxLength']} characters" : '').(isset($field['pattern']) ? '; pattern '.$field['pattern'] : '')],
+            'link' => ['a link: /path, #section, ?query, https://..., http://..., mailto: or tel: (no spaces or backslashes); "#" when the destination is unknown'],
             'enum' => ['one of '.implode(', ', $field['values'])],
             'boolean' => ['true or false'],
             'uuid' => [($field['ref'] ?? null) === 'component' ? 'the id of a reusable component from the list of reusable components' : 'an image asset id from the list of images on this page'],
@@ -302,7 +322,7 @@ final class ProposalSchema
                 array_keys($field['slots']),
                 $field['slots'],
             ))],
-            'object' => [($field['nullable'] ?? false) ? 'an image on this page ({assetId, alt}) or null' : 'an object'],
+            'object' => [isset($field['properties']['assetId']) ? 'an image on this page ({assetId, alt}) or null' : (isset($field['properties']['id']) ? 'a published form from the supplied context ({id}) or null' : 'an object')],
             default => [$field['type']],
         };
         if ($field['type'] === 'style') {

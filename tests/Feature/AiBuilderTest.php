@@ -162,11 +162,11 @@ class AiBuilderTest extends DatabaseTestCase
         $this->assertStringContainsString('duplicate {id, ref}', $instructions);
         $this->assertStringContainsString('animationTrigger (Animation trigger): one of load, view; base screen only', $instructions);
         $this->assertStringContainsString('animationDuration (Animation duration): a duration in milliseconds such as 600ms (150ms to 4000ms); base screen only', $instructions);
-        $this->assertStringContainsString('section (Section, version 2)', $instructions);
+        $this->assertStringContainsString('section (Section, version 6)', $instructions);
         $this->assertStringContainsString('root (Section) accepts', $instructions);
         // No blanket "there are no animations" any more; other effects are still unavailable.
         $this->assertStringNotContainsString('carousels, animations or scripts', $instructions);
-        $this->assertStringContainsString('animations other than the entrance animations above', $instructions);
+        $this->assertStringContainsString('Sliders contain one to six slide blocks', $instructions);
         $schema = json_encode(app(ProposalPrompt::class)->schema(['assets' => [], 'components' => []]));
         $this->assertStringContainsString('"const":"duplicate"', $schema);
         $this->assertStringContainsString('"animationEasing"', $schema);

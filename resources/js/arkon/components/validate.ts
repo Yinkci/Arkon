@@ -50,6 +50,25 @@ export function validatePageDocument(input: unknown, rootType: 'page' | 'fragmen
             issues.push(...widthIssues(node, definition.label, children.length));
         }
     }
+    const sliderVisited = new Set<string>();
+    const walkSlider = (id: string, inside = false): void => {
+        if (sliderVisited.has(id)) return;
+        sliderVisited.add(id);
+        const node = doc.nodes[id];
+        if (!node) return;
+        if (inside && ['slider', 'instance'].includes(node.type))
+            issues.push({ nodeId: id, message: 'Slides cannot contain nested sliders or reusable component instances.' });
+        for (const child of node.children ?? []) walkSlider(child, inside || node.type === 'slider');
+    };
+    walkSlider(doc.root);
+    const anchors = new Set<string>();
+    for (const node of Object.values(doc.nodes)) {
+        const anchor = node.type === 'section' ? node.props.anchor : '';
+        if (typeof anchor === 'string' && anchor !== '') {
+            if (anchors.has(anchor)) issues.push({ nodeId: node.id, path: 'anchor', message: 'Section anchors must be unique on this page.' });
+            anchors.add(anchor);
+        }
+    }
     return issues;
 }
 

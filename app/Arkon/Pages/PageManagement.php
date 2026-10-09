@@ -5,8 +5,10 @@ namespace App\Arkon\Pages;
 use App\Arkon\Audit\AuditLog;
 use App\Arkon\Components\Factories;
 use App\Arkon\Database\Transactions;
+use App\Arkon\Design\PageRefreshes;
 use App\Arkon\Errors\ConflictException;
 use App\Arkon\Errors\NotFoundException;
+use App\Arkon\Navigation\MenuService;
 use App\Arkon\Sites\Authorizer;
 use App\Arkon\Sites\SiteContext;
 use App\Arkon\Support\Fingerprint;
@@ -190,7 +192,7 @@ class PageManagement
         // The live publication the user saw. If something newer went live, the request is stale.
         $expected = Input::id($input['expectedPublicationId'] ?? null, 'Publication');
 
-        return $this->transactions->run(function () use ($ctx, $pageId, $expected) {
+        $result = $this->transactions->run(function () use ($ctx, $pageId, $expected) {
             $this->authorizer->authorize($ctx, 'page.publish');
             // Serialises with publishes of this page (they take the same lock first, too).
             $this->store->lockForWrite($ctx->siteId, $pageId);
@@ -203,12 +205,18 @@ class PageManagement
             }
             $epoch = $this->store->lockNextEpoch($ctx->siteId);
             DB::table('live_pages')->where('site_id', $ctx->siteId)->where('page_id', $pageId)->delete();
+            MenuService::targetChanged($ctx->siteId, $pageId, $epoch);
             $this->audit->forContext($ctx, 'page.unpublish', 'page', $pageId, [
                 'publicationId' => $live->publication_id, 'path' => $live->path, 'epoch' => $epoch,
             ]);
 
             return ['wasLive' => true];
         });
+        if (DB::transactionLevel() === 0 && DB::table('page_refreshes')->where('site_id', $ctx->siteId)->where('status', 'pending')->exists()) {
+            app(PageRefreshes::class)->run($ctx->siteId);
+        }
+
+        return $result;
     }
 
     /**
@@ -224,7 +232,7 @@ class PageManagement
         // The draft version the user confirmed deleting.
         $expectedVersion = (int) Input::validate($input, ['expectedVersion' => ['required', 'integer', 'min:1']])['expectedVersion'];
 
-        return $this->transactions->run(function () use ($ctx, $pageId, $expectedVersion) {
+        $result = $this->transactions->run(function () use ($ctx, $pageId, $expectedVersion) {
             $this->authorizer->authorize($ctx, 'page.delete');
             $draft = $this->store->lockDraft($ctx->siteId, $pageId);
             // Read after the lock, so a second delete that waited behind the first is a no-op.
@@ -241,11 +249,19 @@ class PageManagement
                 DB::table('live_pages')->where('site_id', $ctx->siteId)->where('page_id', $pageId)->delete();
             }
             DB::table('pages')->where('id', $pageId)->update(['deleted_at' => now(), 'deleted_by' => $ctx->userId, 'updated_at' => now()]);
+            if ($epoch !== null) {
+                MenuService::targetChanged($ctx->siteId, $pageId, $epoch);
+            }
             $this->audit->forContext($ctx, 'page.delete', 'page', $pageId, [
                 'title' => $row->title, 'path' => $row->path, 'wasLive' => $live !== null, 'livePath' => $live?->path, 'epoch' => $epoch,
             ]);
 
             return ['wasDeleted' => true, 'wasLive' => $live !== null];
         });
+        if (DB::transactionLevel() === 0 && DB::table('page_refreshes')->where('site_id', $ctx->siteId)->where('status', 'pending')->exists()) {
+            app(PageRefreshes::class)->run($ctx->siteId);
+        }
+
+        return $result;
     }
 }

@@ -26,7 +26,12 @@ export async function api<T>(path: string, init: { method?: 'GET' | 'POST'; body
         return (await response.json()) as ApiResult<T>;
     } catch {
         // Not our JSON envelope (proxy error page, upload too large for the server, …).
-        if (response.status === 413) return { ok: false, code: 'VALIDATION', message: 'Images must be 5 MB or smaller' };
+        if (response.status === 413)
+            return {
+                ok: false,
+                code: 'REQUEST_TOO_LARGE',
+                message: 'The server rejected the request body. Ask the administrator to check PHP and proxy upload limits.',
+            };
         return { ok: false, code: response.status >= 500 ? 'INTERNAL' : 'BAD_REQUEST', message: 'Something went wrong. Please try again.' };
     }
 }

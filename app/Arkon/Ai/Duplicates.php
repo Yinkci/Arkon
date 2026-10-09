@@ -23,9 +23,27 @@ final class Duplicates
         $nodes = Json::entries($doc['nodes']);
         $location = DocumentStructure::findParent($doc, $nodeId) ?? throw new ProposalProblem("block {$nodeId} is not on the page");
         $copy = [];
-        $visit = function (string $id) use (&$visit, &$copy, $nodes): string {
+        $anchors = [];
+        foreach ($nodes as $n) {
+            if ($n['type'] === 'section' && ($anchor = Json::entries($n['props'])['anchor'] ?? '') !== '') {
+                $anchors[$anchor] = true;
+            }
+        }
+        $visit = function (string $id) use (&$visit, &$copy, &$anchors, $nodes): string {
             $node = $nodes[$id];
             $clone = ['id' => Operations::newNodeId(), 'type' => $node['type'], 'version' => $node['version'], 'props' => $node['props']];
+            $props = Json::entries($clone['props']);
+            if ($clone['type'] === 'section' && ($props['anchor'] ?? '') !== '') {
+                $base = substr($props['anchor'], 0, 54);
+                $suffix = 2;
+                $anchor = $base.'-'.$suffix;
+                while (isset($anchors[$anchor])) {
+                    $anchor = $base.'-'.(++$suffix);
+                }
+                $props['anchor'] = $anchor;
+                $anchors[$anchor] = true;
+                $clone['props'] = $props;
+            }
             $index = count($copy);
             $copy[] = $clone;
             if (array_key_exists('children', $node)) {

@@ -1,3 +1,4 @@
+import { uploadMedia } from '@/lib/mediaUpload';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Issue } from '@/arkon/rules';
 import type { PageDocument } from '@/arkon/schema/document';
@@ -768,29 +769,14 @@ export function Editor({ init }: { init: EditorInit }) {
         [components, structure],
     );
 
-    const upload = useCallback(async (file: File): Promise<MediaInfo | null> => {
-        const form = new FormData();
-        form.set('file', file);
+    const upload = useCallback(async (file: File, progress?: (percent: number) => void): Promise<MediaInfo | null> => {
         try {
-            const result = await api<MediaInfo>('/media', { form });
-            if (!result.ok) {
-                setNotice({ tone: 'error', message: result.message });
-                return null;
-            }
-            const uploaded = result.data as MediaInfo & { originalName?: string };
-            const asset: MediaInfo = {
-                id: uploaded.id,
-                url: uploaded.url,
-                width: uploaded.width,
-                height: uploaded.height,
-                mime: uploaded.mime,
-                name: uploaded.originalName,
-            };
+            const asset = await uploadMedia(file, progress);
             setMedia((list) => [asset, ...list]);
             return asset;
-        } catch {
-            setNotice({ tone: 'error', message: 'The upload failed. Check the file (5 MB maximum) and your connection, then try again.' });
-            return null;
+        } catch (error) {
+            setNotice({ tone: 'error', message: error instanceof Error ? error.message : 'The upload failed. Please try again.' });
+            throw error;
         }
     }, []);
 

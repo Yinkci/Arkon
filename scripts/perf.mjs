@@ -8,9 +8,9 @@
 // per page. Prints the medians and writes the raw reports to storage/perf/. Lab numbers only:
 // field Core Web Vitals need real-user data after deployment.
 import { execFileSync, spawn } from 'node:child_process';
-import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { chromium as playwright } from '@playwright/test';
 import { E2E_ENV, PHP } from '../e2e/env.ts';
 
@@ -18,6 +18,7 @@ const PORT = 8101;
 const HOST = `127.0.0.1:${PORT}`;
 // Each page without and with entrance animations (PERF_PAGES=/a,/b to measure fewer).
 const PAGES = process.env.PERF_PAGES?.split(',') ?? [
+    '/perf-contact',
     '/perf-hero',
     '/perf-hero-motion',
     '/perf-images',
@@ -28,6 +29,27 @@ const PAGES = process.env.PERF_PAGES?.split(',') ?? [
 ];
 // Where reports and the summary go (PERF_OUT=storage/perf-baseline keeps a baseline apart).
 const OUT = process.env.PERF_OUT ?? 'storage/perf';
+// Output cleanup must never target the repository root or an arbitrary directory.
+// These bounded inputs also stay safe when npx.cmd needs a Windows shell.
+if (PAGES.length > 16 || PAGES.some((path) => !/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/.test(path))) {
+    throw new Error('PERF_PAGES must contain at most 16 plain site paths.');
+}
+if (!/^storage[\/][A-Za-z0-9_/-]+$/.test(OUT) || !resolve(OUT).startsWith(resolve('storage') + sep)) {
+    throw new Error('PERF_OUT must be a named report directory inside storage/.');
+}
+let existingOutputParent = resolve(OUT);
+while (!existsSync(existingOutputParent)) existingOutputParent = dirname(existingOutputParent);
+const storageRoot = realpathSync('storage');
+const realOutputParent = realpathSync(existingOutputParent);
+if (realOutputParent !== storageRoot && !realOutputParent.startsWith(storageRoot + sep)) {
+    throw new Error('PERF_OUT cannot traverse a link outside storage/.');
+}
+// Optional already-installed CLI: run Node directly, avoiding Windows cmd/npx spawning.
+const LIGHTHOUSE_CLI = process.env.PERF_LIGHTHOUSE_CLI ? resolve(process.env.PERF_LIGHTHOUSE_CLI) : null;
+if (LIGHTHOUSE_CLI && !existsSync(LIGHTHOUSE_CLI)) throw new Error('PERF_LIGHTHOUSE_CLI does not exist.');
+if (LIGHTHOUSE_CLI && JSON.parse(readFileSync(resolve(dirname(LIGHTHOUSE_CLI), '../package.json'), 'utf8')).version !== '12.8.2') {
+    throw new Error('PERF_LIGHTHOUSE_CLI must be Lighthouse 12.8.2 for a comparable benchmark.');
+}
 const RUNS = 3;
 const OWNER = { email: 'perf-owner@e2e.test', name: 'Perf Owner', password: 'perf-owner-password-123' };
 const env = {
@@ -120,6 +142,26 @@ async function browserCheck(chrome) {
                     ...window.__perf,
                     starts: window.__perf.starts.length,
                     taps: [],
+                    dom: (() => {
+                        const elements = [...document.querySelectorAll('*')];
+                        const depth = (element) => {
+                            let value = 1;
+                            while (element.parentElement) {
+                                value++;
+                                element = element.parentElement;
+                            }
+                            return value;
+                        };
+                        return {
+                            elements: elements.length,
+                            depth: Math.max(...elements.map(depth)),
+                            maxChildren: Math.max(...elements.map((element) => element.children.length)),
+                            editorAttributes: elements.reduce(
+                                (count, element) => count + [...element.attributes].filter((a) => a.name.startsWith('data-ak-')).length,
+                                0,
+                            ),
+                        };
+                    })(),
                     // Animated blocks on screen that are still not fully shown 3 s after load.
                     hiddenInView: [...document.querySelectorAll('.ak-anim')].filter((el) => {
                         const r = el.getBoundingClientRect();
@@ -138,6 +180,7 @@ async function browserCheck(chrome) {
                 await page.waitForTimeout(2500);
                 const end = await page.evaluate(() => window.__perf);
                 runs.push({
+                    dom: atLoad.dom,
                     lcp: atLoad.lcp,
                     fcp: atLoad.fcp,
                     lcpElement: atLoad.lcpElement,
@@ -155,6 +198,7 @@ async function browserCheck(chrome) {
             const pick = (key) => runs.map((r) => r[key]);
             rows.push({
                 path,
+                dom: runs[0].dom,
                 lcpMs: `${median(pick('lcp'))} (${pick('lcp').join('/')})`,
                 fcpMs: median(pick('fcp')),
                 lcpElement: runs[0].lcpElement,
@@ -191,7 +235,7 @@ const server = spawn(PHP, ['-S', HOST, '-t', '.', '../vendor/laravel/framework/s
 try {
     for (let i = 0; i < 50; i++) {
         try {
-            if ((await fetch(`http://${HOST}/robots.txt`)).ok) break;
+            if ((await fetch(`http://${HOST}/favicon.ico`)).ok) break;
         } catch {}
         await new Promise((r) => setTimeout(r, 200));
     }
@@ -204,18 +248,17 @@ try {
         for (let run = 1; run <= RUNS; run++) {
             const out = `${OUT}/reports/${path.slice(1)}-${run}.json`;
             execFileSync(
-                process.platform === 'win32' ? 'npx.cmd' : 'npx',
+                LIGHTHOUSE_CLI ? process.execPath : process.platform === 'win32' ? 'npx.cmd' : 'npx',
                 [
-                    '--yes',
-                    'lighthouse@12.8.2',
+                    ...(LIGHTHOUSE_CLI ? [LIGHTHOUSE_CLI] : ['--yes', 'lighthouse@12.8.2']),
                     `http://${HOST}${path}`,
-                    '--only-categories=performance',
+                    '--only-categories=performance,accessibility,seo',
                     '--output=json',
                     `--output-path=${out}`,
                     '--quiet',
                     '--chrome-flags=--headless=new --no-sandbox',
                 ],
-                { env: { ...process.env, CHROME_PATH: chrome }, stdio: 'inherit', shell: process.platform === 'win32' },
+                { env: { ...process.env, CHROME_PATH: chrome }, stdio: 'inherit', shell: !LIGHTHOUSE_CLI && process.platform === 'win32' },
             );
             const report = JSON.parse(readFileSync(out, 'utf8'));
             const audit = (id) => report.audits[id]?.numericValue ?? NaN;
@@ -223,6 +266,11 @@ try {
             const bytes = (type) => items.filter((i) => !type || i.resourceType === type).reduce((sum, i) => sum + (i.transferSize ?? 0), 0);
             runs.push({
                 score: Math.round(report.categories.performance.score * 100),
+                accessibility: Math.round(report.categories.accessibility.score * 100),
+                seo: Math.round(report.categories.seo.score * 100),
+                auditFindings: Object.entries(report.audits)
+                    .filter(([, audit]) => audit.score !== null && audit.score < 1 && ['binary', 'numeric'].includes(audit.scoreDisplayMode))
+                    .map(([id, audit]) => ({ id, title: audit.title, score: audit.score })),
                 lcp: audit('largest-contentful-paint'),
                 cls: audit('cumulative-layout-shift'),
                 tbt: audit('total-blocking-time'),
@@ -244,6 +292,9 @@ try {
         rows.push({
             path,
             score: m('score'),
+            accessibility: m('accessibility'),
+            seo: m('seo'),
+            auditFindings: runs[0].auditFindings,
             lcpMs: Math.round(m('lcp')),
             cls: Number(m('cls').toFixed(3)),
             tbtMs: Math.round(m('tbt')),

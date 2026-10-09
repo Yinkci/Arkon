@@ -22,11 +22,11 @@ document covers what is different and how the port keeps its guarantees. Plan: [
 - `routes/public.php`: loaded last and outside the `web` group. `/media/{file}` and a catch-all page route whose
   pattern excludes the reserved first segments (`admin`, `login`, `logout`, `api`, `preview`, `media`, `build`),
   the same list page URLs are validated against. Public responses carry no `Set-Cookie`, no Vite or Inertia assets,
-  and no scripts with one narrow exception: a page with entrance animations loads the versioned animation runtime
+  and only conditional public enhancement scripts: a page with entrance animations loads the versioned animation runtime
   (`/_arkon/motion-3.js` for new output, on any page with an entrance; `motion-1.js` and `motion-2.js` stay, on pages
   with "when scrolled into view" entrances only, for publications that recorded them), a static file pinned by
   `integrity`. Its policy is `script-src 'none'`, or exactly that file's URL on this origin for such pages (see
-  "Entrance animations").
+  "Entrance animations"). Slider/back-to-top pages additionally load integrity-pinned components-1.js; its exact URL is added to the same policy.
 - Services take a `SiteContext` (site + user) and authorize first, inside their transaction. Ids of other sites
   (and malformed ids) are "not found", never "forbidden".
 
@@ -124,19 +124,19 @@ Current versions (older versions stay registered, see below and §4):
 
 | Component | Version | Props (besides `style`) | Style slots | Children | Publish checks |
 |---|---|---|---|---|---|
-| `page` | 3 | none (SEO lives on the document) | root: background, typography | section, hero, text, image, button, columns, group, instance; max 50 | – |
-| `section` | 2 | `element` section/div/header/footer/aside, `contentWidth` narrow/default/wide/full | root: layout, spacing, size, background, border, effects, typography, motion | hero, text, image, button, group, columns, instance; max 30 | – |
-| `group` | 2 | `element` div/section/article/aside | root: layout, spacing, size, placement, background, border, effects, motion | text, image, button, group, columns, instance; max 30 | – |
-| `hero` | 4 | `heading`, `headingLevel` h1/h2, `text`, `image` {assetId, alt} | root (+ motion), content (text column), heading, text, actions, media | button, max 4 (shown under the text) | heading; image alt |
+| `page` | 5 | none (SEO lives on the document) | root: background, typography | section, hero, text, image, button, columns, group, instance, form, navigation; max 50 | – |
+| `section` | 4 | `element` section/div/header/footer/aside, `contentWidth` narrow/default/wide/full; `anchor` (unique section destination) | root: layout, spacing, size, background, border, effects, typography, motion | hero, text, image, button, group, columns, instance, form, navigation; max 30 | – |
+| `group` | 4 | `element` div/section/article/aside | root: layout, spacing, size, placement, background, border, effects, motion | text, image, button, group, columns, instance, form, navigation; max 30 | – |
+| `hero` | 5 | `heading`, `headingLevel` h1/h2, `text`, `image` {assetId, alt} | root (+ motion), content (text column), heading, text, actions, media | button, max 4 (shown under the text) | heading; descriptive or decorative image alt |
 | `text` | 3 | `text`, `element` p/h1/h2/h3/h4 | root: typography, spacing, size, placement, background, border, effects, motion | – | not blank |
-| `image` | 4 | `image`, `caption`, `loading` auto/eager/lazy | root (block, + motion), media (the image: size, fit, crop, border, shadow), caption | – | has an image; alt |
-| `button` | 3 | `label`, `href` (safe link), `variant` primary/secondary/text, `size` small/medium/large, `newTab` | root (alignment, spacing, motion), button | – | label; link |
+| `image` | 6 | `image`, `caption`, `loading` auto/eager/lazy | root (block, + motion), media (the image: size, fit, crop, border, shadow), caption | – | has an image; descriptive or decorative alt |
+| `button` | 4 | `label`, `href` (safe link), `variant` primary/secondary/text, `size` small/medium/large, `newTab` | root (alignment, spacing, motion), button | – | label; safe link (# is a placeholder) |
 | `columns` | 3 | none | root: layout (column count or proportions), spacing, size, …, motion | column, min 1, max 6 | – |
-| `column` | 3 | none | root: layout, spacing, size, …, motion | text, image, button, group, columns, instance; max 30 | – |
+| `column` | 5 | none | root: layout, spacing, size, …, motion | text, image, button, group, columns, instance, form, navigation; max 30 | – |
 | `instance` | 2 | `componentId` (a reusable component of the site) | root: spacing, size, placement, motion | – | component published |
-| `fragment` | 1 | none: the root of a reusable component's document | – | section, hero, text, image, button, columns, group; max 30 | – |
+| `fragment` | 3 | none: the root of a reusable component's document | – | section, hero, text, image, button, columns, group, form, navigation; max 30 | – |
 
-Migrations into the current versions (old drafts open at them; publications keep theirs): page 1→2→3 and
+Migrations into the current versions (old drafts open at them; publications keep theirs): page 1→2→3→4→5 and
 hero 1→2 unchanged props (hero gains an empty children list); text 1→2 `align: center` → `textAlign`;
 image 1→2→3 `size` medium/small → `maxWidth` 48rem/28rem; button 1→2 `style` → `variant`; columns 1→2
 `stackOn` → `columns: "1"` on that screen, `gap` small/large → `@space.md`/`@space.xl`. The entrance-animation
@@ -202,8 +202,7 @@ version keeps its own file), so publications of the earlier versions reproduce b
   (899 px and 599 px, the same as published pages), and select the screen the design controls edit.
 - **Editor-only output.** Selection outlines, empty-column hints and "Add block" targets, the empty-image placeholder
   and animation replay are canvas CSS, editor overlays or editor-mode markup (`data-ak-*`, `ak-image__empty`,
-  `ak-replay`); production rendering never emits them. Published pages have no scripts except the animation runtime
-  described below.
+  `ak-replay`); production rendering never emits them. Published pages load only the conditional animation and slider/back-to-top runtimes described below.
 
 ### Visual builder foundation: one styling model, layout, shared resources
 
@@ -251,7 +250,7 @@ in the centred content column (`.ak-flow`); nested blocks fill their container. 
 page counts) and 2,000 nodes per document, containers to 30 children (the page 50), Columns to 6 columns.
 Accessibility: the DOM order is the Layers order and the reading order; which side something appears on changes only
 through `direction` (row-reverse, column-reverse), never by reordering content; headings keep their level (Text
-offers h1–h4 as semantics, size is a design setting), images need alt text to publish, links keep the safe-link
+offers h1–h4 as semantics, size is a design setting), informative images use alternative text; current Hero/Image/Logo versions also support decorative empty alt, links keep the safe-link
 policy, and keyboard users have Move up/down, Select parent and Layers.
 
 **Dragging.** One lifecycle for every drag source (canvas Move handles, Layers rows, palette items) in both editors:
@@ -461,7 +460,7 @@ keyframes, selectors or script, and the enum values map to fixed keyframe names.
   editors share this.
 
 **Design tokens.** Fixed slots (`rules.json` `tokens`): 8 colours, 2 fonts (system stacks: sans, serif, mono,
-rounded; no web fonts), 6 type sizes, 6 spaces, 3 container widths, 4 radii, 3 shadows. `site_token_sets` holds the
+rounded, plus locally served Inter), 6 type sizes, 6 spaces, 3 container widths, 4 radii, 3 shadows. `site_token_sets` holds the
 site's editable draft (optimistic version, idempotent save key); publishing (`TokenService::publish`, publishers
 only, idempotent per key) stores an immutable `site_token_versions` row and takes the site's epoch lock. Pages,
 previews and the canvas always render with the *published* version (`DesignResources`), so a draft can never reach a
@@ -758,9 +757,9 @@ components with versioned publishing and dependent-page refreshes, responsive im
 (VS Code via MCP and the editor's AI panel via the local helper, on the user's Claude subscription) with the full
 design catalogue. Performance evidence: [PERFORMANCE.md](PERFORMANCE.md).
 
-Deferred: multi-page AI orchestration, collections and content entries, a general outbox/workers (refreshes run
+Deferred: collections and content entries, a general outbox/workers (refreshes run
 after publishing and from `arkon:refresh-pages`), editable site settings, autosave, site switcher, member
-management UI, row-level security, web fonts, AVIF variants, AI changes to reusable components.
+management UI, row-level security, remote font imports, AVIF variants, AI changes to reusable components.
 
 ### Admin interface
 
@@ -820,11 +819,11 @@ published pages.
   publishing requires a link.
 - Containers cannot hold sections; columns hold no hero; at most 6 columns, 30 blocks per container, 8 levels.
 - Only one image gets high priority: the first within the first two top-level blocks (or one marked "Load early").
-  A CSS background image is never preloaded, so a background-image hero is a slower LCP than an image element.
+  Renderer 4 preloads a managed first-content background with responsive viewport variants; older renderers retain their previous behaviour.
 - `sizes` is an estimate from the layout (full width below 900 px, the block's share of 72rem above); a block set to
   a fixed narrow width may fetch a larger variant than it needs.
-- Design values are bounded: no arbitrary CSS, gradients, transforms, positioning, custom fonts or per-element hover
-  styles; animations are the entrance presets only (whole blocks, opacity and transform). Tokens have fixed slots
+- Design values are bounded: no arbitrary CSS, transforms, unbounded positioning, remote custom fonts or arbitrary hover
+  rules; bounded gradients, sticky headers, local Inter and hover/focus presets are supported; animations are the entrance presets only (whole blocks, opacity and transform). Tokens have fixed slots
   (values are editable, slots are not added by users).
 - Entrance animations: since motion-2 a "when scrolled into view" block on screen at load plays its entrance with the
   page, and since motion-3 keyboard focus shows any entrance around it at once (motion-1 and motion-2 publications
@@ -862,3 +861,133 @@ Immutable component registration is application-wide for history; Appearance →
 `site_theme_sets` holds a versioned draft choice and a composite live pointer to immutable `site_theme_versions`; `site_theme_requests` is the append-only request ledger. Activation/publishing require page.publish (owners/admins), site membership and an expected version. Exact retries authorize before lookup and return their original result even after later changes; changed payloads conflict. Publish holds the site epoch lock and records the selection; page rendering records its published version as audit metadata without changing HTML.
 
 Per-site advisory locks serialize selection changes with component availability checks inside page/reusable-component saves. All immutable component definitions remain registered; palette and AI schema/catalogue filter by active site types, keeping existing inactive document types editable. The AI compiler and server saves enforce availability. Preview uses the single PHP renderer with default sample content, no writes, scripts or page media. The sources are fixed beneath themes/, not supplied web paths. Public requests continue serving stored HTML and do not read theme selections.
+
+
+## Complete website workflow
+
+The website scope captures page, shared-component, token, form and settings versions. A lease-fenced helper result or authenticated MCP submission compiles through the existing native operations. Applying uses one transaction, expected versions, site/path locks and immutable application records. Whole-site publishing locks page drafts before resources and the site epoch, publishes reviewed resources and pages atomically, and runs bounded refreshes after commit. Request ledgers make exact retries safe. Forms use immutable versioned definitions recorded in render inputs, composite site foreign keys, encrypted submissions and a sessionless live-reference-gated endpoint. New container manifest versions admit form blocks; old manifests and renderer output remain pinned. `arkon-php-3` adds canonical URLs and semantic page layout; renderer versions 1/2 remain reproducible. New additive migrations `2026_10_14_000001` and `000002` create the workflow tables and expiring MCP contexts. See [WEBSITE_WORKFLOW.md](WEBSITE_WORKFLOW.md) for scope, security, performance and recovery limits. Earlier single-page-only AI limitations apply only to the page-editor flow; website proposals can edit their shared header/footer drafts.
+
+
+### Website generation activity and failure diagnostics
+
+Website workers record generation/validation/optional repair stages and heartbeats under the same valid lease as completion. The admin shows indeterminate activity, elapsed time, stale-heartbeat and failed-poll warnings, without inventing a percentage. Website requests opt out of automatic model repairs by default; the requester may explicitly allow one. Expired or disconnected website runs fail rather than requeue another model run, while page requests keep their bounded recovery. Future invalid website outputs retain up to 2 MiB of structured output privately plus bounded validation issues; status endpoints expose issues, never raw candidates or lease tokens. Old deleted outputs cannot be reconstructed. Website instructions include the shared block/design guidance and the actual nested update envelope, and opt-in repairs receive exact rule errors. Published rendering is unchanged.
+
+### Navigation and shared website layout
+
+Open **Admin → Navigation** to create menus, reorder items, add one level of dropdowns, and choose page links, custom URLs or section links. Page links store a page reference: they follow its published URL, never an unpublished rename. Unpublished targets resolve to # and show a warning. Menu drafts stay private until explicitly published; publishing refreshes dependent live pages under the site's publication ordering. Editors can save; owners and admins can publish. Published menu history is immutable and its resolved URLs are recorded in publication inputs.
+
+The Navigation screen also links to the site's shared header and footer editors. Its **Prepare missing header and footer** action creates a local, reviewed website proposal, using no Claude request or subscription quota. It preserves existing nonempty shared layouts and page content, fills missing layout, and proposes section anchors for recognised Home/About/Services/Contact sections. Nothing changes until the proposal is applied; publishing remains separate.
+
+The builder has a Navigation block with a menu selector. Sections have an **Anchor** field for destinations such as #services; anchors must be unique, start with a letter, and contain letters, digits, hyphens or underscores. Duplicating a section gives its copy a new anchor. Menus use native HTML disclosure controls for mobile and dropdowns, with keyboard support and no public JavaScript. The initial implementation supports one dropdown level and up to 50 menu items; it does not provide a fully custom mega-menu.
+
+Website proposals include editable header, footer and navigation by default. Turn off **Include shared header, navigation and footer** for a standalone page. Existing layouts and menu definitions are preserved unless changes are proposed. Review includes the menu and shared resources before applying; website publication publishes their reviewed drafts together. Restart the local AI helper and MCP server after this upgrade: website generation requires helper protocol 3, so an older helper is rejected before a new run consumes quota.
+
+New buttons default to #, including AI-created buttons with an omitted or empty destination. This is a visible placeholder, allowed to publish with a readiness warning; supply a real destination before launch. Existing stored blank or intentional URLs are not silently rewritten. Component versions and old publications remain immutable.
+
+## Professional website layouts (9 October 2026)
+
+The builder now includes linked managed logos, curated inline SVG icons/social links, editable sliders and a back-to-top link. In **Layers → Starting layouts**, insert an agency header, hero slider, image introduction, service cards, newsletter or footer. These are ordinary blocks: edit every field, move/remove/duplicate children, undo and save normally. Repeated insertions get fresh node IDs and section anchors. Select the appropriate published menu, images and form after inserting; replace demo copy and contact details before launch.
+
+Use the inspector to choose a directional two-colour gradient, image crop/position, responsive sizing, inherited typography, hover/focus colours/shadows or a sticky header. Gradients accept only a bounded direction and two hexadecimal colours; sticky positioning and stacking order are bounded. There is no arbitrary CSS, remote font import or user script execution. The Inter font choice is served locally under its included SIL Open Font License, with a Latin subset and a full-character fallback. System fonts remain the default and require no font download.
+
+A Slider contains 1–6 Slide blocks. Slides hold ordinary editable content, but cannot contain another slider or a reusable instance. Slider v2 shows one slide in the editor, with clickable controls; selecting a slide or its child in Layers reveals it. The selected slide survives redraws and the canvas never autoplays while editing. Version 1 remains reproducible. Pagination is selectable (numbers, dots with an elongated active marker, bars, or none), arrows are optional, and controls support alignment and light/dark colors; the public page shows one slide with arrows, dots, keyboard and touch navigation. Autoplay is off by default. If enabled, it pauses on hover, focus, a hidden tab and reduced motion. The tallest slide reserves height to avoid a layout jump; inactive slides are inert and their background images load when shown. Without JavaScript the first slide remains readable. The back-to-top link also works without JavaScript.
+
+The conditional, integrity-checked components-1 runtime is approximately 4.9 KB uncompressed, independent of React/Inertia and allowed by an exact CSP path. Pages without its widgets download none of it. Renderer arkon-php-4 retains support for older renderer versions and records its inputs; older component files and published HTML are unchanged. New versions are page 6, section 5, group 5, column 6, fragment 4, button 5 and form 2. Logos/icons/sliders/slides/back-to-top start at version 1.
+
+Renderer 4 uses managed responsive background variants and viewport-specific preloads for the first main-content background. Header logos do not consume the main image priority. Backgrounds still need suitable image dimensions and compressed assets; these mechanisms cannot guarantee field Core Web Vitals for arbitrary content. See docs/PERFORMANCE.md for measured local results.
+
+**Newsletter:** create an email-only form using **Forms → + Newsletter form**, save and publish its definition, then select it in a Form block. The inline layout, submit label and notice are editable. Submissions use the existing validation, honeypot, rate limiting, encrypted entry storage and site permissions. This collects signups locally; it does not send newsletters or connect an email marketing provider. Do not tell visitors they are subscribed to an external list unless that integration exists.
+
+Both Claude Code paths receive the new component/style catalogue and layout guidance. Form IDs are validated against the published forms in the supplied site context, independently of media IDs; unknown form references are rejected before review. The sandboxed helper receives explicit schema/context rather than unrestricted repository access. No real model request is used by the regression tests. Restart your existing helper and MCP server to refresh their cached catalogue; nothing is automatically published.
+
+The reference demonstration is an isolated test fixture (/perf-reference), with generated placeholder imagery. It is not added to the development/live site. The starting layouts are available immediately in the real builder after refreshing the admin page.
+
+### Verification of the professional builder milestone
+
+- PHP: the full 330-test sweep passed 329 and caught one invalid UUID in the newly added unknown-form test. After correcting that fixture and adding two renderer tests, the affected eight tests passed: all 332 PHP tests are covered by the sweep and rerun.
+- TypeScript/Vitest: 325 passed; typecheck and production build passed. Pint passed and the changed frontend/test files were formatted.
+- Browser: 89 checks passed across the full sweep and targeted reruns; nine optional profiling checks were skipped. The reruns cover the compact palette, visible drag targets, deterministic drop position, page management and all four reference checks (including real published autoplay). Browser tests use only fake Claude.
+- Herd: read-only sign-in/navigation/mobile smoke passed; its temporary account was removed. No existing draft or live page was changed.
+- All 29 existing development publications reproduce byte for byte; runtime database privileges remain restricted.
+- No real Claude request, commit, push or publication of development content was performed.
+
+Performance: default-font reference scored 98/100 mobile (median LCP 2.159 s, CLS 0); optional local Inter scored 96/100 (LCP 2.531 s, CLS 0.005). These are isolated local lab results with generated placeholder images. See PERFORMANCE.md.
+
+Slider v3 accepts every whole-second interval from 1–60 seconds. New sliders continue playing under the mouse by default; hover pause is optional. Upgrading earlier sliders preserves their hover-pause behavior. The editor offers explicit Play slideshow / Pause slideshow controls; selecting, editing, dragging or redrawing stops this temporary playback without changing drafts. Focus, hidden tabs and reduced-motion preferences stop public autoplay; pressing Resume explicitly resumes even if that persistent control still has focus. The versioned components-2 runtime is selected only for slider v3; earlier publications retain components-1 and reproduce unchanged.
+
+Slider v4 adds slide/fade/instant transitions and a bounded duration. The components-3 runtime animates only transform or opacity, keeps the tallest-slide grid reservation, cancels interrupted transitions and skips motion for reduced-motion users. Playback buttons are visually suppressed by default on the website but remain available to screen readers and keyboard focus; Show autoplay pause button restores the visible control. Editor test-play controls stay in the editor only. Earlier component versions and runtimes remain pinned.
+
+Slider v5 adds independent Arrow placement: Grouped or Left/right edges. Edge arrows remain vertically centered while pagination can be hidden or aligned separately along the bottom. The same CSS works in the canvas, preview and publication, without adding JavaScript. Earlier drafts upgrade to Grouped, and older published output remains unchanged.
+
+Slider v6 gives pagination independent Left/Center/Right alignment and Top/Bottom position. Canvas playback commands now live in the inspector and do not add a Play button to rendered content. Their version-checked preview path supports page and component editors, stops on editing/redraw/drag and respects reduced motion. Published versions remain immutable.
+
+Slider v7 exposes arrow appearance (default/plain/outlined/filled), shape, button and icon size, gap, horizontal and vertical offsets, and grouped Top/Middle/Bottom positioning. Select the Arrow buttons part for custom background, colour, border and hover styles. Hit targets stay at least 44px; all placement and appearance use CSS, with the same output across canvas/preview/publication and no extra runtime. Old component versions stay immutable.
+
+The slider inspector groups Slides, Playback, Transition, Arrows, Arrow appearance/colors, Pagination and Slider design. Irrelevant controls are hidden without clearing their saved values. Horizontal and Vertical position are shown together for grouped arrows. Custom arrow colours/background/borders and hover settings edit the existing validated arrows style slot directly; whole-slider styling always targets root.
+
+Slider v8 supports validated tablet (899px and narrower) and mobile (599px and narrower) overrides for playback, transition, arrows, appearance and pagination. All screens / desktop is the base; tablet inherits base, mobile inherits tablet. Unset or inherit values follow the larger screen; Reset removes the override. Canvas and public output resolve the same settings on viewport changes; reduced motion, focus and hidden-tab autoplay protections remain. Prior component versions and components-3 runtime are unchanged and still reproduce old publications. The new components-4 runtime is loaded only by pages using slider v8. Refresh the editor and restart the AI helper/MCP to use the expanded catalogue; existing live pages change only after explicit publication.
+
+
+Responsive block controls now use the selected screen consistently: All screens is the base, tablet (899px and narrower) inherits it, and mobile (599px and narrower) inherits tablet. Reset removes an override rather than writing a guessed default. Column proportions and custom widths follow this screen; the number of columns remains shared. Default mobile stacking is an explicit, removable setting. Button v6 supports screen-specific appearance and size, Section v6 supports content-width presets, and Form v3 supports stacked/inline layout (with the existing mobile stacking stored explicitly). Image dimensions, fit and crop use the existing screen-specific media style controls; the image asset, alt text, text, links and block structure remain shared. Override badges include responsive presets.
+
+These visual changes render through CSS and add no public JavaScript. Standalone Image v5 estimates download slots from per-screen column proportions, nested columns and supported explicit image widths; estimates are conservative and do not model arbitrary custom layouts or every container width. Intrinsic dimensions, responsive sources and image loading priority remain. Old component files remain immutable, so saved publications reproduce with their original versions; editing upgrades drafts in memory. Refresh the editor and restart the AI helper/MCP for the expanded catalogue. No performance score is guaranteed by these controls.
+
+Verification for responsive block controls: 345 PHPUnit tests (2273 assertions), 329 Vitest tests and typecheck/build passed. Browser checks cover saving and publishing Columns/Button/Image overrides with JavaScript disabled, Section/Form inheritance and text-button padding, the existing builder/design flows, and the slider override regression. Herd smoke verified the new inspector without saving; all 45 development publications reproduce byte for byte. No real model requests were made.
+
+
+Background images use the same thumbnail library/upload picker as image and Hero fields, in page and component editors. Upload progress measures transferred bytes; at 100% the control separately reports server validation/variant preparation. Failures appear beside the picker and allow a manual retry (unconfirmed network outcomes advise checking the library first). Uploads remain private until a live publication uses them. Completing an upload after switching blocks/parts or changing its target does not apply it to a stale selection; the asset remains in the site library. Background image selection still applies to all screens, as labelled; Reset/removal uses the existing style contract. No public renderer, schema or upload permissions change.
+
+Background-upload verification: typecheck and 333 Vitest tests passed; 24 media/style PHP tests passed; 10 background-upload/design browser checks passed, with the existing editor upload flow also verified. Herd smoke confirms the background picker is available without changing development content. All 45 development publications reproduce unchanged; the public renderer was not modified.
+
+
+## Production output audit: renderer 5
+
+See [PRODUCTION_AUDIT.md](PRODUCTION_AUDIT.md) for findings, measurements and remaining production work.
+
+- Public pages remain stored HTML: no React/Inertia hydration, session, admin bundle or schema rendering on the visitor request. Public/SEO delivery resolves only the thin PublicPages store, avoiding transitive catalogue, validator, theme and renderer construction. A regression binds editing dependencies to throw and still exercises public delivery.
+- A component may require no additional wrapper: embedded fragment roots are logical. Containers require a real layout/style/semantic reason. Never flatten by tag name alone or use blanket `display:contents`.
+- Editor selection/drag/resize/placeholder code stays outside public output. Renderer 5 removes the reserved data-ak- attributes recursively after layout helpers finish, including nested sticky-header annotations; editor and historical renderer output stay unchanged. Functional slider data and accessibility references are allowed.
+- Renderer `arkon-php-5` adds escaped Open Graph/Twitter summary tags from recorded title, description, site name and canonical origin. It selects immutable `components-5.js` for slider v8, whose keyboard navigation transfers focus to an available control or carousel root before making old content inert. Renderer 4 still selects components-4; old component/runtime bytes are unchanged.
+- `OutputDiagnostics` inspects rendered body IR after shared components expand. It reports element count, depth, child fan-out, h1 count and HTML/CSS bytes, with advisory heading/link/description/budget warnings. Website readiness uses this shared report with publication-equivalent canonical/social head metadata and resolves site identity once; diagnostics do not alter output or publication inputs.
+- Current review budgets: body elements 800, body depth 12, children 60, HTML 150,000 bytes, CSS 30,000 bytes. They are warnings, not publication blockers; full document DOM metrics also include head/html/body.
+- Public page validators use framework weak/list/wildcard handling after resolving the current live row. No positive HTML cache TTL is introduced without durable publication-aware invalidation.
+- Authorized images use BinaryFileResponse streaming. Private/member/signed delivery is private no-store, with no conditional validator; public immutable files have key-based ETags. Access is rechecked before returning files or 304s. Public images may remain in existing caches after withdrawal under the established one-year cache contract.
+- robots.txt allows the public enhancement namespace and blocks the form submission subpath. SEO resources continue to use published state, never draft SEO.
+- `npm run perf` now records actual document DOM size/depth/fan-out and editor-attribute count, alongside Lighthouse performance, accessibility and SEO audits. Local lab results do not establish field CWV or production load capacity.
+
+
+## Admin information architecture
+
+See [ADMIN_UX_REVIEW.md](ADMIN_UX_REVIEW.md) for the capability audit, route map, validation and remaining work.
+
+- The Dashboard summarizes; dedicated screens manage. It sends at most five recent pages and recorded activity, whole-site counts, homepage links and pending review/update actions. It does not render the Pages management table or claim unmeasured health scores.
+- The shared adminNavigation registry drives grouped navigation, permission visibility, active states, location labels and command destinations. Existing URLs stay supported. Content holds Pages, Media and Forms; Design holds Global styles, Reusable components, Navigation and Themes; AI holds the current website proposal workflow; Site management holds SEO, Performance/update status and Settings.
+- Global styles and reusable components reuse existing versioned services on separated screens. Component return links point to /admin/design/components. Settings is an owner/admin read-only view until identity/domain settings are versioned; it authorizes on the server as well as filtering navigation.
+- Command search uses a native dialog and keyboard-accessible combobox. Page lookup authorizes page.view, scopes the current site, excludes deleted pages, treats search literally, bounds text to 120 characters and results to ten, and returns metadata only. New modules add real routes/capabilities to the registry; absent modules do not get fake or disabled destinations.
+- The Media screen reuses existing private-until-published upload/delivery rules and upload progress. The manager now queries 36 images per page with database search/sort, editable metadata and a native details dialog. Alternative text remains per placement, with library defaults for new selections. Pages uses explicit creation disclosure, filters/search and contextual actions with the original safe save/publish/delete services.
+- Site SEO reads draft and published revision metadata separately, in pages of 50. Performance describes actual update status; field CWV remains Not measured without a connected monitoring pipeline. No expensive renderer or Lighthouse audit runs on Dashboard requests.
+- Shared AdminPageHeader and existing UI tokens/components keep all management pages consistent in light/dark mode. The immersive page/component builders stay the same core editors; this is not a new builder implementation. Public output and immutable renderer/component versions are unchanged.
+- Website structured-output schemas pass through SchemaCompactor: duplicate rules use shared references and internal definition names are shortened. User-facing fields and expanded constraints are identical (regression tested). This preserves the Windows CLI command guard as the catalogue grows, without changing validation or allowing model tools.
+
+
+### Media asset metadata and library discovery
+
+Migration `2026_10_16_000001_media_metadata` adds title, default alt/caption, editorial description, metadata_version and archived_at. `media_metadata_saves` is append-only for the runtime role. MediaLibrary performs site authorization, literal database search, stable sorting and bounded pages. Details expose canonical URLs, original facts, derivative previews and actual recorded size counts; no provider credentials or migration credentials enter the response.
+
+Metadata updates use an asset row lock, optimistic version and canonical request fingerprint. An exact retry returns its immutable receipt, including after a newer metadata edit; a changed payload conflicts. Text limits use UTF-16 units, matching native controls and component fields. They never mutate file keys, rendered publication inputs or page descriptions.
+
+Archiving requires the existing owner/admin page.delete capability. It hides future discovery but retains mediaMap/delivery behavior and all immutable files. Usage summaries are bounded advisory scans; safe removal does not depend on an exhaustive reference graph. Historical/live images therefore do not break under concurrent edits or cache reuse. Physical erasure, restoration UI and versioned file replacement remain separate future lifecycle work.
+
+Hero v5, Image v6 and Logo v2 remove the blanket nonblank-alt publication requirement and preserve their predecessors' renderer/CSS. Old versions remain intact. Builder selection copies reviewable defaults into placement fields; already saved usage descriptions are retained and live output changes only by explicit publication. A future bulk default update must respect local overrides and use draft proposals, not mutate immutable HTML.
+
+The Media manager and simple builder picker share upload and delivery services. The picker queries paginated server results and passes selected asset defaults into the normal undoable editor operation; management actions remain on the dedicated Media screen. Public pages load no additional admin assets or metadata scripts.
+
+Verification: 366 server tests passed (2484 assertions); final metadata length/retry normalization and admin checks passed 9 tests (149 assertions). Typecheck/335 frontend tests and production build passed. The final combined media/admin/background-upload browser run passed 11 tests. All 47 development publications reproduce byte for byte in a read-only transaction. See `docs/MEDIA_UX_REVIEW.md`.
+
+### Upload size policy and runtime headroom
+
+`resources/arkon/media.json` is the shared PHP/TypeScript source for the inclusive 5 MiB byte limit, 12,000px dimension cap, 40MP total cap and 1 MiB multipart reserve. UploadPolicy reads serving PHP's upload_max_filesize and post_max_size and embeds the conservative effective file limit into admin HTML. Frontend file.size and server filesystem/data byte counts independently enforce the policy. We do not use Laravel's KB max rule for this upload. PHP limits should be 8M/10M; proxies need at least 10 MiB request capacity. Unknown external proxy limits cannot be auto-detected.
+
+PHP upload failures, body 413s, corrupt/unsupported images, dimension failures, storage failures and optimization failures have distinct handling. Optimization failures preserve originals, log processing details, and return optimizationWarning to both library and builder uploaders. Memory estimates guard GD decoding/encoding; GIFs intentionally retain their animation without WebP conversion. The upload order remains authorization → source byte/MIME/dimension validation → immutable original storage → variant processing.
+
+Serving PHP must use `display_errors=Off` and `log_errors=On`: PHP can emit a POST-size warning before Laravel runs. Printing that warning corrupts the API JSON envelope; logging retains diagnostics. The browser harness applies these flags explicitly.

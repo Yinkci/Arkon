@@ -30,7 +30,7 @@ test('draft, preview, history and publish keep the live page safe', async ({ pag
         secure: false,
         randomUUID: 'undefined',
     });
-    const homeRow = page.getByTestId('page-row').filter({ hasText: 'Home' });
+    const homeRow = page.getByTestId('page-row').filter({ has: page.getByText('Home', { exact: true }) });
     await expect(homeRow.getByText('Not published', { exact: true })).toBeVisible();
     expect((await live(anonymous)).status).toBe(404);
 

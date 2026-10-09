@@ -48,8 +48,9 @@ class RenderCompatTest extends DatabaseTestCase
 
         $doc = Json::decode($revision->document);
         $doc['nodes'][$this->f['heroId']]['version'] = 2;
+        $doc['nodes'][$doc['root']]['version'] = 3;
         $out = app(PageRenderer::class)->render(Json::decode(Json::encode($doc)), 'production', ['title' => 'Home', 'path' => '/'], ['name' => 'Test Site', 'lang' => 'en'], [],
-            pinned: true, resources: ['tokens' => ['version' => null, 'values' => []]]);
+            pinned: true, rendererVersion: 'arkon-php-2', resources: ['tokens' => ['version' => null, 'values' => []]]);
         $revisionId = Uuid::v7();
         DB::table('page_revisions')->insert([...(array) $revision, 'id' => $revisionId, 'number' => $revision->number + 1, 'document' => Json::encode($doc)]);
         $id = Uuid::v7();

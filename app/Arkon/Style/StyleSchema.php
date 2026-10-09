@@ -182,6 +182,9 @@ final class StyleSchema
                     ? Rules::message('styleOutOfRange', ['label' => $label, 'min' => self::num($definition['min']), 'max' => self::num($definition['max']), 'unit' => 'ms'])
                     : null;
 
+            case 'gradient':
+                return preg_match('/^(?:0|45|90|135|180|225|270|315)deg #[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})? #[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?$/D', $value) === 1 ? null : $invalid();
+
             case 'color':
                 return $value === 'transparent' || Rules::matches('styleColor', $value) ? null : $invalid();
 
@@ -242,6 +245,7 @@ final class StyleSchema
             'font' => 'one of '.implode(', ', array_keys(Rules::get('style.fonts'))),
             'shadow' => 'one of '.implode(', ', array_keys(Rules::get('style.shadows'))),
             'image' => 'an image reference',
+            'gradient' => 'an angle (0,45,90,135,180,225,270,315deg) and two hex colours, e.g. 90deg #102030ff #10203000',
         }];
         foreach ($definition['keywords'] ?? [] as $keyword) {
             $parts[] = $keyword;

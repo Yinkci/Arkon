@@ -150,3 +150,14 @@ describe('duplicating blocks', () => {
         expect(duplicateBlock(doc, outer[0]!.id)).toMatchObject({ ok: false, reason: expect.stringContaining('at most 200 can be duplicated at once') });
     });
 });
+
+it('gives duplicated sections unique anchors and preserves the original', () => {
+    let doc = createPageDocument([createHeroNode({ heading: 'Top' })]);
+    const section = createNodes('section', { anchor: 'services' });
+    doc = apply(doc, insertOps({ parentId: doc.root, index: 1 }, section));
+    const first = duplicate(doc, section[0]!.id);
+    const second = duplicate(first.doc, section[0]!.id);
+    expect(second.doc.nodes[section[0]!.id]!.props.anchor).toBe('services');
+    expect(second.doc.nodes[first.copyId]!.props.anchor).toBe('services-2');
+    expect(second.doc.nodes[second.copyId]!.props.anchor).toBe('services-3');
+});

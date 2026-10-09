@@ -200,7 +200,8 @@
       "sans": "ui-sans-serif,system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif",
       "serif": "ui-serif,Georgia,Cambria,\"Times New Roman\",serif",
       "mono": "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",
-      "rounded": "ui-rounded,\"SF Pro Rounded\",\"Segoe UI\",system-ui,sans-serif"
+      "rounded": "ui-rounded,\"SF Pro Rounded\",\"Segoe UI\",system-ui,sans-serif",
+      "inter": "\"Arkon Inter\",ui-sans-serif,system-ui,sans-serif"
     },
     "shadows": {
       "none": "none",
@@ -218,7 +219,8 @@
       "border": "Border",
       "effects": "Effects",
       "image": "Image fit",
-      "motion": "Animation"
+      "motion": "Animation",
+      "interaction": "Interaction"
     },
     "properties": {
       "display": {
@@ -721,6 +723,64 @@
           "linear": "linear"
         },
         "baseOnly": true
+      },
+      "backgroundGradient": {
+        "group": "background",
+        "label": "Gradient / directional overlay",
+        "css": "background-image",
+        "kind": "gradient",
+        "keywords": [
+          "none"
+        ]
+      },
+      "position": {
+        "group": "interaction",
+        "label": "Position",
+        "css": "position",
+        "kind": "enum",
+        "values": {
+          "static": "static",
+          "sticky": "sticky"
+        }
+      },
+      "top": {
+        "group": "interaction",
+        "label": "Sticky offset",
+        "css": "top",
+        "kind": "length",
+        "lengths": "dimension"
+      },
+      "zIndex": {
+        "group": "interaction",
+        "label": "Layer order",
+        "css": "z-index",
+        "kind": "number",
+        "min": 0,
+        "max": 30
+      },
+      "hoverColor": {
+        "group": "interaction",
+        "label": "Hover / focus text",
+        "css": "color",
+        "kind": "color"
+      },
+      "hoverBackground": {
+        "group": "interaction",
+        "label": "Hover / focus background",
+        "css": "background-color",
+        "kind": "color"
+      },
+      "hoverBorderColor": {
+        "group": "interaction",
+        "label": "Hover / focus border",
+        "css": "border-color",
+        "kind": "color"
+      },
+      "hoverShadow": {
+        "group": "interaction",
+        "label": "Hover / focus shadow",
+        "css": "box-shadow",
+        "kind": "shadow"
       }
     },
     "oneWidthPerChild": {

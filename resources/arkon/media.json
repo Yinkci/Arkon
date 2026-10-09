@@ -1,0 +1,6 @@
+{
+    "maxImageUploadBytes": 5242880,
+    "maxDimension": 12000,
+    "maxPixels": 40000000,
+    "requestHeadroomBytes": 1048576
+}

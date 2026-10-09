@@ -1,0 +1,87 @@
+{
+  "type": "logo",
+  "version": 2,
+  "label": "Linked logo",
+  "children": false,
+  "props": {
+    "image": {
+      "type": "object",
+      "nullable": true,
+      "default": null,
+      "properties": {
+        "assetId": {
+          "type": "uuid"
+        },
+        "alt": {
+          "type": "string",
+          "maxLength": 300,
+          "default": ""
+        }
+      }
+    },
+    "href": {
+      "type": "link",
+      "maxLength": 2000,
+      "default": "/"
+    },
+    "label": {
+      "type": "string",
+      "maxLength": 100,
+      "default": "Site home"
+    },
+    "style": {
+      "type": "style",
+      "slots": {
+        "root": {
+          "label": "Logo link",
+          "groups": [
+            "layout",
+            "spacing",
+            "size",
+            "typography",
+            "background",
+            "border",
+            "effects",
+            "interaction",
+            "motion"
+          ]
+        },
+        "media": {
+          "label": "Logo image",
+          "groups": [
+            "size",
+            "effects",
+            "border"
+          ]
+        }
+      },
+      "default": {}
+    }
+  },
+  "defaultProps": {
+    "image": null,
+    "href": "/",
+    "label": "Site home",
+    "style": {}
+  },
+  "mediaRefs": [
+    "image.assetId"
+  ],
+  "publishChecks": [
+    {
+      "rule": "present",
+      "prop": "image",
+      "message": "Choose a logo image"
+    }
+  ],
+  "editor": {
+    "fields": {
+      "label": {
+        "label": "Accessible link label"
+      },
+      "href": {
+        "label": "Logo destination"
+      }
+    }
+  }
+}

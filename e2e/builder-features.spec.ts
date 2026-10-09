@@ -115,7 +115,7 @@ test.describe('duplicate', () => {
         // Layers row: a button.
         await page.getByRole('tab', { name: 'Layers' }).click();
         await layer(page, 'button').first().getByTestId('layer-duplicate').click();
-        await expect(canvas(page).locator('.ak-btn2')).toHaveText(['Book now', 'Book now']);
+        await expect(canvas(page).locator(':is(.ak-btn2,.ak-btn3)')).toHaveText(['Book now', 'Book now']);
 
         // Canvas selection control: a text.
         await canvas(page).getByText('After', { exact: true }).click();
@@ -153,7 +153,7 @@ test.describe('duplicate', () => {
 
     test('an unresolved link inside the block must be fixed first; the page is never duplicated', async ({ page }) => {
         const { id } = await openPage(page, [hero('Top'), section([button('Go')])]);
-        await canvas(page).locator('.ak-btn2').click();
+        await canvas(page).locator(':is(.ak-btn2,.ak-btn3)').click();
         await page.keyboard.press('Escape');
         await page.getByLabel('Link').fill('https://');
         await selectLayer(page, 'section');
@@ -352,7 +352,7 @@ test('AI panel (fake Claude Code): duplicate a button, five equal columns, a fad
     await expect(page.getByTestId('ai-changes').getByRole('listitem').first()).toHaveText('Duplicate Button “Book now” inside Hero “Gardens”');
     await expect(page.getByTestId('ai-changes')).toContainText('Change new Section: style');
     // Nothing changed yet: the preview shows it, the draft does not.
-    await expect(canvas(page).locator('.ak-btn2')).toHaveText(['Book now', 'Call us']);
+    await expect(canvas(page).locator(':is(.ak-btn2,.ak-btn3)')).toHaveText(['Book now', 'Call us']);
     expect(ofType(await draft(id), 'button')).toHaveLength(1);
 
     await proposal.getByRole('button', { name: 'Apply to draft' }).click();
@@ -369,7 +369,7 @@ test('AI panel (fake Claude Code): duplicate a button, five equal columns, a fad
 
     // One undo step reverts the whole proposal; redo brings it back; publishing stays explicit.
     await undo(page).click();
-    await expect(canvas(page).locator('.ak-btn2')).toHaveText(['Book now']);
+    await expect(canvas(page).locator(':is(.ak-btn2,.ak-btn3)')).toHaveText(['Book now']);
     await expect(canvas(page).locator('[data-ak-type="column"]')).toHaveCount(0);
     await redo(page).click();
     await expect(canvas(page).locator('[data-ak-type="column"]')).toHaveCount(5);

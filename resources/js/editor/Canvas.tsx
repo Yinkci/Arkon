@@ -57,7 +57,7 @@ export interface CanvasProps {
     /** Adds a block of `type` into an empty column (the canvas's "Add block" targets). */
     onAddInto?(parentId: string, type: string): void;
     /** An animation preview of a block, for document `version`; a new `seq` asks again. */
-    replay?: { nodeId: string; seq: number; version: number } | null;
+    replay?: { nodeId: string; seq: number; version: number; action?: 'slider-play' | 'slider-pause' } | null;
     /** The editor's current document version (previews for an older one are dropped). */
     documentVersion?: number;
 }
@@ -368,7 +368,7 @@ export function Canvas(props: CanvasProps) {
         }
         if (props.renderPending) return; // wait for the render that shows these settings
         replayed.current = replay.seq;
-        post({ type: 'replay', nodeId: replay.nodeId });
+        post({ type: replay.action ?? 'replay', nodeId: replay.nodeId });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [ready, props.replay, props.renderPending, props.renderToken, props.documentVersion, props.selectedId, props.readOnly]);
 

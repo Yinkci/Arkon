@@ -110,6 +110,10 @@ final class PropSchema
                     $issues[] = ['path' => $at, 'message' => Rules::message('tooShort', ['min' => $field['minLength']])];
                 }
 
+                if (isset($field['pattern']) && ! preg_match('~'.$field['pattern'].'~D', $value)) {
+                    $issues[] = ['path' => $at, 'message' => 'Use letters, numbers, hyphens or underscores, starting with a letter.'];
+                }
+
                 return $value;
 
             case 'enum':

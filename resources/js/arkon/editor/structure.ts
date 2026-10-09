@@ -16,10 +16,30 @@ export function addableTypes(): string[] {
         'image',
         'button',
         'columns',
+        'form',
+        'navigation',
+        'logo',
+        'icon',
+        'slider',
+        'back-to-top',
         ...componentTypes().filter((type) => type.startsWith('theme-') && themeIsAddable(type)),
     ];
 }
-export const ADDABLE_TYPES = ['section', 'group', 'hero', 'text', 'image', 'button', 'columns'] as const;
+export const ADDABLE_TYPES = [
+    'section',
+    'group',
+    'hero',
+    'text',
+    'image',
+    'button',
+    'columns',
+    'form',
+    'navigation',
+    'logo',
+    'icon',
+    'slider',
+    'back-to-top',
+] as const;
 export type AddableType = (typeof ADDABLE_TYPES)[number];
 
 /** A new component with its defaults (and `props` on top); Columns come with two empty columns. The first node is the root. */
@@ -28,8 +48,9 @@ export function createNodes(type: string, props: Record<string, unknown> = {}): 
     if (!definition) throw new Error(`Unknown component ${type}`);
     const node: Node = { id: createNodeId(), type, version: definition.version, props: { ...structuredClone(definition.defaultProps), ...props } };
     if (definition.children === false) return [node];
-    const children = type === 'columns' ? [...createNodes('column'), ...createNodes('column')] : [];
-    node.children = children.filter((c) => c.type === 'column').map((c) => c.id);
+    const children =
+        type === 'columns' ? [...createNodes('column'), ...createNodes('column')] : type === 'slider' ? [...createNodes('slide'), ...createNodes('slide')] : [];
+    node.children = children.filter((c) => c.type === 'column' || c.type === 'slide').map((c) => c.id);
     return [node, ...children];
 }
 
@@ -138,9 +159,23 @@ export function nodeLabel(node: Node): string {
 /** A copy of a subtree of `source` with new node ids, root first (for insertNode). */
 export function copySubtree(source: PageDocument, rootId: NodeId): Node[] {
     const out: Node[] = [];
+    const anchors = new Set(
+        Object.values(source.nodes)
+            .filter((n) => n.type === 'section')
+            .map((n) => n.props.anchor)
+            .filter((a): a is string => typeof a === 'string' && a !== ''),
+    );
     const visit = (id: NodeId): NodeId => {
         const node = source.nodes[id]!;
         const copy: Node = { ...structuredClone(node), id: createNodeId() };
+        if (copy.type === 'section' && typeof copy.props.anchor === 'string' && copy.props.anchor !== '') {
+            const base = copy.props.anchor.slice(0, 54);
+            let suffix = 2;
+            let anchor = base + '-' + suffix;
+            while (anchors.has(anchor)) anchor = base + '-' + ++suffix;
+            copy.props.anchor = anchor;
+            anchors.add(anchor);
+        }
         out.push(copy);
         if (node.children) copy.children = node.children.map(visit);
         return copy.id;

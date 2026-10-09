@@ -1,5 +1,6 @@
 import { Head, usePage } from '@inertiajs/react';
 import { useRef, useState } from 'react';
+import { AdminPageHeader } from '@/Components/AdminPageHeader';
 import { AdminLayout } from '@/Components/AdminLayout';
 import { Button, Notice, StatusPill } from '@/Components/ui';
 import { api, newRequestKey } from '@/lib/api';
@@ -104,26 +105,26 @@ export default function Themes({ init, manage }: { init: ThemeState; manage: boo
     return (
         <AdminLayout>
             <Head title="Themes" />
-            <header className="border-b border-line bg-raised px-6 py-5">
-                <p className="text-xs text-muted">Appearance</p>
-                <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
-                    <h1 className="text-xl font-semibold">Themes</h1>
-                    {manage && (
-                        <Button
-                            variant="primary"
-                            disabled={blocked || !state.changed}
-                            onClick={() => void run({ path: '/themes/publish', body: { expectedVersion: state.version, requestKey: newRequestKey() } })}
-                        >
-                            Publish theme selection
-                        </Button>
-                    )}
-                </div>
-                <p className="mt-2 max-w-3xl text-sm text-muted">
-                    Choose the custom components available for this site. Themes currently provide builder components; they do not replace your page layouts,
-                    colours or content.
-                </p>
-            </header>
-            <div className="space-y-5 p-6">
+            <div className="mx-auto max-w-6xl px-4 pt-6 sm:px-8 sm:pt-8">
+                <AdminPageHeader
+                    title="Themes"
+                    description="Choose the custom components available for this site. Themes provide builder components; they do not replace your page layouts, colours or content."
+                    actions={
+                        <>
+                            {manage && (
+                                <Button
+                                    variant="primary"
+                                    disabled={blocked || !state.changed}
+                                    onClick={() => void run({ path: '/themes/publish', body: { expectedVersion: state.version, requestKey: newRequestKey() } })}
+                                >
+                                    Publish theme selection
+                                </Button>
+                            )}
+                        </>
+                    }
+                />
+            </div>
+            <div className="mx-auto max-w-6xl space-y-5 px-4 py-6 sm:px-8">
                 <section aria-label="Current theme" className="rounded-xl border border-line bg-surface p-4 text-sm">
                     <p>
                         <strong>Active for editing:</strong> {state.draft?.name ?? 'Arkon core'}

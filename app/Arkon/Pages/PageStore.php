@@ -9,7 +9,9 @@ use App\Arkon\Errors\ConflictException;
 use App\Arkon\Errors\NotFoundException;
 use App\Arkon\Errors\StaleVersionException;
 use App\Arkon\Errors\ValidationException;
+use App\Arkon\Forms\FormService;
 use App\Arkon\Media\MediaService;
+use App\Arkon\Navigation\MenuService;
 use App\Arkon\Renderer\PageRenderer;
 use App\Arkon\Renderer\RenderException;
 use App\Arkon\Sites\SiteContext;
@@ -108,6 +110,8 @@ class PageStore
     /** Draft-level validation: a well-formed document whose images all belong to this site. */
     public function validateForSave(string $siteId, mixed $doc): void
     {
+        FormService::assertReferences($siteId, $doc);
+        MenuService::assertReferences($siteId, $doc);
         $issues = $this->validator->validate($doc);
         if ($issues !== []) {
             throw new ValidationException('The page is not valid', $issues);
@@ -168,6 +172,7 @@ class PageStore
         try {
             $rendered = $this->renderer->render($doc, 'production', ['title' => $title, 'path' => $path], [
                 'name' => $site->name,
+                'origin' => $this->origin($siteId),
                 'lang' => is_string($settings['lang'] ?? null) ? $settings['lang'] : 'en',
             ], $media, $strict, $pinned, resources: $resources);
             $themeVersion = DB::table('site_theme_sets')->where('site_id', $siteId)->value('published_version');
@@ -177,6 +182,11 @@ class PageStore
         } catch (RenderException $error) {
             throw new ValidationException($strict ? 'Fix these problems before publishing' : 'The page could not be rendered', $error->issues);
         }
+    }
+
+    public function origin(string $siteId): ?string
+    {
+        return app(PublicPages::class)->origin($siteId);
     }
 
     /** Media a rendering uses: the document's own, plus that of the reusable components it shows. */

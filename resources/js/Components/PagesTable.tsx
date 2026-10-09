@@ -54,8 +54,10 @@ export function PagesTable({ pages, canPublish, canDelete }: { pages: PageRow[];
                         data-path={page.path}
                     >
                         <td className="py-3 pr-4 align-middle max-sm:basis-full max-sm:py-0">
-                            <p className="font-medium">{page.title}</p>
-                            <p className="mt-0.5 font-mono text-[11px] text-muted">
+                            <Link href={`/admin/editor/${page.id}`} className="font-medium hover:text-accent">
+                                {page.title}
+                            </Link>
+                            <p className="mt-0.5 font-mono break-all text-[11px] text-muted">
                                 {page.path}
                                 {page.livePath && page.livePath !== page.path && <span className="ml-1.5 text-changed">live at {page.livePath}</span>}
                             </p>
@@ -67,6 +69,11 @@ export function PagesTable({ pages, canPublish, canDelete }: { pages: PageRow[];
                             </span>
                         </td>
                         <td className="hidden py-3 pr-4 align-middle text-xs whitespace-nowrap text-muted tabular-nums md:table-cell">
+                            {page.updatedAt && (
+                                <p className="mb-1 text-[11px] text-muted" title={fullDate(page.updatedAt)}>
+                                    Edited {relativeTime(page.updatedAt)}
+                                </p>
+                            )}
                             {page.publishedAt ? (
                                 <time dateTime={page.publishedAt} title={fullDate(page.publishedAt)}>
                                     {relativeTime(page.publishedAt)}
@@ -83,7 +90,20 @@ export function PagesTable({ pages, canPublish, canDelete }: { pages: PageRow[];
                                         View live
                                     </a>
                                 )}
-                                <PageRowActions page={page} canPublish={canPublish} canDelete={canDelete} />
+                                <details className="relative">
+                                    <summary
+                                        className="cursor-pointer rounded-md px-2 py-1 text-muted hover:bg-sunken"
+                                        aria-label={`More actions for ${page.title}`}
+                                    >
+                                        More
+                                    </summary>
+                                    <div className="absolute right-0 z-10 flex flex-col gap-1 rounded-lg border border-line bg-surface p-2 shadow-lg">
+                                        <a href={`/preview/${page.id}`} target="_blank" rel="noreferrer" className={action}>
+                                            Preview draft
+                                        </a>
+                                        <PageRowActions page={page} canPublish={canPublish} canDelete={canDelete} />
+                                    </div>
+                                </details>
                                 <Link href={`/admin/editor/${page.id}`} className={buttonClass('secondary', 'sm', 'ml-1')}>
                                     Edit
                                 </Link>

@@ -1,0 +1,41 @@
+{
+  "type": "column",
+  "version": 4,
+  "label": "Column",
+  "children": {
+    "allow": [
+      "text",
+      "image",
+      "button",
+      "group",
+      "columns",
+      "instance",
+      "form"
+    ],
+    "max": 30
+  },
+  "props": {
+    "style": {
+      "type": "style",
+      "slots": {
+        "root": {
+          "label": "Column",
+          "groups": [
+            "layout",
+            "spacing",
+            "size",
+            "placement",
+            "background",
+            "border",
+            "effects",
+            "motion"
+          ]
+        }
+      },
+      "default": {}
+    }
+  },
+  "defaultProps": {
+    "style": {}
+  }
+}

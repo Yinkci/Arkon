@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="arkon-upload-policy" content="{{ json_encode(\App\Arkon\Media\UploadPolicy::forRuntime()) }}">
     <meta name="robots" content="noindex, nofollow">
     <title inertia>Arkon</title>
     @viteReactRefresh

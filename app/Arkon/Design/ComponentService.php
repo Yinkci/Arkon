@@ -10,8 +10,10 @@ use App\Arkon\Errors\ConflictException;
 use App\Arkon\Errors\NotFoundException;
 use App\Arkon\Errors\StaleVersionException;
 use App\Arkon\Errors\ValidationException;
+use App\Arkon\Forms\FormService;
 use App\Arkon\Media\MediaService;
 use App\Arkon\Media\MediaSigner;
+use App\Arkon\Navigation\MenuService;
 use App\Arkon\Pages\PageStore;
 use App\Arkon\Renderer\PageRenderer;
 use App\Arkon\Renderer\RenderException;
@@ -108,7 +110,7 @@ class ComponentService
             $doc = $this->registry->migrateDocument(Json::decode($row->draft));
             $media = array_values($this->media->signedMediaMap($ctx->siteId, array_values(array_unique([
                 ...$this->validator->safeMediaRefs($this->asPage($doc)),
-                ...DB::table('media_assets')->where('site_id', $ctx->siteId)->orderByDesc('created_at')->limit(100)->pluck('id')->all(),
+                ...DB::table('media_assets')->where('site_id', $ctx->siteId)->whereNull('archived_at')->orderByDesc('created_at')->limit(100)->pluck('id')->all(),
             ])), $signer));
 
             return [
@@ -252,7 +254,7 @@ class ComponentService
 
             return ['version' => $version, 'replayed' => false, 'queued' => $queued];
         });
-        $counts = $this->refreshes->run($ctx->siteId);
+        $counts = DB::transactionLevel() === 0 ? $this->refreshes->run($ctx->siteId) : ['done' => 0, 'skipped' => 0, 'failed' => 0];
 
         return ['version' => $result['version'], 'replayed' => $result['replayed'], 'refreshes' => ['queued' => $result['queued'], ...$counts]];
     }
@@ -299,6 +301,8 @@ class ComponentService
     /** Valid fragment whose images belong to this site. */
     private function validateForSave(string $siteId, mixed $doc): void
     {
+        FormService::assertReferences($siteId, $doc);
+        MenuService::assertReferences($siteId, $doc);
         $issues = $this->validator->validateFragment($doc);
         if ($issues !== []) {
             throw new ValidationException('The component is not valid', $issues);

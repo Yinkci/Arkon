@@ -19,6 +19,7 @@ async function visit(browser: Browser, path: string) {
 
 async function createViaForm(page: Page, title: string, path?: string) {
     await page.goto('/admin/pages');
+    await page.getByRole('button', { name: 'New page', exact: true }).click();
     const form = page.getByRole('form', { name: 'New page' });
     await form.getByLabel('Title').fill(title);
     if (path !== undefined) await form.getByLabel('URL path').fill(path);
@@ -74,12 +75,14 @@ test('unpublish asks for confirmation and takes the page offline, keeping it in 
     await expect(notice(page)).toContainText('Published');
 
     await page.goto('/admin/pages');
+    if (await row(page, '/offline-soon').locator('details:not([open]) summary').count()) await row(page, '/offline-soon').locator('summary').click();
     await row(page, '/offline-soon').getByRole('button', { name: 'Unpublish' }).click();
     const dialog = page.getByRole('dialog', { name: 'Unpublish “offline-soon”?' });
     await expect(dialog).toContainText('will get “page not found”');
     await dialog.getByRole('button', { name: 'Cancel' }).click();
     expect((await visit(browser, '/offline-soon')).status).toBe(200);
 
+    if (await row(page, '/offline-soon').locator('details:not([open]) summary').count()) await row(page, '/offline-soon').locator('summary').click();
     await row(page, '/offline-soon').getByRole('button', { name: 'Unpublish' }).click();
     await dialog.getByRole('button', { name: 'Unpublish' }).click();
     await expect(row(page, '/offline-soon').getByText('Not published', { exact: true })).toBeVisible();
@@ -93,6 +96,7 @@ test('delete requires typing the URL, takes a live page offline and frees the UR
     await expect(notice(page)).toContainText('Published');
 
     await page.goto('/admin/pages');
+    if (await row(page, '/to-delete').locator('details:not([open]) summary').count()) await row(page, '/to-delete').locator('summary').click();
     await row(page, '/to-delete').getByRole('button', { name: 'Delete' }).click();
     const dialog = page.getByRole('dialog', { name: 'Delete “to-delete”?' });
     await expect(dialog).toContainText('live at /to-delete');
@@ -151,6 +155,6 @@ test.describe('as an editor', () => {
         await page.goto('/admin/pages');
         await expect(row(page, '/editor-draft-renamed')).toBeVisible();
         await expect(page.getByRole('button', { name: 'Delete' })).toHaveCount(0);
-        await expect(page.getByRole('button', { name: 'Unpublish' })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Unpublish', exact: true })).toHaveCount(0);
     });
 });

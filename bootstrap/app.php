@@ -8,8 +8,10 @@ use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Http\Request;
 use Illuminate\Session\TokenMismatchException;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
@@ -58,6 +60,13 @@ return Application::configure(basePath: dirname(__DIR__))
                 $issues = collect($error->errors())->flatMap(fn ($messages, $path) => array_map(fn ($m) => ['path' => $path, 'message' => $m], $messages))->values();
 
                 return response()->json(['ok' => false, 'code' => 'VALIDATION', 'message' => $issues->pluck('message')->join(' '), 'issues' => $issues], 422);
+            }
+        });
+        $exceptions->render(function (PostTooLargeException $error, Request $request) use ($isApi) {
+            if ($isApi($request)) {
+                Log::warning('media.upload.rejected', ['stage' => 'request_body', 'content_length' => $request->server('CONTENT_LENGTH'), 'post_max_size' => ini_get('post_max_size')]);
+
+                return response()->json(['ok' => false, 'code' => 'REQUEST_TOO_LARGE', 'message' => 'The server rejected the request body before the image could be validated. Ask the administrator to check PHP and proxy upload limits.'], 413);
             }
         });
         $exceptions->render(function (Throwable $error, Request $request) use ($isApi) {

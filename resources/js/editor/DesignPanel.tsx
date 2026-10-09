@@ -1,3 +1,4 @@
+import { GradientControl } from './GradientControl';
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import type { Part } from '@/arkon/editor/parts';
 import { contextualLabel } from '@/arkon/editor/parts';
@@ -18,7 +19,7 @@ import type { TokenSet } from '@/arkon/style/tokens';
 import { Icon } from '@/Components/Icon';
 import { PanelSection, Segmented } from '@/Components/ui';
 import type { MediaInfo } from '@/types';
-import { mediaName } from './MediaPicker';
+import { MediaPicker, mediaName } from './MediaPicker';
 
 /** Friendlier names for some enum values (the stored value stays the CSS-like one). */
 const OPTION_LABELS: Record<string, Record<string, string>> = {
@@ -47,6 +48,8 @@ export interface StyleTarget {
     tokens: TokenSet;
     media: MediaInfo[];
     canEdit: boolean;
+    canUpload?: boolean;
+    onUpload?(file: File, progress?: (percent: number) => void): Promise<MediaInfo | null>;
     /** Sets the whole style prop; `key` coalesces typing into one undo step (none: its own step, e.g. a reset). */
     onStyle(style: Style, key?: string): void;
 }
@@ -73,7 +76,11 @@ export function ScreenBar({
     slot?: string;
 }) {
     const style = styleOf(props);
-    const count = (bp: Breakpoint) => countAt(style, bp, slot);
+    const count = (bp: Breakpoint) => {
+        const responsive = props.responsive as Record<string, Record<string, unknown>> | undefined;
+        const presets = bp === 'base' || slot ? 0 : Object.values(responsive?.[bp] ?? {}).filter((value) => value !== 'inherit').length;
+        return countAt(style, bp, slot) + presets;
+    };
     return (
         <div className="space-y-1.5 border-b border-line bg-raised px-4 py-2.5" data-testid="screen-bar">
             <div className="flex items-center justify-between gap-2">
@@ -242,23 +249,31 @@ function ValueInput(props: ValueInputProps) {
     const { definition, target } = props;
     const tokens = tokenOptions(definition, target.tokens);
 
-    if (definition.kind === 'image') {
-        const value = typeof props.own === 'object' ? props.own.assetId : '';
+    if (definition.kind === 'gradient')
         return (
-            <select
-                id={props.id}
-                className="ui-input"
+            <GradientControl
+                value={typeof props.own === 'string' ? props.own : typeof props.inherited === 'string' ? props.inherited : undefined}
                 disabled={props.disabled}
-                value={value}
-                onChange={(e) => props.onSet(e.target.value ? { assetId: e.target.value } : null)}
-            >
-                <option value="">None</option>
-                {target.media.map((m) => (
-                    <option key={m.id} value={m.id}>
-                        {mediaName(m)} ({m.width} × {m.height})
-                    </option>
-                ))}
-            </select>
+                onSet={props.onSet}
+            />
+        );
+    if (definition.kind === 'image') {
+        const value = typeof props.own === 'object' ? props.own.assetId : typeof props.inherited === 'object' ? props.inherited.assetId : null;
+        return (
+            <div id={props.id} role="group" aria-label={props.name}>
+                <MediaPicker
+                    value={value}
+                    media={target.media}
+                    canEdit={!props.disabled}
+                    canUpload={target.canUpload === true && !!target.onUpload}
+                    onUpload={target.onUpload ?? (async () => null)}
+                    onChoose={(id) => props.onSet(id ? { assetId: id } : null)}
+                    scopeKey={`${target.part.slot}:${target.breakpoint}`}
+                />
+                <p className="mt-1 text-[11px] text-muted">
+                    {definition.baseOnly ? 'This background image applies to all screens.' : 'Uses the selected screen. Reset restores inheritance.'}
+                </p>
+            </div>
         );
     }
 

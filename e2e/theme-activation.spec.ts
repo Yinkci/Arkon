@@ -27,14 +27,14 @@ test('theme preview, retry after lost response, publish and Inertia navigation u
     await page.getByRole('button', { name: 'Publish theme selection' }).click();
     await expect(page.getByText('Theme selection published. Publish individual pages to release their edits.', { exact: true })).toBeVisible();
     await page.getByRole('link', { name: 'Pages', exact: true }).click();
-    await page.locator(`a[href="/admin/editor/${id}"]`).click();
+    await page.locator(`a[href="/admin/editor/${id}"]`).first().click();
     await page.getByRole('tab', { name: 'Layers' }).click();
     await expect(page.getByRole('button', { name: 'Add Testimonial', exact: true })).toBeVisible();
     await page.goto('/admin/themes');
     await page.getByRole('article', { name: 'Arkon core', exact: true }).getByRole('button', { name: 'Activate for editing' }).click();
     await expect(page.getByText('Theme activated for editing. Your live pages have not changed.', { exact: true })).toBeVisible();
     await page.getByRole('link', { name: 'Pages', exact: true }).click();
-    await page.locator(`a[href="/admin/editor/${id}"]`).click();
+    await page.locator(`a[href="/admin/editor/${id}"]`).first().click();
     await page.getByRole('tab', { name: 'Layers' }).click();
     await expect(page.getByRole('button', { name: 'Add Testimonial', exact: true })).toHaveCount(0);
 });

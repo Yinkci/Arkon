@@ -21,6 +21,7 @@ class DesignController extends Controller
         $ctx = $admin->ctx();
 
         return Inertia::render('Admin/Design', [
+            'section' => $request->is('admin/performance') ? 'performance' : ($request->is('admin/design/components') ? 'components' : 'styles'),
             'tokens' => $tokens->state($ctx),
             'components' => $components->list($ctx),
             'permissions' => ['edit' => Permissions::allows($admin->role, 'page.edit'), 'publish' => Permissions::allows($admin->role, 'page.publish')],

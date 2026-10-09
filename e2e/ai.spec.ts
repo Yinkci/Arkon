@@ -105,7 +105,7 @@ test('panel: prompt → helper → preview → apply → undo/redo → follow-up
         'Add Text “We are a local team that looks after gar…”',
         'Add Button “Contact us”',
     ]);
-    await expect(proposal(page)).toContainText('Button needs a link');
+    await expect(proposal(page)).toContainText('Button uses a placeholder destination (#)');
     await expect(page.getByTestId('ai-notes')).toContainText('Set where the Contact us button links to');
     await expect(page.getByTestId('proposal-banner')).toContainText('Nothing has changed yet');
     await expect(canvas(page).locator('h2')).toHaveText(['Our services', 'About us']);
@@ -162,12 +162,16 @@ test('panel: prompt → helper → preview → apply → undo/redo → follow-up
     await expect(status(page)).toHaveText('Draft saved');
     await expect(canvas(page).locator('h1')).toHaveText('Gardens that grow');
 
-    // Publishing stays explicit, and its checks still apply.
+    // Publishing is explicit; placeholders work, and then a chosen destination replaces them.
     await page.getByRole('button', { name: 'Publish' }).click();
-    await expect(notice(page)).toContainText('Button needs a link');
+    await expect(notice(page)).toContainText('Published');
     await page.getByRole('tab', { name: 'Properties' }).click();
+    const placeholder = await publicHtml(page, '/ai-landscaping');
+    expect(placeholder.html).toContain('href="#"');
     await page.getByLabel('Link').fill('/contact');
+    const committed = page.waitForResponse((r) => r.url().endsWith('/publish') && r.request().method() === 'POST');
     await page.getByRole('button', { name: 'Publish' }).click();
+    expect((await committed).ok()).toBe(true);
     await expect(notice(page)).toContainText('Published');
     const live = await publicHtml(page, '/ai-landscaping');
     expect(live.html).toContain('<h1 class="ak-hero3__heading">Gardens that grow</h1>');

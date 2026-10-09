@@ -191,8 +191,8 @@ class PagesTest extends DatabaseTestCase
         $this->publish(1);
         $publication = DB::table('publications')->where('page_id', $this->f['pageId'])->first();
         $inputs = json_decode($publication->render_inputs, true);
-        $this->assertSame('arkon-php-2', $inputs['renderer']);
-        $this->assertSame(['hero@4', 'page@3'], $inputs['components']);
+        $this->assertSame('arkon-php-5', $inputs['renderer']);
+        $this->assertSame(['hero@5', 'page@6'], $inputs['components']);
         $this->assertEquals(['name' => 'Test Site', 'lang' => 'en'], $inputs['site']);
 
         // Same revision + same recorded inputs → byte-identical HTML, even after the site was renamed.

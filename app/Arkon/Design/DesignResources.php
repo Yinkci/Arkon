@@ -3,6 +3,8 @@
 namespace App\Arkon\Design;
 
 use App\Arkon\Components\DocumentValidator;
+use App\Arkon\Forms\FormService;
+use App\Arkon\Navigation\MenuService;
 use App\Arkon\Style\Tokens;
 use App\Arkon\Support\Json;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +26,9 @@ final class DesignResources
      */
     public function published(string $siteId, mixed $doc): array
     {
-        return ['tokens' => $this->publishedTokens($siteId), 'components' => $this->publishedComponents($siteId, self::componentIds($doc))];
+        $components = $this->publishedComponents($siteId, self::componentIds($doc));
+
+        return ['tokens' => $this->publishedTokens($siteId), 'components' => $components, 'forms' => FormService::published($siteId, $doc, $components), 'menus' => MenuService::published($siteId, $doc, $components)];
     }
 
     /** @return array{version: int|null, values: array} */
@@ -127,6 +131,14 @@ final class DesignResources
         $rows = [['kind' => 'tokens', 'resource_id' => $siteId, 'version' => (int) (Json::entries($inputs['tokens'])['version'] ?? 0)]];
         foreach (Json::entries($inputs['reusable'] ?? []) as $id => $version) {
             $rows[] = ['kind' => 'component', 'resource_id' => (string) $id, 'version' => (int) $version];
+        }
+
+        foreach (Json::entries($inputs['forms'] ?? []) as $id => $form) {
+            $rows[] = ['kind' => 'form', 'resource_id' => (string) $id, 'version' => (int) $form['version']];
+        }
+
+        foreach (Json::entries($inputs['menus'] ?? []) as $id => $menu) {
+            $rows[] = ['kind' => 'menu', 'resource_id' => (string) $id, 'version' => (int) $menu['version']];
         }
 
         return $rows;

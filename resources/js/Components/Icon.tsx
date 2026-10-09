@@ -1,6 +1,7 @@
 // A small stroke icon set for the admin (16 px grid, drawn here: no icon dependency).
 // Icons are decorative by default; give the control itself an accessible name.
 const PATHS = {
+    search: 'M7 2a5 5 0 1 0 0 10A5 5 0 0 0 7 2zM11 11l3 3',
     arrowLeft: 'M10 3.5 5.5 8l4.5 4.5',
     chevronRight: 'M6 3.5 10.5 8 6 12.5',
     chevronDown: 'M3.5 6 8 10.5 12.5 6',

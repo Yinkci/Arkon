@@ -1,0 +1,118 @@
+{
+  "type": "slider",
+  "version": 2,
+  "label": "Slider",
+  "children": {
+    "allow": [
+      "slide"
+    ],
+    "min": 1,
+    "max": 6
+  },
+  "props": {
+    "label": {
+      "type": "string",
+      "maxLength": 100,
+      "default": "Featured content"
+    },
+    "autoplay": {
+      "type": "boolean",
+      "default": false
+    },
+    "interval": {
+      "type": "enum",
+      "values": [
+        "5000",
+        "7000",
+        "10000"
+      ],
+      "default": "7000"
+    },
+    "style": {
+      "type": "style",
+      "slots": {
+        "root": {
+          "label": "Slider",
+          "groups": [
+            "layout",
+            "spacing",
+            "size",
+            "typography",
+            "background",
+            "border",
+            "effects",
+            "interaction",
+            "motion"
+          ]
+        }
+      },
+      "default": {}
+    },
+    "pagination": {
+      "type": "enum",
+      "values": [
+        "numbers",
+        "dots",
+        "bars",
+        "none"
+      ],
+      "default": "dots"
+    },
+    "controlsAlign": {
+      "type": "enum",
+      "values": [
+        "start",
+        "center",
+        "end"
+      ],
+      "default": "start"
+    },
+    "controlsTone": {
+      "type": "enum",
+      "values": [
+        "light",
+        "dark"
+      ],
+      "default": "light"
+    },
+    "arrows": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "defaultProps": {
+    "label": "Featured content",
+    "autoplay": false,
+    "interval": "7000",
+    "style": {},
+    "pagination": "dots",
+    "controlsAlign": "start",
+    "controlsTone": "light",
+    "arrows": true
+  },
+  "editor": {
+    "fields": {
+      "label": {
+        "label": "Accessible slider label"
+      },
+      "autoplay": {
+        "label": "Automatically advance slides"
+      },
+      "interval": {
+        "label": "Time between slides (ms)"
+      },
+      "pagination": {
+        "label": "Pagination style"
+      },
+      "controlsAlign": {
+        "label": "Controls alignment"
+      },
+      "controlsTone": {
+        "label": "Controls color"
+      },
+      "arrows": {
+        "label": "Show previous / next arrows"
+      }
+    }
+  }
+}

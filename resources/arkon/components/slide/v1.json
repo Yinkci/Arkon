@@ -1,0 +1,43 @@
+{
+  "type": "slide",
+  "version": 1,
+  "label": "Slide",
+  "children": {
+    "allow": [
+      "hero",
+      "text",
+      "image",
+      "button",
+      "group",
+      "columns",
+      "icon",
+      "logo"
+    ],
+    "max": 30
+  },
+  "props": {
+    "style": {
+      "type": "style",
+      "slots": {
+        "root": {
+          "label": "Slide",
+          "groups": [
+            "layout",
+            "spacing",
+            "size",
+            "typography",
+            "background",
+            "border",
+            "effects",
+            "interaction",
+            "motion"
+          ]
+        }
+      },
+      "default": {}
+    }
+  },
+  "defaultProps": {
+    "style": {}
+  }
+}

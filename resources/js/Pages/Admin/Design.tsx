@@ -1,5 +1,6 @@
 import { Head, router } from '@inertiajs/react';
 import { useId, useMemo, useRef, useState } from 'react';
+import { AdminPageHeader } from '@/Components/AdminPageHeader';
 import { AdminLayout } from '@/Components/AdminLayout';
 import type { Issue } from '@/arkon/rules';
 import { styleRules, styleValueProblem } from '@/arkon/style/schema';
@@ -39,7 +40,14 @@ interface ComponentRow {
  * shadows) and reusable components. Drafts never reach live pages; publishing creates
  * a new version and re-renders the live pages that use it, with their status here.
  */
-export default function Design(props: { tokens: TokenState; components: ComponentRow[]; permissions: { edit: boolean; publish: boolean } }) {
+export default function Design(props: {
+    section?: 'styles' | 'components' | 'performance';
+    tokens: TokenState;
+    components: ComponentRow[];
+    permissions: { edit: boolean; publish: boolean };
+}) {
+    const section = props.section ?? 'styles';
+    const title = section === 'components' ? 'Reusable components' : section === 'performance' ? 'Performance & updates' : 'Global styles';
     const [state, setState] = useState(props.tokens);
     const [draft, setDraft] = useState<TokenSet>(() => structuredClone(props.tokens.draft ?? {}));
     const [notice, setNotice] = useState<{ tone: 'error' | 'info'; message: string; issues?: Issue[] } | null>(null);
@@ -136,15 +144,32 @@ export default function Design(props: { tokens: TokenState; components: Componen
 
     return (
         <AdminLayout>
-            <Head title="Design" />
+            <Head title={title} />
             <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-8 sm:py-8">
-                <header className="max-w-3xl">
-                    <h1 className="text-2xl font-semibold tracking-tight">Design</h1>
-                    <p className="mt-1 text-[0.875rem] text-muted">
-                        Shared values and components used across the site. Changes are drafts until you publish them; publishing updates every live page that
-                        uses them.
-                    </p>
-                </header>
+                <AdminPageHeader
+                    title={title}
+                    description={
+                        section === 'components'
+                            ? 'Create shared sections and edit them once across your website.'
+                            : section === 'performance'
+                              ? 'Review live-page updates and understand what has actually been measured.'
+                              : 'Manage shared colours, fonts and spacing. Changes stay in drafts until published.'
+                    }
+                />
+                {section === 'performance' && (
+                    <section className="space-y-3 border-t border-line pt-5">
+                        <h2 className="font-semibold">Core Web Vitals</h2>
+                        <p className="text-sm text-muted">
+                            Not measured for this live website. No field monitoring is connected, and opening this screen does not run an expensive audit.
+                        </p>
+                        <h2 className="pt-3 font-semibold">Publishing updates</h2>
+                        {refreshes.pending === 0 && refreshes.failed === 0 && (
+                            <p className="text-sm text-muted">
+                                No pending or failed design updates. This describes publishing operations, not a performance score.
+                            </p>
+                        )}
+                    </section>
+                )}
 
                 {notice && (
                     <Notice tone={notice.tone === 'error' ? 'error' : 'success'} onDismiss={() => setNotice(null)}>
@@ -164,82 +189,90 @@ export default function Design(props: { tokens: TokenState; components: Componen
 
                 <RefreshStatus refreshes={refreshes} canRetry={canPublish} busy={busy} onRetry={() => void retry()} />
 
-                <section aria-labelledby="tokens-heading" className="rounded-lg border border-line bg-surface shadow-hairline">
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
-                        <div className="min-w-0">
-                            <h2 id="tokens-heading" className="text-sm font-semibold">
-                                Design tokens
-                            </h2>
-                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
-                                <StatusPill tone="live" icon="globe">
-                                    {state.published.version ? `Live: version ${state.published.version}` : 'Live: the defaults'}
-                                </StatusPill>
-                                <StatusPill
-                                    tone={dirty ? 'changed' : state.changed ? 'site' : 'neutral'}
-                                    icon={dirty ? 'dots' : state.changed ? 'clock' : 'check'}
+                {section === 'styles' && (
+                    <section aria-labelledby="tokens-heading" className="rounded-lg border border-line bg-surface shadow-hairline">
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
+                            <div className="min-w-0">
+                                <h2 id="tokens-heading" className="text-sm font-semibold">
+                                    Global styles
+                                </h2>
+                                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
+                                    <StatusPill tone="live" icon="globe">
+                                        {state.published.version ? `Live: version ${state.published.version}` : 'Live: the defaults'}
+                                    </StatusPill>
+                                    <StatusPill
+                                        tone={dirty ? 'changed' : state.changed ? 'site' : 'neutral'}
+                                        icon={dirty ? 'dots' : state.changed ? 'clock' : 'check'}
+                                    >
+                                        {dirty
+                                            ? 'Unsaved changes.'
+                                            : state.changed
+                                              ? 'The draft differs from what is live.'
+                                              : 'The draft matches what is live.'}
+                                    </StatusPill>
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button icon="save" disabled={!canEdit || !dirty || busy} onClick={() => void save()} data-testid="tokens-save">
+                                    Save draft
+                                </Button>
+                                <Button
+                                    variant="primary"
+                                    icon="globe"
+                                    busy={busy}
+                                    disabled={!canPublish || busy || (!dirty && !state.changed)}
+                                    onClick={() => void publish()}
+                                    data-testid="tokens-publish"
+                                    title={
+                                        canPublish ? 'Publish the tokens: every live page that uses them is updated' : "You don't have permission to publish"
+                                    }
                                 >
-                                    {dirty ? 'Unsaved changes.' : state.changed ? 'The draft differs from what is live.' : 'The draft matches what is live.'}
-                                </StatusPill>
+                                    Publish tokens
+                                </Button>
                             </div>
                         </div>
-                        <div className="flex gap-2">
-                            <Button icon="save" disabled={!canEdit || !dirty || busy} onClick={() => void save()} data-testid="tokens-save">
-                                Save draft
-                            </Button>
-                            <Button
-                                variant="primary"
-                                icon="globe"
-                                busy={busy}
-                                disabled={!canPublish || busy || (!dirty && !state.changed)}
-                                onClick={() => void publish()}
-                                data-testid="tokens-publish"
-                                title={canPublish ? 'Publish the tokens: every live page that uses them is updated' : "You don't have permission to publish"}
-                            >
-                                Publish tokens
-                            </Button>
+                        <p className="flex items-center gap-1.5 border-b border-line bg-site-soft px-4 py-2 text-xs text-fg">
+                            <Icon name="globe" className="size-3.5 text-site" />
+                            Site-wide: tokens are used by every page. Publishing re-renders the live pages that use them.
+                        </p>
+                        <div className="grid gap-px bg-line md:grid-cols-2">
+                            {Object.entries(state.groups).map(([group, definition]) => (
+                                <fieldset key={group} className="min-w-0 bg-surface px-4 py-3.5">
+                                    <legend className="sr-only">{definition.label}</legend>
+                                    <h3 aria-hidden className="mb-2.5 text-xs font-semibold">
+                                        {definition.label}
+                                    </h3>
+                                    <div className="space-y-2">
+                                        {Object.entries(state.defaults[group] ?? {}).map(([name, fallback]) => (
+                                            <TokenField
+                                                key={`${name}:${state.version}`}
+                                                group={group}
+                                                name={name}
+                                                kind={definition.kind}
+                                                value={draft[group]?.[name]}
+                                                fallback={fallback}
+                                                changed={changedTokens(group, name)}
+                                                disabled={!canEdit || busy}
+                                                onChange={(value) =>
+                                                    setDraft((current) => {
+                                                        const next = structuredClone(current);
+                                                        if (value === null) {
+                                                            delete next[group]?.[name];
+                                                            if (next[group] && Object.keys(next[group]!).length === 0) delete next[group];
+                                                        } else (next[group] ??= {})[name] = value;
+                                                        return next;
+                                                    })
+                                                }
+                                            />
+                                        ))}
+                                    </div>
+                                </fieldset>
+                            ))}
                         </div>
-                    </div>
-                    <p className="flex items-center gap-1.5 border-b border-line bg-site-soft px-4 py-2 text-xs text-fg">
-                        <Icon name="globe" className="size-3.5 text-site" />
-                        Site-wide: tokens are used by every page. Publishing re-renders the live pages that use them.
-                    </p>
-                    <div className="grid gap-px bg-line md:grid-cols-2">
-                        {Object.entries(state.groups).map(([group, definition]) => (
-                            <fieldset key={group} className="min-w-0 bg-surface px-4 py-3.5">
-                                <legend className="sr-only">{definition.label}</legend>
-                                <h3 aria-hidden className="mb-2.5 text-xs font-semibold">
-                                    {definition.label}
-                                </h3>
-                                <div className="space-y-2">
-                                    {Object.entries(state.defaults[group] ?? {}).map(([name, fallback]) => (
-                                        <TokenField
-                                            key={`${name}:${state.version}`}
-                                            group={group}
-                                            name={name}
-                                            kind={definition.kind}
-                                            value={draft[group]?.[name]}
-                                            fallback={fallback}
-                                            changed={changedTokens(group, name)}
-                                            disabled={!canEdit || busy}
-                                            onChange={(value) =>
-                                                setDraft((current) => {
-                                                    const next = structuredClone(current);
-                                                    if (value === null) {
-                                                        delete next[group]?.[name];
-                                                        if (next[group] && Object.keys(next[group]!).length === 0) delete next[group];
-                                                    } else (next[group] ??= {})[name] = value;
-                                                    return next;
-                                                })
-                                            }
-                                        />
-                                    ))}
-                                </div>
-                            </fieldset>
-                        ))}
-                    </div>
-                </section>
+                    </section>
+                )}
 
-                <ComponentsSection components={props.components} canEdit={canEdit} />
+                {section === 'components' && <ComponentsSection components={props.components} canEdit={canEdit} />}
             </div>
         </AdminLayout>
     );

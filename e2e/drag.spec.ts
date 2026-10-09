@@ -71,7 +71,7 @@ const dragStatus = (page: Page) => page.getByTestId('drag-status');
 
 /** Selects a block on the canvas by its text, so its Move handle shows. */
 async function select(page: Page, label: string) {
-    await canvas(page).locator('.ak-text2, .ak-btn2', { hasText: label }).first().click();
+    await canvas(page).locator('.ak-text2, :is(.ak-btn2,.ak-btn3)', { hasText: label }).first().click();
     await expect(page.getByTestId('canvas-drag-handle')).toBeVisible();
     await page.keyboard.press('Escape'); // leave inline text editing
 }
@@ -279,7 +279,7 @@ test.describe('canvas', () => {
         await page.mouse.down();
         // A hero over the middle of a column can't go in the column: the status names the place it
         // can go instead (beside the Columns block), and that is where it lands.
-        await page.mouse.move(inColumn.x + 20, inColumn.y + inColumn.height / 2, { steps: 6 });
+        await page.mouse.move(inColumn.x + 20, inColumn.y + inColumn.height * 0.2, { steps: 6 });
         await expect(dragStatus(page)).toContainText('After Text: Top');
         await page.mouse.up();
         await expect(canvas(page).locator('.ak-col .ak-hero3')).toHaveCount(0);
@@ -435,7 +435,7 @@ test('the reusable-component editor uses the same dragging', async ({ page }) =>
     await db.query('insert into reusable_components (id, site_id, name, draft) values ($1, $2, $3, $4)', [id, site, 'Drag banner', JSON.stringify(fragment)]);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`/admin/components/${id}`);
-    await canvas(page).locator('.ak-btn2').click();
+    await canvas(page).locator(':is(.ak-btn2,.ak-btn3)').click();
     await expect(page.getByTestId('canvas-drag-handle')).toHaveAccessibleName('Move Button block');
     const fine = await box(canvas(page).locator('.ak-text2', { hasText: 'Fine print' }));
     await quickDrag(page, await handleCenter(page), { x: fine.x + 20, y: fine.y + fine.height + 6 });
@@ -446,9 +446,9 @@ test('the reusable-component editor uses the same dragging', async ({ page }) =>
                 .evaluateAll((els) => els.map((e) => e.textContent?.trim()).filter(Boolean)),
         )
         .toContain('Shop now');
-    await expect.poll(() => canvas(page).locator('.ak-text2, .ak-btn2').allTextContents()).toEqual(['Banner title', 'Fine print', 'Shop now']);
+    await expect.poll(() => canvas(page).locator('.ak-text2, :is(.ak-btn2,.ak-btn3)').allTextContents()).toEqual(['Banner title', 'Fine print', 'Shop now']);
     await page.getByRole('button', { name: 'Undo' }).click();
-    await expect.poll(() => canvas(page).locator('.ak-text2, .ak-btn2').allTextContents()).toEqual(['Banner title', 'Shop now', 'Fine print']);
+    await expect.poll(() => canvas(page).locator('.ak-text2, :is(.ak-btn2,.ak-btn3)').allTextContents()).toEqual(['Banner title', 'Shop now', 'Fine print']);
 });
 
 test('touch: the Move handle drags with a finger', async ({ browser }) => {

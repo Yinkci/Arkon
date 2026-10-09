@@ -3,8 +3,12 @@
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DesignController;
 use App\Http\Controllers\Admin\EditorController;
+use App\Http\Controllers\Admin\FormsController;
+use App\Http\Controllers\Admin\NavigationController;
 use App\Http\Controllers\Admin\PagesController;
+use App\Http\Controllers\Admin\SiteOverviewController;
 use App\Http\Controllers\Admin\ThemesController;
+use App\Http\Controllers\Admin\WebsiteController;
 use App\Http\Controllers\Api\AiApiController;
 use App\Http\Controllers\Api\DesignApiController;
 use App\Http\Controllers\Api\EditorApiController;
@@ -24,10 +28,20 @@ Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
 Route::middleware(['auth', 'admin.site'])->group(function () {
     Route::get('/admin', DashboardController::class)->name('admin');
     Route::get('/admin/pages', [PagesController::class, 'index']);
+    Route::get('/admin/media', [SiteOverviewController::class, 'media']);
+    Route::get('/admin/search', [SiteOverviewController::class, 'search']);
+    Route::get('/admin/seo', [SiteOverviewController::class, 'seo']);
+    Route::get('/admin/settings', [SiteOverviewController::class, 'settings']);
+    Route::get('/admin/design/components', [DesignController::class, 'show']);
+    Route::get('/admin/performance', [DesignController::class, 'show']);
     Route::get('/admin/editor/{page}', [EditorController::class, 'show']);
     Route::get('/preview/{page}', PreviewController::class);
     Route::get('/admin/themes', [ThemesController::class, 'index']);
     Route::get('/admin/themes/{theme}/preview', [ThemesController::class, 'preview']);
+    Route::get('/admin/website', [WebsiteController::class, 'index']);
+    Route::get('/admin/website/{proposal}/preview/{index}', [WebsiteController::class, 'preview'])->whereNumber('index');
+    Route::get('/admin/navigation', [NavigationController::class, 'index']);
+    Route::get('/admin/forms', [FormsController::class, 'index']);
     Route::get('/admin/design', [DesignController::class, 'show']);
     Route::get('/admin/components/{component}', [DesignController::class, 'component']);
 
@@ -53,7 +67,23 @@ Route::middleware(['auth', 'admin.site'])->group(function () {
         Route::post('/pages/{page}/ai/requests/{proposal}/discard', [AiApiController::class, 'discard']);
         Route::post('/pages/{page}/ai/requests/{proposal}/apply-tokens', [AiApiController::class, 'applyTokens']);
 
+        Route::get('/website/requests', [WebsiteController::class, 'requests']);
+        Route::post('/website/requests', [WebsiteController::class, 'store'])->middleware('throttle:10,1');
+        Route::post('/website/{proposal}/apply', [WebsiteController::class, 'apply']);
+        Route::post('/website/{proposal}/discard', [WebsiteController::class, 'discard']);
+        Route::get('/website/{proposal}/readiness', [WebsiteController::class, 'readiness']);
+        Route::post('/website/{proposal}/publish', [WebsiteController::class, 'publish']);
+        Route::post('/navigation/save', [NavigationController::class, 'save']);
+        Route::post('/navigation/{menu}/publish', [NavigationController::class, 'publish']);
+        Route::post('/website/layout', [NavigationController::class, 'layout']);
+        Route::post('/forms/save', [FormsController::class, 'save']);
+        Route::post('/forms/{form}/publish', [FormsController::class, 'publish']);
+        Route::post('/forms/{form}/notifications', [FormsController::class, 'notifications']);
         Route::post('/media', [MediaApiController::class, 'store']);
+        Route::get('/media-library', [MediaApiController::class, 'search']);
+        Route::get('/media/{asset}', [MediaApiController::class, 'show']);
+        Route::post('/media/{asset}/metadata', [MediaApiController::class, 'update']);
+        Route::post('/media/{asset}/archive', [MediaApiController::class, 'archive']);
 
         Route::get('/design/tokens', [DesignApiController::class, 'tokens']);
         Route::post('/design/tokens/save', [DesignApiController::class, 'saveTokens']);

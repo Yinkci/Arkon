@@ -23,10 +23,6 @@ use Illuminate\Support\Facades\DB;
  */
 class MediaService
 {
-    public const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
-
-    private const MAX_DIMENSION = 12000;
-
     public function __construct(
         private readonly Authorizer $authorizer,
         private readonly Membership $membership,
@@ -49,8 +45,8 @@ class MediaService
         if ($bytes === 0) {
             throw new ValidationException('The file is empty');
         }
-        if ($bytes > self::MAX_UPLOAD_BYTES) {
-            throw new ValidationException('Images must be 5 MB or smaller');
+        if ($bytes > UploadPolicy::rules()['maxImageUploadBytes']) {
+            throw new ValidationException(UploadPolicy::sizeError($bytes));
         }
         $type = ImageType::detect($data);
         if ($type === null) {
@@ -59,8 +55,12 @@ class MediaService
         $size = @getimagesizefromstring($data);
         $width = is_array($size) ? (int) $size[0] : 0;
         $height = is_array($size) ? (int) $size[1] : 0;
-        if ($width < 1 || $height < 1 || $width > self::MAX_DIMENSION || $height > self::MAX_DIMENSION) {
-            throw new ValidationException('The image dimensions are invalid or too large');
+        if ($width < 1 || $height < 1) {
+            throw new ValidationException('This image is corrupt or its dimensions could not be read.');
+        }
+        $policy = UploadPolicy::rules();
+        if ($width > $policy['maxDimension'] || $height > $policy['maxDimension'] || $width * $height > $policy['maxPixels']) {
+            throw new ValidationException('This image is '.$width.' × '.$height.' px. Maximum dimensions are '.$policy['maxDimension'].' × '.$policy['maxDimension'].' px and '.$policy['maxPixels'].' total pixels.');
         }
 
         $id = Uuid::v7();
@@ -79,20 +79,23 @@ class MediaService
                 'width' => $width,
                 'height' => $height,
                 'original_name' => $name,
+                'title' => $name,
                 'created_by' => $ctx->userId,
             ]);
             $this->audit->forContext($ctx, 'media.upload', 'media', $id, ['bytes' => $bytes, 'mime' => $type['mime']]);
         });
         // Responsive sizes. Best effort: without them the original is served (`arkon:media-variants` retries).
+        $optimizationWarning = null;
         try {
             $this->variants->generate((object) ['id' => $id, 'site_id' => $ctx->siteId, 'storage_key' => $storageKey, 'mime' => $type['mime'], 'bytes' => $bytes, 'width' => $width, 'height' => $height]);
         } catch (\Throwable $error) {
             report($error);
+            $optimizationWarning = 'Image uploaded, but WebP optimization failed. The original is available; contact the administrator to retry optimization.';
         }
 
         return [
             'id' => $id, 'url' => self::url($storageKey), 'width' => $width, 'height' => $height,
-            'mime' => $type['mime'], 'bytes' => $bytes, 'originalName' => $name,
+            'mime' => $type['mime'], 'bytes' => $bytes, 'originalName' => $name, 'optimizationWarning' => $optimizationWarning,
         ];
     }
 
@@ -101,10 +104,10 @@ class MediaService
     {
         $this->authorizer->authorize($ctx, 'media.view');
 
-        return DB::table('media_assets')->where('site_id', $ctx->siteId)->orderByDesc('created_at')->limit(200)->get()
+        return DB::table('media_assets')->where('site_id', $ctx->siteId)->whereNull('archived_at')->orderByDesc('created_at')->limit(200)->get()
             ->map(fn ($r) => [
                 'id' => $r->id, 'url' => self::url($r->storage_key), 'width' => (int) $r->width, 'height' => (int) $r->height,
-                'mime' => $r->mime, 'bytes' => (int) $r->bytes, 'originalName' => $r->original_name,
+                'mime' => $r->mime, 'bytes' => (int) $r->bytes, 'originalName' => $r->original_name, 'name' => $r->title ?: $r->original_name, 'defaultAlt' => $r->alt_text, 'defaultCaption' => $r->caption,
             ])
             ->all();
     }
@@ -137,7 +140,7 @@ class MediaService
     }
 
     /**
-     * Adds each image's original file name, for the editor's library (never part of render
+     * Adds library titles and placement defaults for the editor's library (never part of render
      * inputs: names do not affect output, so they stay out of what publications record).
      *
      * @param  list<array{id: string}>  $list
@@ -145,9 +148,9 @@ class MediaService
      */
     public function withNames(string $siteId, array $list): array
     {
-        $names = DB::table('media_assets')->where('site_id', $siteId)->whereIn('id', array_column($list, 'id'))->pluck('original_name', 'id');
+        $names = DB::table('media_assets')->where('site_id', $siteId)->whereIn('id', array_column($list, 'id'))->get(['id', 'title', 'original_name', 'alt_text', 'caption'])->keyBy('id');
 
-        return array_map(fn (array $m) => [...$m, 'name' => $names[$m['id']] ?? null], $list);
+        return array_map(fn (array $m) => [...$m, 'name' => isset($names[$m['id']]) ? ($names[$m['id']]->title ?: $names[$m['id']]->original_name) : null, 'defaultAlt' => $names[$m['id']]->alt_text ?? '', 'defaultCaption' => $names[$m['id']]->caption ?? ''], $list);
     }
 
     /** mediaMap with signed URLs (original and variants), for the sandboxed canvas. */

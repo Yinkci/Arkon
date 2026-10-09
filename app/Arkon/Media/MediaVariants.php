@@ -24,8 +24,6 @@ class MediaVariants
     public const QUALITY = 78;
 
     /** Decoding needs about 4 bytes per pixel; larger images keep only their original. */
-    private const MAX_PIXELS = 40_000_000;
-
     public function __construct(private readonly MediaStorage $storage) {}
 
     public static function key(string $assetId, int $width): string
@@ -46,7 +44,7 @@ class MediaVariants
      */
     public function generate(object $asset): int
     {
-        if (! self::supported() || $asset->mime === 'image/gif' || (int) $asset->width * (int) $asset->height > self::MAX_PIXELS) {
+        if (! self::supported() || $asset->mime === 'image/gif' || (int) $asset->width * (int) $asset->height > UploadPolicy::rules()['maxPixels']) {
             return 0;
         }
         $existing = DB::table('media_variants')->where('asset_id', $asset->id)->pluck('width')->map(fn ($w) => (int) $w)->all();
@@ -59,9 +57,19 @@ class MediaVariants
             return 0;
         }
         $data = $this->storage->read($asset->storage_key);
-        $source = $data === null ? false : @imagecreatefromstring($data);
+        if ($data === null) {
+            throw new \RuntimeException('Original image missing during WebP optimization');
+        }
+        $largest = max($widths);
+        $targetPixels = $largest * max(1, (int) round((int) $asset->height * $largest / (int) $asset->width));
+        // Conservative headroom for decoded pixels, encoder buffers and existing PHP allocations.
+        $estimate = ((int) $asset->width * (int) $asset->height + $targetPixels) * 8 + strlen($data) * 2 + 16 * 1024 ** 2;
+        if (memory_get_usage(true) + $estimate > UploadPolicy::iniBytes(ini_get('memory_limit'))) {
+            throw new \RuntimeException('Insufficient processing memory for WebP optimization');
+        }
+        $source = @imagecreatefromstring($data);
         if (! $source instanceof GdImage) {
-            return 0;
+            throw new \RuntimeException('Image decoding failed during WebP optimization');
         }
         $created = 0;
         try {
@@ -69,14 +77,20 @@ class MediaVariants
                 $height = max(1, (int) round((int) $asset->height * $width / (int) $asset->width));
                 $bytes = $this->encode($source, $width, $height);
                 // A variant that is not smaller than the original is no use.
-                if ($bytes === null || strlen($bytes) >= (int) $asset->bytes) {
+                if ($bytes === null) {
+                    throw new \RuntimeException('WebP encoding failed');
+                }
+                if (strlen($bytes) >= (int) $asset->bytes) {
                     continue;
                 }
                 $key = self::key($asset->id, $width);
                 try {
                     $this->storage->put($key, $bytes);
-                } catch (Throwable) {
-                    continue; // a concurrent run wrote it first
+                } catch (Throwable $error) {
+                    if ($this->storage->path($key) === null) {
+                        throw $error;
+                    }
+                    // Another run may have written the immutable file before inserting its row.
                 }
                 $created += DB::table('media_variants')->insertOrIgnore([
                     'asset_id' => $asset->id, 'site_id' => $asset->site_id, 'format' => 'webp',

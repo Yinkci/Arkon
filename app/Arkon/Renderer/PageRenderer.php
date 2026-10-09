@@ -5,6 +5,7 @@ namespace App\Arkon\Renderer;
 use App\Arkon\Components\ComponentDefinition;
 use App\Arkon\Components\ComponentRegistry;
 use App\Arkon\Components\DocumentValidator;
+use App\Arkon\Components\Render\ImageSizes;
 use App\Arkon\Components\Render\RenderContext;
 use App\Arkon\Style\StyleSheet;
 use App\Arkon\Style\Tokens;
@@ -32,10 +33,10 @@ final class PageRenderer
      * arkon-php-2: design tokens (`:root` variables for the tokens used, from the
      * site's published token set), generated style classes, reusable components.
      */
-    public const VERSION = 'arkon-php-2';
+    public const VERSION = 'arkon-php-5';
 
     /** Renderer versions this code can still produce, with their base stylesheet. */
-    private const BASE_CSS = ['arkon-php-1' => BaseCss::CSS, 'arkon-php-2' => BaseCss::CSS_V2];
+    private const BASE_CSS = ['arkon-php-1' => BaseCss::CSS, 'arkon-php-2' => BaseCss::CSS_V2, 'arkon-php-3' => BaseCss::CSS_V2, 'arkon-php-4' => BaseCss::CSS_V2, 'arkon-php-5' => BaseCss::CSS_V2];
 
     /**
      * Earlier development builds of a renderer version, kept so the publications they made
@@ -88,6 +89,32 @@ final class PageRenderer
         }
         $nodes = Json::entries($document['nodes']);
         $components = $resources['components'] ?? [];
+        $forms = $resources['forms'] ?? [];
+        $menus = $resources['menus'] ?? [];
+        $usedMenus = [];
+        $usedForms = [];
+        foreach ([$document, ...array_column($components, 'document')] as $formDocument) {
+            foreach (Json::entries($formDocument['nodes']) as $formNode) {
+                if ($formNode['type'] === 'navigation') {
+                    $menuId = Json::entries($formNode['props'])['menuId'] ?? '';
+                    if (isset($menus[$menuId])) {
+                        $usedMenus[$menuId] = $menus[$menuId];
+                    } elseif ($strict) {
+                        throw new RenderException('A menu is not ready to publish', [['message' => 'Choose and publish a menu first']]);
+                    }
+                }
+                if ($formNode['type'] === 'form') {
+                    $formId = Json::entries(Json::entries($formNode['props'])['form'] ?? [])['id'] ?? '';
+                    if (! isset($forms[$formId])) {
+                        if ($strict) {
+                            throw new RenderException('A contact form is not ready to publish', [['nodeId' => $formNode['id'], 'message' => 'Choose and publish a contact form first']]);
+                        }
+                    } else {
+                        $usedForms[$formId] = $forms[$formId];
+                    }
+                }
+            }
+        }
         $warnings = $this->validator->publishIssues($document);
         foreach ($nodes as $node) {
             if ($node['type'] === 'instance' && ! isset($components[(string) (Json::entries($node['props'])['componentId'] ?? '')])) {
@@ -108,7 +135,11 @@ final class PageRenderer
 
             return $media[$assetId] ?? null;
         };
-        $styles = $legacy ? null : new StyleSheet(fn (string $assetId) => $mediaLookup($assetId)['url'] ?? null, flexBasis: $build['flexBasis'] ?? true);
+        $styles = $legacy ? null : new StyleSheet(function (string $assetId, string $screen = 'base') use ($mediaLookup, $baseVersion) {
+            $image = $mediaLookup($assetId);
+
+            return $image === null ? null : (in_array($baseVersion, ['arkon-php-4', 'arkon-php-5'], true) ? BackgroundImages::url($image, $screen) : $image['url']);
+        }, flexBasis: $build['flexBasis'] ?? true, responsiveBackgrounds: in_array($baseVersion, ['arkon-php-4', 'arkon-php-5'], true));
         $claimed = false;
         $claimPriority = function () use (&$claimed): bool {
             if ($claimed) {
@@ -133,7 +164,26 @@ final class PageRenderer
          * @param  array<string, array>  $tree  the nodes of the document being rendered (page or reusable component)
          * @param  bool  $annotate  editor annotations (only the page's own nodes are selectable)
          */
-        $renderNode = function (string $id, array $tree, array $rootChildren, int $top, float $fraction, bool $annotate) use (&$renderNode, &$usedComponents, &$usedReusable, &$priorityImages, &$mainHeading, &$priorityCauses, &$headingCause, &$motion, $mode, $protectLcp, $styles, $mediaLookup, $claimPriority, $notePriority, $components): Element {
+        // Shared landmarks should not consume the first content block's image priority.
+        // Gate this on the new renderer: historical publications keep their original indexes.
+        $contentIndexes = [];
+        if (in_array($baseVersion, ['arkon-php-3', 'arkon-php-4', 'arkon-php-5'], true) && ($nodes[$document['root']]['version'] ?? 0) >= 4) {
+            $position = 0;
+            foreach ($nodes[$document['root']]['children'] ?? [] as $childId) {
+                $child = $nodes[$childId];
+                if ($child['type'] === 'instance') {
+                    $part = $components[Json::entries($child['props'])['componentId'] ?? ''] ?? null;
+                    $fragment = $part['document'] ?? null;
+                    $fragmentNodes = Json::entries($fragment['nodes'] ?? []);
+                    $fragmentChildren = $fragmentNodes[$fragment['root'] ?? '']['children'] ?? [];
+                    $child = count($fragmentChildren) === 1 ? $fragmentNodes[$fragmentChildren[0]] : $child;
+                }
+                $semantic = $child['type'] === 'group' && ($child['version'] ?? 0) >= 3 ? (Json::entries($child['props'])['element'] ?? '') : '';
+                $contentIndexes[$childId] = in_array($semantic, ['header', 'footer'], true) ? -2 : $position++;
+            }
+        }
+
+        $renderNode = function (string $id, array $tree, array $rootChildren, int $top, float $fraction, bool $annotate, string $occurrence = '', array $screenShares = ['base' => 1.0, 'tablet' => 1.0, 'mobile' => 1.0]) use (&$renderNode, &$usedComponents, &$usedReusable, &$priorityImages, &$mainHeading, &$priorityCauses, &$headingCause, &$motion, $mode, $protectLcp, $styles, $mediaLookup, $claimPriority, $notePriority, $components, $forms, $menus, $contentIndexes): Element {
             $node = $tree[$id];
             $imagesBefore = $priorityImages;
             $causesBefore = count($priorityCauses);
@@ -142,10 +192,10 @@ final class PageRenderer
             $usedComponents["{$definition->type}@{$definition->version}"] = $definition;
             $props = $definition->props->parseValid($node['props']);
             $index = array_search($id, $rootChildren, true);
-            $top = $index === false ? $top : $index;
+            $top = $index === false ? $top : ($contentIndexes[$id] ?? $index);
             $childIds = $node['children'] ?? [];
             $childFraction = $node['type'] === 'columns' && count($childIds) > 1 ? $fraction / count($childIds) : $fraction;
-            $children = array_map(fn ($child) => $renderNode((string) $child, $tree, $rootChildren, $top, $childFraction, $annotate), $childIds);
+            $children = array_map(fn ($child, $childPosition) => $renderNode((string) $child, $tree, $rootChildren, $node['type'] === 'slider' && $childPosition > 0 ? -1 : $top, $childFraction, $annotate, $occurrence, $node['type'] === 'columns' ? ImageSizes::childShares($props, $screenShares, count($childIds), $childPosition) : $screenShares), $childIds, array_keys($childIds));
 
             if ($node['type'] === 'instance') {
                 $resource = $components[$props['componentId']] ?? null;
@@ -154,7 +204,7 @@ final class PageRenderer
                     $fragment = $resource['document'];
                     $fragmentNodes = Json::entries($fragment['nodes']);
                     $children = array_map(
-                        fn ($child) => $renderNode((string) $child, $fragmentNodes, [], $top, $fraction, false),
+                        fn ($child) => $renderNode((string) $child, $fragmentNodes, [], $top, $fraction, false, $occurrence.'-'.$id, $screenShares),
                         $fragmentNodes[$fragment['root']]['children'] ?? [],
                     );
                 } elseif ($mode === 'editor') {
@@ -173,8 +223,12 @@ final class PageRenderer
                 styles: $styles,
                 topIndex: $top,
                 widthFraction: $fraction,
+                screenShares: $screenShares,
                 claimPriority: $claimPriority,
                 notePriority: $notePriority,
+                forms: $forms,
+                menus: $menus,
+                occurrence: $occurrence,
             ));
             if ($priorityImages > $imagesBeforeOwn) {
                 $priorityCauses[] = $node['id'];
@@ -216,10 +270,67 @@ final class PageRenderer
             }
         }
         $tree = $renderNode((string) $document['root'], $nodes, $nodes[$document['root']]['children'] ?? [], -1, 1.0, true);
+        if ($strict) {
+            $ids = [];
+            $checkIds = function (Element $element) use (&$checkIds, &$ids) {
+                $id = $element->attrs['id'] ?? null;
+                if ($id !== null) {
+                    if (isset($ids[$id])) {
+                        throw new RenderException('Section anchors must be unique across the page and shared layout.', [['message' => 'Duplicate section anchor '.$id]]);
+                    } $ids[$id] = true;
+                }
+                foreach ($element->children as $child) {
+                    if ($child instanceof Element) {
+                        $checkIds($child);
+                    }
+                }
+            };
+            $checkIds($tree);
+        }
+        $widgetTypes = array_filter(array_keys($usedComponents), fn ($key) => str_starts_with($key, 'slider@') || str_starts_with($key, 'back-to-top@'));
+        $widgetVersion = isset($usedComponents['slider@8']) ? ($baseVersion === 'arkon-php-5' ? Widgets::VERSION : 'components-4') : ((isset($usedComponents['slider@7']) || isset($usedComponents['slider@6']) || isset($usedComponents['slider@5']) || isset($usedComponents['slider@4'])) ? 'components-3' : (isset($usedComponents['slider@3']) ? 'components-2' : 'components-1'));
+        $widgetScript = in_array($baseVersion, ['arkon-php-4', 'arkon-php-5'], true) && $mode === 'production' && $widgetTypes !== [];
+        // Enforce the production boundary after layout helpers have consumed their
+        // internal annotations. Nested sticky headers can bypass page-root cleanup.
+        // Historical versions retain their recorded output; new publications never
+        // serialize attributes in the reserved editor namespace.
+        if ($mode === 'production' && $baseVersion === 'arkon-php-5') {
+            $clean = function (Element|TextNode $node) use (&$clean): void {
+                if ($node instanceof TextNode) {
+                    return;
+                }
+                foreach (array_keys($node->attrs) as $name) {
+                    if (str_starts_with($name, self::EDITOR_ATTR_PREFIX)) {
+                        unset($node->attrs[$name]);
+                    }
+                }
+                foreach ($node->children as $child) {
+                    $clean($child);
+                }
+            };
+            $clean($tree);
+        }
         $body = Serializer::serialize($tree);
         $css = BaseCss::minify(implode("\n", [$baseCss, ...array_map($componentCss, array_values($usedComponents))]));
         if ($motion['animated'] > 0) {
             $css .= $mode === 'editor' ? $motionAssets['editorCss'] : $motionAssets['css'];
+        }
+        if (in_array($baseVersion, ['arkon-php-4', 'arkon-php-5'], true)) {
+            $fontUsed = ($resources['tokens']['values']['font']['body'] ?? '') === 'inter' || ($resources['tokens']['values']['font']['heading'] ?? '') === 'inter';
+            foreach ([$document, ...array_column($components, 'document')] as $fontDoc) {
+                foreach (Json::entries($fontDoc['nodes']) as $fontNode) {
+                    foreach (Json::entries(Json::entries($fontNode['props'])['style'] ?? []) as $bps) {
+                        foreach (Json::entries($bps) as $values) {
+                            if ((Json::entries($values)['fontFamily'] ?? '') === 'inter') {
+                                $fontUsed = true;
+                            }
+                        }
+                    }
+                }
+            }
+            if ($fontUsed) {
+                $css .= '@font-face{font-family:"Arkon Inter";font-style:normal;font-weight:100 900;font-display:swap;src:url("/fonts/inter-v4.1/InterVariable.woff2") format("woff2")}@font-face{font-family:"Arkon Inter";font-style:normal;font-weight:100 900;font-display:swap;src:url("/fonts/inter-v4.1/InterVariable-latin.woff2") format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0300-036F,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}';
+            }
         }
         // The runtime's script: on pages with a "when scrolled into view" block, or (motion-3 on) with any entrance.
         $script = $mode === 'production' && ($motionAssets['scriptFor'] === 'any' ? $motion['animated'] > 0 : $motion['reveal']);
@@ -238,11 +349,55 @@ final class PageRenderer
             '<meta charset="utf-8">',
             '<meta name="viewport" content="width=device-width,initial-scale=1">',
             '<title>'.Serializer::escapeText($title).'</title>',
+            in_array($baseVersion, ['arkon-php-3', 'arkon-php-4', 'arkon-php-5'], true) && ! empty($site['origin']) ? '<link rel="canonical" href="'.Serializer::escapeAttr($site['origin'].$page['path']).'">' : '',
             $description !== '' ? '<meta name="description" content="'.Serializer::escapeAttr($description).'">' : '',
             ($seo['noindex'] ?? false) === true ? '<meta name="robots" content="noindex">' : '',
             "<style>{$css}</style>",
             $script ? Motion::scriptTag($motionRuntime) : '',
         ]);
+        // New metadata ships under a new renderer version. Earlier publications
+        // retain their exact head and remain reproducible from recorded inputs.
+        if ($baseVersion === 'arkon-php-5' && ! empty($site['origin'])) {
+            $head .= SocialMetadata::head($title, $description, $site['name'], $site['origin'].$page['path']);
+        }
+        if (in_array($baseVersion, ['arkon-php-4', 'arkon-php-5'], true)) {
+            $firstContent = array_search(0, $contentIndexes, true);
+            $seen = [];
+            $findBackground = function (string $id) use (&$findBackground, &$seen, $nodes): ?string {
+                if (isset($seen[$id]) || ! isset($nodes[$id])) {
+                    return null;
+                } $seen[$id] = true;
+                $node = $nodes[$id];
+                foreach (Json::entries(Json::entries(Json::entries($node['props'])['style'] ?? [])['root'] ?? []) as $screen => $values) {
+                    if ($screen !== 'base') {
+                        continue;
+                    }
+                    $asset = Json::entries(Json::entries($values)['backgroundImage'] ?? [])['assetId'] ?? null;
+                    if ($asset) {
+                        return $asset;
+                    }
+                }
+                $children = $node['children'] ?? [];
+                if ($node['type'] === 'slider') {
+                    $children = array_slice($children, 0, 1);
+                }
+                foreach ($children as $child) {
+                    if ($asset = $findBackground($child)) {
+                        return $asset;
+                    }
+                }
+
+                return null;
+            };
+            if ($firstContent !== false && ($asset = $findBackground((string) $firstContent)) && isset($media[$asset])) {
+                foreach (['base' => '(min-width:900px)', 'tablet' => '(min-width:600px) and (max-width:899px)', 'mobile' => '(max-width:599px)'] as $screen => $query) {
+                    $head .= '<link rel="preload" as="image" fetchpriority="high" media="'.$query.'" href="'.Serializer::escapeAttr(BackgroundImages::url($media[$asset], $screen)).'">';
+                }
+            }
+        }
+        if ($widgetScript) {
+            $head .= Widgets::scriptTag($widgetVersion);
+        }
         $lang = Serializer::escapeAttr($site['lang'] ?? 'en');
         $html = "<!doctype html><html lang=\"{$lang}\"><head>{$head}</head><body>{$body}</body></html>";
 
@@ -254,13 +409,24 @@ final class PageRenderer
             'renderer' => $rendererVersion,
             'components' => $componentKeys,
             'page' => ['title' => $page['title'], 'path' => $page['path']],
-            'site' => ['name' => $site['name'], 'lang' => $site['lang'] ?? 'en'],
+            'site' => ['name' => $site['name'], 'lang' => $site['lang'] ?? 'en', ...(in_array($baseVersion, ['arkon-php-3', 'arkon-php-4', 'arkon-php-5'], true) && ! empty($site['origin']) ? ['origin' => $site['origin']] : [])],
             'media' => $usedMedia === [] ? new \stdClass : $usedMedia,
         ];
         if (! $legacy) {
             // The token set and the reusable component versions this output was rendered with.
             $inputs['tokens'] = ['version' => $tokens['version'], 'values' => $tokens['values'] === [] ? new \stdClass : $tokens['values']];
             $inputs['reusable'] = $usedReusable === [] ? new \stdClass : $usedReusable;
+        }
+        if ($widgetScript) {
+            $inputs['widgets'] = $widgetVersion;
+        }
+        if ($usedMenus !== []) {
+            ksort($usedMenus);
+            $inputs['menus'] = $usedMenus;
+        }
+        if ($usedForms !== []) {
+            ksort($usedForms);
+            $inputs['forms'] = $usedForms;
         }
         if ($motion['animated'] > 0) {
             // The animation CSS and runtime this output uses (recorded only when there are animations).
@@ -276,8 +442,10 @@ final class PageRenderer
             'inputs' => $inputs,
             'report' => [
                 'elements' => Serializer::countElements($tree),
+                // Diagnostics do not alter serialized output or recorded render inputs.
+                'diagnostics' => OutputDiagnostics::inspect($tree, $html, $css, $description),
                 'cssBytes' => strlen($css),
-                'scripts' => $script ? 1 : 0,
+                'scripts' => ($script ? 1 : 0) + ($widgetScript ? 1 : 0),
                 'warnings' => $warnings,
                 // Blocks animated, whether the viewport runtime is needed, and animations left off (node id → image | heading).
                 'motion' => ['animated' => $motion['animated'], 'runtime' => $script ? $motionRuntime : null, 'suppressed' => $motion['suppressed'], 'protected' => $motion['protected']],
@@ -323,6 +491,8 @@ final class PageRenderer
         $resources = [
             'tokens' => ['version' => $inputs['tokens']['version'] ?? null, 'values' => Json::toArray($inputs['tokens']['values'] ?? [])],
             'components' => $components,
+            'forms' => Json::toArray($inputs['forms'] ?? []),
+            'menus' => Json::toArray($inputs['menus'] ?? []),
         ];
         $out = $this->render($document, 'production', $inputs['page'], $inputs['site'], Json::toArray($inputs['media'] ?? []), pinned: true, rendererVersion: $renderer, resources: $resources, motionRuntime: (string) ($inputs['motion'] ?? Motion::RUNTIME));
         if (($out['inputs']['motion'] ?? null) !== ($inputs['motion'] ?? null)) {

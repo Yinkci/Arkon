@@ -70,7 +70,7 @@ final class AiConnections
 
     public function heartbeat(string $id, RunnerStatus $status): void
     {
-        DB::table('ai_connections')->where('id', $id)->update(['last_seen_at' => DB::raw('now()'), 'status' => Json::encode($status->toArray())]);
+        DB::table('ai_connections')->where('id', $id)->update(['last_seen_at' => DB::raw('now()'), 'status' => Json::encode([...$status->toArray(), 'websiteProtocol' => 3])]);
     }
 
     public function touch(string $id): void
@@ -100,6 +100,7 @@ final class AiConnections
                 ! $fresh => "The local Claude Code helper is not running (last seen at {$row->seen_at}). {$start}",
                 default => (string) ($status['message'] ?? 'The helper is starting.'),
             },
+            'websiteProtocol' => (int) ($status['websiteProtocol'] ?? 0),
             'claudeVersion' => $status['claudeVersion'] ?? null,
             'lastSeenAt' => $row?->last_seen_at,
         ];

@@ -25,6 +25,19 @@ class RendererTest extends TestCase
         return app(PageRenderer::class)->render(Json::decode(Json::encode($document)), $mode, $page, ['name' => 'Demo'], $media, $strict);
     }
 
+    public function test_shared_header_logo_does_not_steal_the_main_image_priority(): void
+    {
+        $logo = ['id' => 'logo0001', 'type' => 'image', 'version' => 6, 'props' => ['image' => ['assetId' => self::ASSET, 'alt' => 'Studio logo']]];
+        $header = ['id' => 'header01', 'type' => 'group', 'version' => 5, 'props' => ['element' => 'header'], 'children' => ['logo0001']];
+        $hero = Factories::heroNode(['heading' => 'Our gardens', 'image' => ['assetId' => self::ASSET, 'alt' => 'Garden photograph']]);
+        $doc = Factories::pageDocument([$header, $hero]);
+        $doc['nodes']['logo0001'] = $logo;
+        $body = $this->render($doc)['body'];
+        $this->assertMatchesRegularExpression('/alt="Studio logo"[^>]*loading="lazy"/', $body);
+        $this->assertMatchesRegularExpression('/alt="Garden photograph"[^>]*fetchpriority="high"/', $body);
+        $this->assertSame(1, substr_count($body, 'fetchpriority="high"'));
+    }
+
     public function test_production_output_is_semantic_and_minimal(): void
     {
         $out = $this->render();
@@ -93,18 +106,18 @@ class RendererTest extends TestCase
     public function test_new_components_keep_editor_affordances_out_of_production(): void
     {
         $doc = Json::decode('{"schemaVersion":1,"root":"root0001","nodes":{'
-            .'"root0001":{"id":"root0001","type":"page","version":3,"props":{},"children":["imag0001","cols0001"]},'
-            .'"imag0001":{"id":"imag0001","type":"image","version":4,"props":{}},'
+            .'"root0001":{"id":"root0001","type":"page","version":6,"props":{},"children":["imag0001","cols0001"]},'
+            .'"imag0001":{"id":"imag0001","type":"image","version":6,"props":{}},'
             .'"cols0001":{"id":"cols0001","type":"columns","version":3,"props":{"style":{}},"children":["colu0001"]},'
-            .'"colu0001":{"id":"colu0001","type":"column","version":3,"props":{},"children":["butn0001"]},'
-            .'"butn0001":{"id":"butn0001","type":"button","version":3,"props":{"label":"<b>Go</b>","href":"/a?x=1&y=\"2\""}}'
+            .'"colu0001":{"id":"colu0001","type":"column","version":6,"props":{},"children":["butn0001"]},'
+            .'"butn0001":{"id":"butn0001","type":"button","version":6,"props":{"label":"<b>Go</b>","href":"/a?x=1&y=\"2\""}}'
             .'},"seo":{}}');
         $render = fn (string $mode) => app(PageRenderer::class)->render($doc, $mode, ['title' => 'T', 'path' => '/'], ['name' => 'S'], [])['body'];
 
         $production = $render('production');
         $this->assertSame(
             '<main class="ak-main"><figure class="ak-img2 ak-flow"></figure><div class="ak-cols ak-flow"><div class="ak-col">'
-            .'<p class="ak-action2 ak-flow"><a class="ak-btn2 ak-btn2--primary" href="/a?x=1&amp;y=&quot;2&quot;">&lt;b&gt;Go&lt;/b&gt;</a></p></div></div></main>',
+            .'<p class="ak-action2 ak-flow"><a class="ak-btn3 ak-btn3--responsive ak-btn3--primary" href="/a?x=1&amp;y=&quot;2&quot;">&lt;b&gt;Go&lt;/b&gt;</a></p></div></div></main>',
             $production,
         );
         $editor = $render('editor');

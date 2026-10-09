@@ -1,0 +1,73 @@
+{
+  "type": "section",
+  "version": 4,
+  "label": "Section",
+  "children": {
+    "allow": [
+      "hero",
+      "text",
+      "image",
+      "button",
+      "group",
+      "columns",
+      "instance",
+      "form",
+      "navigation"
+    ],
+    "max": 30
+  },
+  "props": {
+    "element": {
+      "type": "enum",
+      "values": [
+        "section",
+        "div",
+        "header",
+        "footer",
+        "aside"
+      ],
+      "default": "section"
+    },
+    "contentWidth": {
+      "type": "enum",
+      "values": [
+        "narrow",
+        "default",
+        "wide",
+        "full"
+      ],
+      "default": "default"
+    },
+    "style": {
+      "type": "style",
+      "slots": {
+        "root": {
+          "label": "Section",
+          "groups": [
+            "layout",
+            "spacing",
+            "size",
+            "background",
+            "border",
+            "effects",
+            "typography",
+            "motion"
+          ]
+        }
+      },
+      "default": {}
+    },
+    "anchor": {
+      "type": "string",
+      "maxLength": 64,
+      "default": "",
+      "pattern": "^(?:[a-zA-Z][a-zA-Z0-9_-]{0,63})?$"
+    }
+  },
+  "defaultProps": {
+    "element": "section",
+    "contentWidth": "default",
+    "style": {},
+    "anchor": ""
+  }
+}

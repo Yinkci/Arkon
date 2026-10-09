@@ -91,3 +91,7 @@ Switching back to Arkon core removes custom types from the Add palette on the ne
 Selection stores allowed types; it does not pin the editor to a particular component version. Installing a consecutive presentation version advances that type’s current editor version globally; old publications retain their own immutable versions. Restart long-running MCP/helper processes after installing components or updating their server code.
 
 Theme sources must be trusted local files under themes/. The dashboard cannot upload packages or accept an arbitrary filesystem path. Installed snapshots remain required in backups and deployments, even after deactivation. There is no new CSS, script or database lookup in the public request path: it continues serving stored HTML.
+
+## New core website blocks
+
+Prefer core Logo, Icon, Slider/Slide, Form and Back-to-top blocks for these functions. Theme components remain declarative leaf components; they cannot install arbitrary JavaScript or relax builder rules. The refreshed style-reference.json includes bounded gradients, sticky positioning, hover/focus settings and local Inter. New capabilities become available through the supplied AI catalogue after restarting the helper/MCP server. See the professional website layouts section in README.md for usage and limits.

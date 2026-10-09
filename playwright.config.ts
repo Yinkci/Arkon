@@ -32,10 +32,10 @@ export default defineConfig({
     webServer: [
         {
             // Laravel's router script expects to run from public/ (like `artisan serve`).
-            command: `"${PHP}" -S 127.0.0.1:${PORT} -t . ../vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php`,
+            command: `"${PHP}" -d display_errors=0 -d log_errors=1 -S 127.0.0.1:${PORT} -t . ../vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php`,
             cwd: 'public',
             // A static file: the database is migrated by globalSetup, which runs after the server starts.
-            url: `${SERVER_URL}/robots.txt`,
+            url: `${SERVER_URL}/favicon.ico`,
             reuseExistingServer: false,
             timeout: 120_000,
             env: E2E_ENV,

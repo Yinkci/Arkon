@@ -187,7 +187,7 @@ class TokenService
         });
 
         // After commit: re-render the dependent live pages (what is left stays queued, with status).
-        $counts = $this->refreshes->run($ctx->siteId);
+        $counts = DB::transactionLevel() === 0 ? $this->refreshes->run($ctx->siteId) : ['done' => 0, 'skipped' => 0, 'failed' => 0];
 
         return ['version' => $result['version'], 'replayed' => $result['replayed'], 'refreshes' => ['queued' => $result['queued'], ...$counts]];
     }

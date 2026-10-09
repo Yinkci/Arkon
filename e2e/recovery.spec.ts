@@ -75,7 +75,7 @@ test('a draft saved with backslash links opens in recovery and becomes a normal 
     await expect(status(page)).toHaveText('Needs repair');
     for (const name of ['Save draft', 'Publish', 'Preview', 'Undo']) await expect(page.getByRole('button', { name, exact: true })).toBeDisabled();
     await expect(canvas(page).locator('img')).toHaveAttribute('alt', 'A dot');
-    await expect(canvas(page).locator('a.ak-btn2')).toHaveCount(2);
+    await expect(canvas(page).locator('a:is(.ak-btn2,.ak-btn3)')).toHaveCount(2);
     await canvas(page).locator('h1').click();
     await expect(canvas(page).locator('h1')).not.toHaveAttribute('contenteditable');
     const apply = panel.getByRole('button', { name: 'Apply repair' });
@@ -96,8 +96,8 @@ test('a draft saved with backslash links opens in recovery and becomes a normal 
     await expect(panel).toHaveCount(0);
     await expect(notice(page)).toContainText('Repair applied');
     await expect(status(page)).toHaveText('Unsaved changes');
-    await expect(canvas(page).locator('a.ak-btn2')).toHaveCount(1);
-    await expect(canvas(page).locator('a.ak-btn2')).toHaveAttribute('href', '/contact');
+    await expect(canvas(page).locator('a:is(.ak-btn2,.ak-btn3)')).toHaveCount(1);
+    await expect(canvas(page).locator('a:is(.ak-btn2,.ak-btn3)')).toHaveAttribute('href', '/contact');
     await expect(canvas(page).locator('img')).toHaveAttribute('alt', 'A dot');
     await expect(page.getByRole('button', { name: 'Undo' })).toBeDisabled(); // history starts after the repair
 
@@ -133,8 +133,8 @@ test('a single stored backslash link can be repaired by removing its block', asy
     await expect(panel.getByTestId('recovery-item')).toHaveCount(1);
     await panel.getByLabel('Remove this block').check();
     await panel.getByRole('button', { name: 'Apply repair' }).click();
-    await expect(canvas(page).locator('a.ak-btn2')).toHaveCount(1);
-    await expect(canvas(page).locator('a.ak-btn2')).toHaveAttribute('href', '/partners');
+    await expect(canvas(page).locator('a:is(.ak-btn2,.ak-btn3)')).toHaveCount(1);
+    await expect(canvas(page).locator('a:is(.ak-btn2,.ak-btn3)')).toHaveAttribute('href', '/partners');
     await page.getByRole('button', { name: 'Publish' }).click(); // saves first, then publishes
     await expect(notice(page)).toContainText('Published');
     expect((await publicHtml(page, '/recovery-one')).html).not.toContain('Contact');

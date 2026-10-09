@@ -11,7 +11,9 @@ use App\Arkon\Errors\ForbiddenException;
 use App\Arkon\Errors\NotFoundException;
 use App\Arkon\Errors\StaleVersionException;
 use App\Arkon\Errors\ValidationException;
+use App\Arkon\Forms\FormService;
 use App\Arkon\Media\MediaSigner;
+use App\Arkon\Navigation\MenuService;
 use App\Arkon\Pages\PageService;
 use App\Arkon\Pages\PageStore;
 use App\Arkon\Schema\OperationException;
@@ -133,6 +135,12 @@ final class ProposalService
             return $context;
         }, isolation: 'REPEATABLE READ', readOnly: true);
         $compiled = $this->compiler->compile($context['doc'], Json::toArray($proposal), array_keys($context['assets']), (int) config('arkon.ai.max_changes'), array_keys($context['components']), $context['themeTypes']);
+        if (array_diff(FormService::references($compiled['document']), FormService::references($context['doc']), array_keys($context['forms'] ?? [])) !== []) {
+            throw new AiException(AiException::INVALID_OUTPUT, 'Use only the published forms supplied in the page context.');
+        }
+        if (array_diff(MenuService::references($compiled['document']), MenuService::references($context['doc']), array_keys($context['menus'] ?? [])) !== []) {
+            throw new AiException(AiException::INVALID_OUTPUT, 'Use only the published menus supplied in the page context.');
+        }
 
         $id = $this->transactions->run(function () use ($ctx, $pageId, $prompt, $baseVersion, $key, $fingerprint, $compiled, $connectionId) {
             $this->authorizer->authorize($ctx, 'page.edit');
@@ -173,6 +181,9 @@ final class ProposalService
      */
     public function execute(object $claim, ClaudeRunner $runner, ?callable $alive = null): string
     {
+        if (($claim->scope ?? 'page') === 'website') {
+            return app(WebsiteProposalService::class)->execute($claim, $runner, $alive);
+        }
         $ctx = new SiteContext($claim->site_id, $claim->created_by, 'ai');
         $fail = fn (string $code, string $message) => $this->ledger->failRun($claim->id, $claim->lease_token, $code, $message) ? 'failed' : 'lost';
         try {
@@ -204,6 +215,12 @@ final class ProposalService
             try {
                 $completion = $runner->run(new AiRequest($this->prompts->instructions($context), $prompt, $this->prompts->schema($context)), $keepGoing);
                 $compiled = $this->compiler->compile($context['doc'], $completion->output, array_keys($context['assets']), (int) config('arkon.ai.max_changes'), array_keys($context['components']), $context['themeTypes']);
+                if (array_diff(FormService::references($compiled['document']), FormService::references($context['doc']), array_keys($context['forms'] ?? [])) !== []) {
+                    throw new AiException(AiException::INVALID_OUTPUT, 'Use only the published forms supplied in the page context.');
+                }
+                if (array_diff(MenuService::references($compiled['document']), MenuService::references($context['doc']), array_keys($context['menus'] ?? [])) !== []) {
+                    throw new AiException(AiException::INVALID_OUTPUT, 'Use only the published menus supplied in the page context.');
+                }
             } catch (AiException $error) {
                 if ($error->code() === AiException::CANCELLED) {
                     return 'cancelled';

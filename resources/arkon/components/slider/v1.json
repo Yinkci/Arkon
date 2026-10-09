@@ -1,0 +1,71 @@
+{
+  "type": "slider",
+  "version": 1,
+  "label": "Slider",
+  "children": {
+    "allow": [
+      "slide"
+    ],
+    "min": 1,
+    "max": 6
+  },
+  "props": {
+    "label": {
+      "type": "string",
+      "maxLength": 100,
+      "default": "Featured content"
+    },
+    "autoplay": {
+      "type": "boolean",
+      "default": false
+    },
+    "interval": {
+      "type": "enum",
+      "values": [
+        "5000",
+        "7000",
+        "10000"
+      ],
+      "default": "7000"
+    },
+    "style": {
+      "type": "style",
+      "slots": {
+        "root": {
+          "label": "Slider",
+          "groups": [
+            "layout",
+            "spacing",
+            "size",
+            "typography",
+            "background",
+            "border",
+            "effects",
+            "interaction",
+            "motion"
+          ]
+        }
+      },
+      "default": {}
+    }
+  },
+  "defaultProps": {
+    "label": "Featured content",
+    "autoplay": false,
+    "interval": "7000",
+    "style": {}
+  },
+  "editor": {
+    "fields": {
+      "label": {
+        "label": "Accessible slider label"
+      },
+      "autoplay": {
+        "label": "Autoplay (off by default)"
+      },
+      "interval": {
+        "label": "Autoplay interval (ms)"
+      }
+    }
+  }
+}

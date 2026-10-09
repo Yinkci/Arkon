@@ -1,0 +1,47 @@
+{
+  "type": "navigation",
+  "version": 1,
+  "label": "Navigation",
+  "children": false,
+  "props": {
+    "menuId": {
+      "type": "string",
+      "maxLength": 36,
+      "default": "",
+      "pattern": "^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})?$"
+    },
+    "label": {
+      "type": "string",
+      "maxLength": 100,
+      "default": "Main navigation"
+    },
+    "mobileLabel": {
+      "type": "string",
+      "maxLength": 60,
+      "default": "Menu"
+    },
+    "style": {
+      "type": "style",
+      "slots": {
+        "root": {
+          "label": "Navigation",
+          "groups": [
+            "spacing",
+            "size",
+            "typography",
+            "background",
+            "border",
+            "effects"
+          ]
+        }
+      },
+      "default": {}
+    }
+  },
+  "defaultProps": {
+    "menuId": "",
+    "label": "Main navigation",
+    "mobileLabel": "Menu",
+    "style": {}
+  }
+}

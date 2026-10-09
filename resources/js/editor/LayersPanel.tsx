@@ -1,3 +1,4 @@
+import { patterns, createPattern } from '@/arkon/editor/patterns';
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ReusableComponentInfo } from '@/types';
 import { currentDefinition } from '@/arkon/components/registry';
@@ -255,10 +256,35 @@ export function LayersPanel({ document: doc, selectedId, canEdit, onSelect, onSt
 
     return (
         <div>
+            <details aria-label="Layout patterns" className="border-b border-line p-3">
+                <summary className="cursor-pointer text-xs font-semibold">Starting layouts</summary>
+                <p className="text-xs text-muted my-2">Editable blocks. Choose images, menus and forms after inserting.</p>
+                <div className="space-y-1">
+                    {patterns.map((pattern) => {
+                        const placement = insertionFor(doc, selectedId, pattern.template.type);
+                        return (
+                            <button
+                                type="button"
+                                className="w-full text-left ui-input text-xs"
+                                key={pattern.id}
+                                title={pattern.description}
+                                disabled={!canEdit || !placement}
+                                onClick={() => {
+                                    if (!placement) return;
+                                    const nodes = createPattern(pattern.id, doc);
+                                    onStructure(insertOps(placement, nodes), nodes[0]!.id);
+                                }}
+                            >
+                                {pattern.name}
+                            </button>
+                        );
+                    })}
+                </div>
+            </details>
             <section aria-label="Add component" className="border-b border-line px-4 py-3.5">
                 <h2 className="text-xs font-semibold">Add a block</h2>
                 <p className="mt-0.5 mb-2.5 text-[11px] text-muted">Click to add after the selection, or drag onto the canvas or into the outline.</p>
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid max-h-48 grid-cols-3 gap-1.5 overflow-y-auto pr-1" aria-label="Block palette">
                     {addableTypes().map((type) => {
                         const placement = insertionFor(doc, selectedId, type);
                         const name = currentDefinition(type)?.label ?? type;
@@ -331,7 +357,7 @@ export function LayersPanel({ document: doc, selectedId, canEdit, onSelect, onSt
                 </div>
                 <p className="mt-1.5 text-[11px] text-muted">
                     Shared components and site colours live on the{' '}
-                    <a href="/admin/design" className="font-medium text-accent hover:underline">
+                    <a href="/admin/design/components" className="font-medium text-accent hover:underline">
                         Design
                     </a>{' '}
                     page.

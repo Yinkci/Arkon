@@ -1,0 +1,183 @@
+{
+  "type": "slider",
+  "version": 3,
+  "label": "Slider",
+  "children": {
+    "allow": [
+      "slide"
+    ],
+    "min": 1,
+    "max": 6
+  },
+  "props": {
+    "label": {
+      "type": "string",
+      "maxLength": 100,
+      "default": "Featured content"
+    },
+    "autoplay": {
+      "type": "boolean",
+      "default": false
+    },
+    "interval": {
+      "type": "enum",
+      "values": [
+        "1000",
+        "2000",
+        "3000",
+        "4000",
+        "5000",
+        "6000",
+        "7000",
+        "8000",
+        "9000",
+        "10000",
+        "11000",
+        "12000",
+        "13000",
+        "14000",
+        "15000",
+        "16000",
+        "17000",
+        "18000",
+        "19000",
+        "20000",
+        "21000",
+        "22000",
+        "23000",
+        "24000",
+        "25000",
+        "26000",
+        "27000",
+        "28000",
+        "29000",
+        "30000",
+        "31000",
+        "32000",
+        "33000",
+        "34000",
+        "35000",
+        "36000",
+        "37000",
+        "38000",
+        "39000",
+        "40000",
+        "41000",
+        "42000",
+        "43000",
+        "44000",
+        "45000",
+        "46000",
+        "47000",
+        "48000",
+        "49000",
+        "50000",
+        "51000",
+        "52000",
+        "53000",
+        "54000",
+        "55000",
+        "56000",
+        "57000",
+        "58000",
+        "59000",
+        "60000"
+      ],
+      "default": "7000"
+    },
+    "style": {
+      "type": "style",
+      "slots": {
+        "root": {
+          "label": "Slider",
+          "groups": [
+            "layout",
+            "spacing",
+            "size",
+            "typography",
+            "background",
+            "border",
+            "effects",
+            "interaction",
+            "motion"
+          ]
+        }
+      },
+      "default": {}
+    },
+    "pagination": {
+      "type": "enum",
+      "values": [
+        "numbers",
+        "dots",
+        "bars",
+        "none"
+      ],
+      "default": "dots"
+    },
+    "controlsAlign": {
+      "type": "enum",
+      "values": [
+        "start",
+        "center",
+        "end"
+      ],
+      "default": "start"
+    },
+    "controlsTone": {
+      "type": "enum",
+      "values": [
+        "light",
+        "dark"
+      ],
+      "default": "light"
+    },
+    "arrows": {
+      "type": "boolean",
+      "default": true
+    },
+    "pauseOnHover": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "defaultProps": {
+    "label": "Featured content",
+    "autoplay": false,
+    "interval": "7000",
+    "style": {},
+    "pagination": "dots",
+    "controlsAlign": "start",
+    "controlsTone": "light",
+    "arrows": true,
+    "pauseOnHover": false
+  },
+  "editor": {
+    "fields": {
+      "label": {
+        "label": "Accessible slider label"
+      },
+      "autoplay": {
+        "label": "Automatically advance slides"
+      },
+      "interval": {
+        "label": "Time between slides"
+      },
+      "pagination": {
+        "label": "Pagination style"
+      },
+      "controlsAlign": {
+        "label": "Controls alignment"
+      },
+      "controlsTone": {
+        "label": "Controls color"
+      },
+      "arrows": {
+        "label": "Show previous / next arrows"
+      },
+      "pauseOnHover": {
+        "label": "Pause autoplay when hovered"
+      }
+    }
+  }
+}

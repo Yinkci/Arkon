@@ -88,12 +88,12 @@ async function pick(page: Page, selector: string) {
 
 test('a button is deleted from the canvas without opening Layers: one undo step, redo, save and reload', async ({ page }) => {
     const { id, writes } = await openPage(page, [hero('Top', [button('Book now'), button('Call us')]), section([text('Below')])]);
-    await pick(page, '.ak-btn2 >> text=Book now');
+    await pick(page, ':is(.ak-btn2,.ak-btn3) >> text=Book now');
     const remove = page.getByTestId('canvas-delete');
     await expect(remove).toHaveAccessibleName('Delete button');
     await expect(remove).toHaveAttribute('title', 'Delete button (Delete key)');
     await remove.click();
-    await expect(canvas(page).locator('.ak-btn2')).toHaveText(['Call us']);
+    await expect(canvas(page).locator(':is(.ak-btn2,.ak-btn3)')).toHaveText(['Call us']);
     await expect(notice(page)).toContainText('Deleted button. Nothing is saved or published');
     // The next button is selected; Layers was never needed.
     await expect(page.getByTestId('inspector-target')).toHaveText('Button');
@@ -102,17 +102,17 @@ test('a button is deleted from the canvas without opening Layers: one undo step,
 
     // The notice's Undo is the same single step as Ctrl+Z; redo deletes it again.
     await page.getByTestId('notice-action').click();
-    await expect(canvas(page).locator('.ak-btn2')).toHaveText(['Book now', 'Call us']);
+    await expect(canvas(page).locator(':is(.ak-btn2,.ak-btn3)')).toHaveText(['Book now', 'Call us']);
     await redo(page).click();
-    await expect(canvas(page).locator('.ak-btn2')).toHaveText(['Call us']);
+    await expect(canvas(page).locator(':is(.ak-btn2,.ak-btn3)')).toHaveText(['Call us']);
     await undo(page).click();
-    await expect(canvas(page).locator('.ak-btn2')).toHaveText(['Book now', 'Call us']);
+    await expect(canvas(page).locator(':is(.ak-btn2,.ak-btn3)')).toHaveText(['Book now', 'Call us']);
     await redo(page).click();
     expect(writes).toEqual([]);
     await saveDraft(page);
     expect(ofType(await draft(id), 'button').map((b) => b.props.label)).toEqual(['Call us']);
     await page.reload();
-    await expect(canvas(page).locator('.ak-btn2')).toHaveText(['Call us']);
+    await expect(canvas(page).locator(':is(.ak-btn2,.ak-btn3)')).toHaveText(['Call us']);
 });
 
 test('a container with content asks first; cancel changes nothing; Delete removes it and its contents in one step', async ({ page }) => {
@@ -328,21 +328,21 @@ test('the component editor deletes from the canvas the same way', async ({ page 
  * immediate canvas assertion could pass on old HTML) and in the saved draft.
  */
 async function undoDeleteNeverUndoesAnotherEdit(page: Page, label: () => ReturnType<Page['getByLabel']>, saved: () => Promise<string[]>) {
-    await pick(page, '.ak-btn2 >> text=Book now');
+    await pick(page, ':is(.ak-btn2,.ak-btn3) >> text=Book now');
     await page.getByTestId('canvas-delete').click();
     await expect(page.getByTestId('notice-action')).toHaveText('Undo delete');
     await undo(page).click();
-    await expect(canvas(page).locator('.ak-btn2')).toHaveText(['Book now', 'Call us']);
+    await expect(canvas(page).locator(':is(.ak-btn2,.ak-btn3)')).toHaveText(['Book now', 'Call us']);
     // The deletion was undone: the notice can't offer to undo it any more.
     await expect(page.getByTestId('notice-action')).toHaveCount(0);
-    await pick(page, '.ak-btn2 >> text=Call us');
+    await pick(page, ':is(.ak-btn2,.ak-btn3) >> text=Call us');
     await label().fill('New call label');
-    await expect(canvas(page).locator('.ak-btn2')).toHaveText(['Book now', 'New call label']);
+    await expect(canvas(page).locator(':is(.ak-btn2,.ak-btn3)')).toHaveText(['Book now', 'New call label']);
     const action = page.getByTestId('notice-action');
     if ((await action.count()) > 0 && (await action.isEnabled())) await action.click();
     await expect(action).toHaveCount(0);
     await expect(label()).toHaveValue('New call label');
-    await expect(canvas(page).locator('.ak-btn2')).toHaveText(['Book now', 'New call label']);
+    await expect(canvas(page).locator(':is(.ak-btn2,.ak-btn3)')).toHaveText(['Book now', 'New call label']);
     await page.keyboard.press('ControlOrMeta+s');
     await expect.poll(saved).toEqual(['Book now', 'New call label']);
 }
@@ -371,7 +371,7 @@ test('Undo delete is bound to its deletion: never undoes a later edit (component
     ]);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`/admin/components/${id}`);
-    await expect(canvas(page).locator('.ak-btn2')).toHaveCount(2);
+    await expect(canvas(page).locator(':is(.ak-btn2,.ak-btn3)')).toHaveCount(2);
     await undoDeleteNeverUndoesAnotherEdit(
         page,
         () => page.getByLabel('Label', { exact: true }),

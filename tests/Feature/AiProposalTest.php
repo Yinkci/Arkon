@@ -182,7 +182,7 @@ class AiProposalTest extends DatabaseTestCase
             'Add Text “We are a local team that looks after gar…”',
             'Add Button “Contact us”',
         ], $proposal['changes']);
-        $this->assertSame(['Button needs a link'], $proposal['warnings']);
+        $this->assertSame(['Button uses a placeholder destination (#)'], $proposal['warnings']);
         $this->assertSame(['Set where the Contact us button links to before publishing.'], $proposal['notes']);
         $this->assertMatchesRegularExpression('#<h2 class="ak-text2 ak-flow"[^>]*data-ak-type="text">Our services</h2>#', $proposal['canvas']['body']);
 
@@ -220,18 +220,14 @@ class AiProposalTest extends DatabaseTestCase
         $this->assertEquals(Json::toArray($base), Json::toArray($this->draft()));
 
         $this->pages()->saveDraft($this->f['ctx'], ['pageId' => $this->f['pageId'], 'baseVersion' => 3, 'saveKey' => self::key(), 'operations' => Json::decode(Json::encode($view['proposal']['operations']))]);
-        try {
-            $this->pages()->publish($this->f['ctx'], ['pageId' => $this->f['pageId'], 'expectedVersion' => 4, 'idempotencyKey' => self::key()]);
-            $this->fail('An unset button link blocks publishing');
-        } catch (ValidationException $error) {
-            $this->assertContains('Button needs a link', array_column($error->issues, 'message'));
-        }
+        $this->pages()->publish($this->f['ctx'], ['pageId' => $this->f['pageId'], 'expectedVersion' => 4, 'idempotencyKey' => self::key()]);
+        $this->assertStringContainsString('href="#"', $this->pages()->livePage($this->f['siteId'], '/')->html);
         $button = collect($this->draft()['nodes'])->firstWhere('type', 'button');
         $this->pages()->saveDraft($this->f['ctx'], ['pageId' => $this->f['pageId'], 'baseVersion' => 4, 'saveKey' => self::key(), 'operations' => [['op' => 'updateProps', 'nodeId' => $button['id'], 'set' => ['href' => '/contact']]]]);
         $this->pages()->publish($this->f['ctx'], ['pageId' => $this->f['pageId'], 'expectedVersion' => 5, 'idempotencyKey' => self::key()]);
         $html = $this->pages()->livePage($this->f['siteId'], '/')->html;
         $this->assertStringContainsString('<h1 class="ak-hero3__heading">Gardens that grow with you</h1>', $html);
-        $this->assertStringContainsString('<a class="ak-btn2 ak-btn2--primary" href="/contact">Contact us</a>', $html);
+        $this->assertStringContainsString('<a class="ak-btn3 ak-btn3--responsive ak-btn3--primary" href="/contact">Contact us</a>', $html);
         foreach (['data-ak-', '<script', 'contenteditable'] as $forbidden) {
             $this->assertStringNotContainsString($forbidden, $html);
         }
@@ -280,7 +276,7 @@ class AiProposalTest extends DatabaseTestCase
         return [
             'not an object' => ['Here is your page: <section>…</section>', 'not a proposal'],
             'not a proposal' => [['changes' => []], 'not a proposal'],
-            'unknown component' => [$add(['type' => 'form', 'props' => []]), 'there is no "form" block'],
+            'unknown component' => [$add(['type' => 'carousel', 'props' => []]), 'there is no "carousel" block'],
             'invented block id' => [['summary' => 'x', 'notes' => [], 'changes' => [['action' => 'remove', 'id' => 'doesNotExist']]], 'there is no block "doesNotExist"'],
             'column at the page level' => [$add(['type' => 'column', 'props' => [], 'children' => []]), 'column is not allowed inside page'],
             'hero inside a column' => [$add(['type' => 'columns', 'props' => ['style' => []], 'children' => [['type' => 'column', 'props' => [], 'children' => [['type' => 'hero', 'props' => ['heading' => 'x', 'headingLevel' => 'h2', 'text' => '', 'image' => null, 'style' => []]]]]]]), 'hero is not allowed inside column'],
@@ -308,7 +304,7 @@ class AiProposalTest extends DatabaseTestCase
 
     public function test_an_answer_with_no_changes_explains_and_cannot_be_applied(): void
     {
-        $view = $this->propose(['summary' => 'Arkon has no contact form block.', 'notes' => ['Add a button that links to your email instead.'], 'changes' => []], 'Add a contact form');
+        $view = $this->propose(['summary' => 'Arkon has no carousel block.', 'notes' => ['Add a button that links to your email instead.'], 'changes' => []], 'Add a carousel');
         $this->assertSame(['empty', [], null], [$view['status'], $view['proposal']['operations'], $view['proposal']['canvas']]);
         $this->assertSame(['Add a button that links to your email instead.'], $view['proposal']['notes']);
         $this->assertAiError(AiException::STALE_PROPOSAL, fn () => $this->apply($view, [['op' => 'removeNode', 'nodeId' => $this->f['heroId']]]));

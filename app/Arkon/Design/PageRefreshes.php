@@ -179,7 +179,7 @@ class PageRefreshes
             'failed' => $rows->where('status', 'failed')->count(),
             'items' => $rows->map(fn ($r) => [
                 'id' => $r->id, 'page' => $r->title, 'path' => $r->path,
-                'cause' => $r->cause_kind === 'tokens' ? "Design tokens v{$r->cause_version}" : "“{$r->component}” v{$r->cause_version}",
+                'cause' => $r->cause_kind === 'menu' ? 'Navigation update' : ($r->cause_kind === 'tokens' ? "Design tokens v{$r->cause_version}" : "“{$r->component}” v{$r->cause_version}"),
                 'status' => $r->status, 'attempts' => (int) $r->attempts, 'error' => $r->last_error, 'updatedAt' => Time::iso($r->updated_at),
             ])->values()->all(),
         ];

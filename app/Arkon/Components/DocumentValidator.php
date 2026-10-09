@@ -112,6 +112,36 @@ final class DocumentValidator
             }
         }
 
+        if (! $pinned) {
+            $visited = [];
+            $walk = function (string $id, bool $inside = false) use (&$walk, &$issues, &$visited, $nodes) {
+                if (isset($visited[$id])) {
+                    return;
+                } $visited[$id] = true;
+                $node = $nodes[$id] ?? null;
+                if (! $node) {
+                    return;
+                }
+                if ($inside && in_array($node['type'], ['slider', 'instance'], true)) {
+                    $issues[] = ['nodeId' => $id, 'message' => 'Slides cannot contain nested sliders or reusable component instances.'];
+                }
+                foreach ($node['children'] ?? [] as $child) {
+                    $walk($child, $inside || $node['type'] === 'slider');
+                }
+            };
+            $walk($doc['root']);
+        }
+        $anchors = [];
+        foreach ($nodes as $node) {
+            $anchor = $node['type'] === 'section' ? (Json::entries($node['props'])['anchor'] ?? '') : '';
+            if ($anchor !== '' && is_string($anchor)) {
+                if (isset($anchors[$anchor])) {
+                    $issues[] = ['nodeId' => $node['id'], 'path' => 'anchor', 'message' => 'Section anchors must be unique on this page.'];
+                }
+                $anchors[$anchor] = true;
+            }
+        }
+
         return $issues;
     }
 

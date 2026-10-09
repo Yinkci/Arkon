@@ -1,0 +1,48 @@
+{
+  "type": "column",
+  "version": 6,
+  "label": "Column",
+  "children": {
+    "allow": [
+      "text",
+      "image",
+      "button",
+      "group",
+      "columns",
+      "instance",
+      "form",
+      "navigation",
+      "logo",
+      "icon",
+      "slider",
+      "back-to-top"
+    ],
+    "max": 30
+  },
+  "props": {
+    "style": {
+      "type": "style",
+      "slots": {
+        "root": {
+          "label": "Column",
+          "groups": [
+            "layout",
+            "spacing",
+            "size",
+            "placement",
+            "background",
+            "border",
+            "effects",
+            "motion",
+            "interaction",
+            "typography"
+          ]
+        }
+      },
+      "default": {}
+    }
+  },
+  "defaultProps": {
+    "style": {}
+  }
+}

@@ -4,8 +4,12 @@
  * rectangles so the parent can draw selection chrome *outside* the page DOM, and
  * runs inline text editing. It talks to the parent only through postMessage.
  */
+import sliderResponsive from '../../arkon/slider-responsive.js?raw';
+
 export const BRIDGE_SCRIPT = String.raw`(() => {
   "use strict";
+  ${sliderResponsive}
+  for(const q of ['(max-width:899px)','(max-width:599px)']) matchMedia(q).addEventListener('change',()=>{document.querySelectorAll('[data-slider-responsive]').forEach(applySliderScreen);stopEditorPlayback();});
   const send = (msg) => parent.postMessage(Object.assign({ source: "arkon-canvas" }, msg), "*");
   let selectedId = null;
   let selectedPart = null;
@@ -41,8 +45,8 @@ export const BRIDGE_SCRIPT = String.raw`(() => {
   const reportRects = () =>
     measuring === null && send({
       type: "rects",
-      selected: selectedId ? { id: selectedId, label: labelOf(selectedId), rect: rectOf(nodeEl(selectedId)), part: selectedPart, partRect: rectOf(partEl(selectedId, selectedPart)) } : null,
-      hover: hoverId && hoverId !== selectedId ? { id: hoverId, label: labelOf(hoverId), rect: rectOf(nodeEl(hoverId)) } : null,
+      selected: selectedId && !editorPlayer ? { id: selectedId, label: labelOf(selectedId), rect: rectOf(nodeEl(selectedId)), part: selectedPart, partRect: rectOf(partEl(selectedId, selectedPart)) } : null,
+      hover: hoverId && !editorPlayer && hoverId !== selectedId ? { id: hoverId, label: labelOf(hoverId), rect: rectOf(nodeEl(hoverId)) } : null,
       empty: emptyColumns(),
     });
 
@@ -84,6 +88,68 @@ export const BRIDGE_SCRIPT = String.raw`(() => {
     return el && el.getAttribute("data-ak-type") !== "page" ? el : null;
   };
 
+  // The canvas never auto-advances while someone is editing. Active slide IDs survive redraws.
+  const activeSlides = new Map();
+  let editorTransitions = [];
+  function stopSlideMotion() { editorTransitions.forEach(a => a.cancel()); editorTransitions = []; document.querySelectorAll('[data-exiting]').forEach(el => { el.dataset.active = 'false'; el.removeAttribute('data-exiting'); }); }
+  let editorPlayer = null;
+  let editorPlayTimer = null;
+  const editorReducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  function stopEditorPlayback() {
+    stopSlideMotion();
+    clearTimeout(editorPlayTimer); editorPlayTimer = null;
+    if (editorPlayer) { const button = editorPlayer.querySelector('[data-editor-play]'); if(button){ button.textContent = 'Play slideshow'; button.setAttribute('aria-pressed','false'); } }
+    if (editorPlayer) { const pause = editorPlayer.querySelector('[data-slide-pause]'); if (pause) {pause.textContent = 'Resume autoplay'; pause.setAttribute('aria-pressed','true');} }
+    editorPlayer = null;
+  }
+  function tickEditorPlayback() {
+    if (!editorPlayer || document.hidden || editorReducedMotion.matches || readOnly) { stopEditorPlayback(); return; }
+    editorPlayTimer = setTimeout(() => {
+      if (!editorPlayer || !editorPlayer.isConnected) { stopEditorPlayback(); return; }
+      const slides = [...editorPlayer.querySelector('.ak-slider__slides').children];
+      const current = slides.findIndex(slide => slide.dataset.active === 'true');
+      showEditorSlide(editorPlayer, slides[(current + 1) % slides.length], true);
+      reportRects(); tickEditorPlayback();
+    }, Number(editorPlayer.dataset.interval) || 7000);
+  }
+  document.addEventListener('visibilitychange', () => { if(document.hidden) stopEditorPlayback(); });
+  editorReducedMotion.addEventListener('change', () => { if(editorReducedMotion.matches) stopEditorPlayback(); });
+  document.addEventListener('pointerdown', event => { if(!event.target.closest('[data-editor-play], [data-slide-pause]')) stopEditorPlayback(); },true);
+
+  function showEditorSlide(root, slide, animate = false) {
+    stopSlideMotion();
+    const slides = [...root.querySelector('.ak-slider__slides').children];
+    if (!slides.includes(slide)) slide = slides[0];
+    if (!slide) return;
+    const outgoing = slides.find(el => el.dataset.active === 'true');
+    activeSlides.set(root.getAttribute('data-ak-id'), slide.getAttribute('data-ak-id'));
+    slides.forEach(el => { const active = el === slide; el.dataset.active = String(active); el.inert = !active; el.setAttribute('aria-hidden', String(!active)); });
+    if (animate && outgoing && outgoing !== slide && root.dataset.transition && root.dataset.transition !== 'none' && !editorReducedMotion.matches) {
+      outgoing.dataset.exiting = 'true'; outgoing.dataset.active = 'true';
+      const fade = root.dataset.transition === 'fade';
+      const options = {duration:Number(root.dataset.transitionDuration)||500,easing:'cubic-bezier(.22,.61,.36,1)'};
+      const leaving = outgoing.animate(fade ? [{opacity:1},{opacity:0}] : [{transform:'translateX(0)'},{transform:'translateX(-100%)'}],options);
+      const entering = slide.animate(fade ? [{opacity:0},{opacity:1}] : [{transform:'translateX(100%)'},{transform:'translateX(0)'}],options);
+      editorTransitions = [leaving,entering];
+      leaving.onfinish = () => {outgoing.dataset.active = 'false';outgoing.removeAttribute('data-exiting');};
+    }
+    root.querySelectorAll('[data-slide-index]').forEach((dot,i) => { if(slides[i] === slide) dot.setAttribute('aria-current','true'); else dot.removeAttribute('aria-current'); });
+  }
+  function revealSelectedSlide() {
+    const slide = nodeEl(selectedId)?.closest('.ak-slide');
+    const root = slide?.closest('[data-editor-slider]');
+    if (root) showEditorSlide(root, slide);
+  }
+  function initEditorSliders() {
+    document.querySelectorAll('[data-editor-slider]').forEach(root => {
+      if(root.dataset.sliderResponsive) applySliderScreen(root);
+      const id = activeSlides.get(root.getAttribute('data-ak-id'));
+      const button = root.querySelector('[data-editor-play]'); if (button) { button.disabled = readOnly || editorReducedMotion.matches; button.title = editorReducedMotion.matches ? 'Playback paused by reduced-motion preference' : 'Test slideshow without changing the draft'; }
+      showEditorSlide(root, [...root.querySelector('.ak-slider__slides').children].find(el => el.getAttribute('data-ak-id') === id));
+    });
+    revealSelectedSlide();
+  }
+
   function stopEditing() {
     if (!editing) return;
     editing.removeAttribute("contenteditable");
@@ -99,7 +165,25 @@ export const BRIDGE_SCRIPT = String.raw`(() => {
   }
 
   document.addEventListener("click", (event) => {
+    if (!event.target.closest('[data-editor-play], [data-slide-pause]')) stopEditorPlayback();
     event.preventDefault(); // links and buttons inside the canvas never navigate
+    const control = event.target instanceof Element ? event.target.closest('[data-editor-slider] .ak-slider__controls button, [data-editor-slider] .ak-slider__pagination button') : null;
+    if (control) {
+      stopEditing();
+      const root = control.closest('[data-editor-slider]');
+      if (control.hasAttribute('data-editor-play') || control.hasAttribute('data-slide-pause')) {
+        const playing = editorPlayer === root; stopEditorPlayback();
+        if (!playing && !readOnly && !editorReducedMotion.matches) { editorPlayer = root; control.textContent = control.hasAttribute('data-slide-pause') ? 'Pause autoplay' : 'Pause slideshow'; control.setAttribute('aria-pressed',control.hasAttribute('data-slide-pause') ? 'false' : 'true'); tickEditorPlayback(); reportRects(); }
+        return;
+      }
+      stopEditorPlayback();
+      const slides = [...root.querySelector('.ak-slider__slides').children];
+      const current = slides.findIndex(slide => slide.dataset.active === 'true');
+      const index = control.hasAttribute('data-slide-index') ? Number(control.dataset.slideIndex) : (current + Number(control.dataset.slideStep) + slides.length) % slides.length;
+      const slide = slides[index];
+      if (slide) { showEditorSlide(root, slide); selectedId = slide.getAttribute('data-ak-id'); selectedPart = null; send({type:'select',nodeId:selectedId,part:null}); reportRects(); if(measuring !== null) measure(); }
+      return;
+    }
     const node = closestNode(event.target);
     const field = event.target instanceof Element ? event.target.closest("[data-ak-prop]") : null;
     // The part clicked (an image, a heading, the content area), if it belongs to the selected component.
@@ -131,6 +215,7 @@ export const BRIDGE_SCRIPT = String.raw`(() => {
   });
 
   document.addEventListener("keydown", (event) => {
+    stopEditorPlayback();
     stopReplay();
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
@@ -167,11 +252,13 @@ export const BRIDGE_SCRIPT = String.raw`(() => {
     if (msg.type === "ping") {
       send({ type: "ready" });
     } else if (msg.type === "render") {
+      stopEditorPlayback();
       stopReplay();
       stopEditing();
       renderToken = msg.token ?? null;
       document.getElementById("ak-page-css").textContent = msg.css;
       document.body.innerHTML = msg.body;
+      initEditorSliders();
       observer.disconnect();
       observed = new WeakSet();
       markMultiline(msg.multiline);
@@ -179,13 +266,20 @@ export const BRIDGE_SCRIPT = String.raw`(() => {
       if (measuring !== null) measure();
     } else if (msg.type === "mode") {
       readOnly = msg.readOnly === true;
+      if (readOnly) stopEditorPlayback();
       if (readOnly) stopEditing();
+    } else if (msg.type === 'slider-play' || msg.type === 'slider-pause') {
+      const root = nodeEl(msg.nodeId);
+      stopEditorPlayback(); stopReplay(); stopEditing();
+      if (msg.type === 'slider-play' && root?.matches('[data-editor-slider]') && !readOnly && !editorReducedMotion.matches && root.querySelector('.ak-slider__slides').children.length > 1) { editorPlayer = root; const pause = root.querySelector('[data-slide-pause]'); if(pause){pause.textContent = 'Pause autoplay';pause.setAttribute('aria-pressed','false');} tickEditorPlayback(); }
+      reportRects();
     } else if (msg.type === "replay") {
       if (!readOnly) replay(msg.nodeId);
     } else if (msg.type === "stop-replay") {
       stopReplay();
     } else if (msg.type === "measure") {
       stopReplay();
+      stopEditorPlayback();
       // A drag started (driven by the parent): report every block's geometry now, and again
       // whenever layout changes, until "unmeasure". The parent resolves drops from it locally.
       measuring = msg.session;
@@ -197,10 +291,12 @@ export const BRIDGE_SCRIPT = String.raw`(() => {
       scrollSeq = msg.seq;
       scrolled();
     } else if (msg.type === "select") {
+      stopEditorPlayback();
       const moved = msg.nodeId !== selectedId;
       if (moved) stopReplay();
       selectedId = msg.nodeId;
       selectedPart = msg.part ?? null;
+      revealSelectedSlide();
       if (moved) nodeEl(selectedId)?.scrollIntoView({ block: "nearest" });
       else partEl(selectedId, selectedPart)?.scrollIntoView({ block: "nearest" });
       reportRects();
@@ -255,6 +351,7 @@ export const BRIDGE_SCRIPT = String.raw`(() => {
     const nodes = [];
     for (const el of document.querySelectorAll("[data-ak-id]")) {
       if (!observed.has(el)) { observed.add(el); observer.observe(el); }
+      if (el.closest('.ak-slide[aria-hidden="true"]')) continue;
       const r = el.getBoundingClientRect();
       nodes.push({
         id: el.getAttribute("data-ak-id"),

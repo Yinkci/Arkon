@@ -53,3 +53,8 @@ Reference: `C:\Herd\Arkon` (Next.js), commit `35c3dd5` plus the uncommitted page
 8. Herd verification, README + architecture notes.
 
 Deferred (as requested): collections, AI, dependency workers, design-token editing, editable site settings.
+
+
+## Website workflow milestone
+
+Additive migrations 2026_10_14_000001 and 000002 add native forms, encrypted enquiries, reviewed website applications/settings and expiring MCP contexts. New versioned container manifests allow form blocks, and arkon-php-3 records canonical origins. Migrate through arkon:migrate after a verified private backup; previous migrations/manifests remain untouched. Current verification and limits: [WEBSITE_WORKFLOW.md](WEBSITE_WORKFLOW.md).

@@ -1,0 +1,51 @@
+{
+  "type": "back-to-top",
+  "version": 1,
+  "label": "Back to top",
+  "children": false,
+  "props": {
+    "label": {
+      "type": "string",
+      "maxLength": 100,
+      "default": "Back to top"
+    },
+    "style": {
+      "type": "style",
+      "slots": {
+        "root": {
+          "label": "Back to top",
+          "groups": [
+            "layout",
+            "spacing",
+            "size",
+            "typography",
+            "background",
+            "border",
+            "effects",
+            "interaction",
+            "motion"
+          ]
+        }
+      },
+      "default": {}
+    }
+  },
+  "defaultProps": {
+    "label": "Back to top",
+    "style": {}
+  },
+  "publishChecks": [
+    {
+      "rule": "notBlank",
+      "prop": "label",
+      "message": "Give the control an accessible label"
+    }
+  ],
+  "editor": {
+    "fields": {
+      "label": {
+        "label": "Accessible label"
+      }
+    }
+  }
+}

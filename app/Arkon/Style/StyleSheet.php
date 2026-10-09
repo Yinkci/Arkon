@@ -20,11 +20,13 @@ final class StyleSheet
     /** @var array<string, array{base: string, tablet: string, mobile: string}> class → declarations */
     private array $rules = [];
 
+    private array $hover = [];
+
     /**
      * @param  Closure(string): ?string  $imageUrl  media asset id → URL for background images (null: not available)
      * @param  bool  $flexBasis  direction settings also write --ak-basis (false only to reproduce output made before it existed)
      */
-    public function __construct(private readonly Closure $imageUrl, private readonly bool $flexBasis = true) {}
+    public function __construct(private readonly Closure $imageUrl, private readonly bool $flexBasis = true, private readonly bool $responsiveBackgrounds = false) {}
 
     /**
      * The class for one slot's style, or null when it sets nothing.
@@ -38,14 +40,37 @@ final class StyleSheet
             return null;
         }
         $declarations = [];
+        $backgroundKeys = ['backgroundGradient', 'backgroundImage', 'backgroundOverlay'];
+        $hasGradient = array_filter($slotStyle, fn ($values) => array_key_exists('backgroundGradient', $values)) !== [];
+        $resolvedBackground = [];
         foreach (StyleSchema::BREAKPOINTS as $breakpoint) {
-            $declarations[$breakpoint] = $this->declarations($slotStyle[$breakpoint] ?? [], $sizedFlexItem);
+            $values = $slotStyle[$breakpoint] ?? [];
+            if ($hasGradient || $this->responsiveBackgrounds) {
+                $currentBackground = array_intersect_key($values, array_flip($backgroundKeys));
+                $resolvedBackground = [...$resolvedBackground, ...$currentBackground];
+                if ($currentBackground !== [] || ($this->responsiveBackgrounds && isset($resolvedBackground['backgroundImage']))) {
+                    $values = [...$values, ...$resolvedBackground];
+                }
+            }
+            $declarations[$breakpoint] = $this->declarations($values, $sizedFlexItem, $breakpoint);
         }
-        if (implode('', $declarations) === '') {
+        if (implode('', $declarations) === '' && ! array_filter($slotStyle, fn ($bp) => array_filter(array_keys($bp), fn ($key) => str_starts_with($key, 'hover')))) {
             return null;
         }
-        $class = 'ak-s'.substr(hash('sha256', implode('|', $declarations)), 0, 10);
+        $hoverIdentity = array_filter($slotStyle, fn ($bp) => array_filter(array_keys($bp), fn ($key) => str_starts_with($key, 'hover')));
+        $class = 'ak-s'.substr(hash('sha256', implode('|', $declarations).($hoverIdentity === [] ? '' : json_encode($hoverIdentity))), 0, 10);
         $this->rules[$class] = $declarations;
+        foreach (StyleSchema::BREAKPOINTS as $bp) {
+            $hover = [];
+            foreach ($slotStyle[$bp] ?? [] as $key => $value) {
+                if (str_starts_with($key, 'hover') && isset(StyleSchema::properties()[$key]) && ($css = self::value(StyleSchema::properties()[$key], $value)) !== null) {
+                    $hover[] = StyleSchema::properties()[$key]['css'].':'.$css;
+                }
+            }
+            if ($hover !== []) {
+                $this->hover[$class][$bp] = implode(';', $hover);
+            }
+        }
 
         return $class;
     }
@@ -93,6 +118,11 @@ final class StyleSheet
                     $block .= ".{$class}{{$declarations[$breakpoint]}}";
                 }
             }
+            foreach ($this->hover as $class => $bps) {
+                if (! empty($bps[$breakpoint])) {
+                    $block .= '@media (hover:hover){.'.$class.':hover{'.$bps[$breakpoint].'}}.'.$class.':focus-visible{'.$bps[$breakpoint].'}';
+                }
+            }
             if ($block === '') {
                 continue;
             }
@@ -103,12 +133,12 @@ final class StyleSheet
     }
 
     /** Declarations for one breakpoint, in registry order. */
-    private function declarations(array $values, bool $sizedFlexItem = false): string
+    private function declarations(array $values, bool $sizedFlexItem = false, string $breakpoint = 'base'): string
     {
         $out = [];
         foreach (StyleSchema::properties() as $property => $definition) {
             // Animation settings have their own class (motionClassFor).
-            if (! array_key_exists($property, $values) || in_array($property, ['backgroundImage', 'backgroundOverlay'], true) || $definition['group'] === 'motion') {
+            if (! array_key_exists($property, $values) || in_array($property, ['backgroundImage', 'backgroundOverlay', 'backgroundGradient'], true) || str_starts_with($property, 'hover') || $definition['group'] === 'motion') {
                 continue;
             }
             $css = self::value($definition, $values[$property]);
@@ -126,11 +156,17 @@ final class StyleSheet
         }
         // Overlay and image share one background-image: the overlay is a flat gradient layered on top.
         $layers = [];
+        if (isset($values['backgroundGradient']) && $values['backgroundGradient'] !== 'none' && ($gradient = self::value(StyleSchema::properties()['backgroundGradient'], $values['backgroundGradient'])) !== null) {
+            $layers[] = $gradient;
+        }
         if (isset($values['backgroundOverlay']) && ($overlay = self::value(StyleSchema::properties()['backgroundOverlay'], $values['backgroundOverlay'])) !== null) {
             $layers[] = "linear-gradient({$overlay},{$overlay})";
         }
-        if (is_array($values['backgroundImage'] ?? null) && ($url = self::url(($this->imageUrl)($values['backgroundImage']['assetId']))) !== null) {
+        if (is_array($values['backgroundImage'] ?? null) && ($url = self::url(($this->imageUrl)($values['backgroundImage']['assetId'], $breakpoint))) !== null) {
             $layers[] = $url;
+        }
+        if ($layers === [] && ($values['backgroundGradient'] ?? null) === 'none') {
+            $out[] = 'background-image:none';
         }
         if ($layers !== []) {
             $out[] = 'background-image:'.implode(',', $layers);
@@ -161,6 +197,7 @@ final class StyleSheet
         return match ($definition['kind']) {
             'enum' => (string) $definition['values'][$value],
             'color' => strtolower($value),
+            'gradient' => 'linear-gradient('.implode(',', explode(' ', strtolower($value))).')',
             'ratio' => str_replace('/', ' / ', $value),
             'columns' => preg_match('/^[1-6]$/D', $value) === 1
                 ? "repeat({$value},minmax(0,1fr))"

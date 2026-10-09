@@ -241,7 +241,7 @@ class StyleRenderingTest extends DatabaseTestCase
         $root = $this->draft()['root'];
         $this->save([
             ['op' => 'updateProps', 'nodeId' => $this->f['heroId'], 'set' => ['image' => ['assetId' => $asset['id'], 'alt' => 'A garden']]],
-            ['op' => 'insertNode', 'parentId' => $root, 'index' => 1, 'nodes' => [['id' => 'imag0001', 'type' => 'image', 'version' => 4, 'props' => ['image' => ['assetId' => $asset['id'], 'alt' => 'Below the fold'], 'style' => ['media' => ['base' => ['height' => '500px', 'objectFit' => 'cover', 'objectPosition' => 'top']]]]]]],
+            ['op' => 'insertNode', 'parentId' => $root, 'index' => 1, 'nodes' => [['id' => 'imag0001', 'type' => 'image', 'version' => 6, 'props' => ['image' => ['assetId' => $asset['id'], 'alt' => 'Below the fold'], 'style' => ['media' => ['base' => ['height' => '500px', 'objectFit' => 'cover', 'objectPosition' => 'top']]]]]]],
         ]);
         $variantKey = MediaVariants::key($asset['id'], 640);
         $this->assertNull(app(MediaService::class)->resolveAccess($variantKey, self::HOST, null, null, new MediaSigner), 'variants are private while the original is');
@@ -257,7 +257,7 @@ class StyleRenderingTest extends DatabaseTestCase
         // The hero image is the likely LCP element: eager, high priority, half the content width on wide screens.
         $this->assertStringContainsString('<img class="ak-hero3__media" src="'.$asset['url'].'" srcset="'.$srcset.'" sizes="(max-width: 899px) 100vw, 576px" alt="A garden" width="1300" height="650" decoding="async" fetchpriority="high">', $html);
         // The image block further down: lazy, full content width, with its fit and crop as a class.
-        $this->assertMatchesRegularExpression('#<img class="ak-img2__media (ak-s[0-9a-f]{10})" src="'.preg_quote($asset['url'], '#').'" srcset="'.preg_quote($srcset, '#').'" sizes="\(max-width: 899px\) 100vw, 1152px" alt="Below the fold" width="1300" height="650" decoding="async" loading="lazy">#', $html);
+        $this->assertMatchesRegularExpression('#<img class="ak-img2__media (ak-s[0-9a-f]{10})" src="'.preg_quote($asset['url'], '#').'" srcset="'.preg_quote($srcset, '#').'" sizes="\(max-width: 599px\) 100vw, \(max-width: 899px\) 100vw, 100vw" alt="Below the fold" width="1300" height="650" decoding="async" loading="lazy">#', $html);
         preg_match('#ak-img2__media (ak-s[0-9a-f]{10})#', $html, $c);
         $this->assertStringContainsString(".{$c[1]}{height:500px;object-fit:cover;object-position:top}", $html);
         $this->assertSame('public', app(MediaService::class)->resolveAccess($variantKey, self::HOST, null, null, new MediaSigner)['access'] ?? null);
@@ -270,15 +270,15 @@ class StyleRenderingTest extends DatabaseTestCase
     {
         $asset = app(MediaService::class)->upload($this->f['ctx'], self::png(), 'a.png');
         $root = $this->draft()['root'];
-        $image = fn (string $id, string $loading = 'auto') => ['id' => $id, 'type' => 'image', 'version' => 4, 'props' => ['image' => ['assetId' => $asset['id'], 'alt' => $id], 'loading' => $loading]];
+        $image = fn (string $id, string $loading = 'auto') => ['id' => $id, 'type' => 'image', 'version' => 6, 'props' => ['image' => ['assetId' => $asset['id'], 'alt' => $id], 'loading' => $loading]];
         // The hero has no image; the first section holds columns with two images: only the first is eager.
         $this->save([
             ['op' => 'removeNode', 'nodeId' => $this->f['heroId']],
             ['op' => 'insertNode', 'parentId' => $root, 'index' => 0, 'nodes' => [
-                ['id' => 'sect0001', 'type' => 'section', 'version' => 2, 'props' => new \stdClass, 'children' => ['cols0001']],
+                ['id' => 'sect0001', 'type' => 'section', 'version' => 6, 'props' => new \stdClass, 'children' => ['cols0001']],
                 ['id' => 'cols0001', 'type' => 'columns', 'version' => 3, 'props' => new \stdClass, 'children' => ['colu0001', 'colu0002']],
-                ['id' => 'colu0001', 'type' => 'column', 'version' => 3, 'props' => new \stdClass, 'children' => ['img00001']],
-                ['id' => 'colu0002', 'type' => 'column', 'version' => 3, 'props' => new \stdClass, 'children' => ['img00002']],
+                ['id' => 'colu0001', 'type' => 'column', 'version' => 6, 'props' => new \stdClass, 'children' => ['img00001']],
+                ['id' => 'colu0002', 'type' => 'column', 'version' => 6, 'props' => new \stdClass, 'children' => ['img00002']],
                 $image('img00001'), $image('img00002'),
             ]],
             ['op' => 'insertNode', 'parentId' => $root, 'index' => 1, 'nodes' => [$image('img00003')]],
@@ -305,7 +305,7 @@ class StyleRenderingTest extends DatabaseTestCase
     {
         $asset = app(MediaService::class)->upload($this->f['ctx'], self::png(), 'a.png');
         $root = $this->draft()['root'];
-        $image = fn (string $id) => ['id' => $id, 'type' => 'image', 'version' => 4, 'props' => ['image' => ['assetId' => $asset['id'], 'alt' => $id]]];
+        $image = fn (string $id) => ['id' => $id, 'type' => 'image', 'version' => 6, 'props' => ['image' => ['assetId' => $asset['id'], 'alt' => $id]]];
         $this->save([
             ['op' => 'removeNode', 'nodeId' => $this->f['heroId']],
             ['op' => 'insertNode', 'parentId' => $root, 'index' => 0, 'nodes' => [['id' => 'text0001', 'type' => 'text', 'version' => 3, 'props' => ['text' => 'Our work', 'element' => 'h1']]]],
@@ -322,13 +322,13 @@ class StyleRenderingTest extends DatabaseTestCase
     {
         $root = $this->draft()['root'];
         $this->save([['op' => 'insertNode', 'parentId' => $root, 'index' => 1, 'nodes' => [
-            ['id' => 'sect0001', 'type' => 'section', 'version' => 2, 'props' => ['contentWidth' => 'narrow', 'element' => 'footer', 'style' => ['root' => ['base' => ['backgroundColor' => '@color.surface']]]], 'children' => ['grup0001', 'cols0001']],
-            ['id' => 'grup0001', 'type' => 'group', 'version' => 2, 'props' => ['style' => ['root' => ['base' => ['direction' => 'row', 'justify' => 'space-between'], 'mobile' => ['direction' => 'column']]]], 'children' => ['text0001', 'text0002']],
+            ['id' => 'sect0001', 'type' => 'section', 'version' => 6, 'props' => ['contentWidth' => 'narrow', 'element' => 'footer', 'style' => ['root' => ['base' => ['backgroundColor' => '@color.surface']]]], 'children' => ['grup0001', 'cols0001']],
+            ['id' => 'grup0001', 'type' => 'group', 'version' => 5, 'props' => ['style' => ['root' => ['base' => ['direction' => 'row', 'justify' => 'space-between'], 'mobile' => ['direction' => 'column']]]], 'children' => ['text0001', 'text0002']],
             ['id' => 'text0001', 'type' => 'text', 'version' => 3, 'props' => ['text' => 'Left']],
             ['id' => 'text0002', 'type' => 'text', 'version' => 3, 'props' => ['text' => 'Right']],
             ['id' => 'cols0001', 'type' => 'columns', 'version' => 3, 'props' => ['style' => ['root' => ['base' => ['columns' => '1fr 2fr'], 'mobile' => ['columns' => '1']]]], 'children' => ['colu0001', 'colu0002']],
-            ['id' => 'colu0001', 'type' => 'column', 'version' => 3, 'props' => new \stdClass, 'children' => []],
-            ['id' => 'colu0002', 'type' => 'column', 'version' => 3, 'props' => new \stdClass, 'children' => []],
+            ['id' => 'colu0001', 'type' => 'column', 'version' => 6, 'props' => new \stdClass, 'children' => []],
+            ['id' => 'colu0002', 'type' => 'column', 'version' => 6, 'props' => new \stdClass, 'children' => []],
         ]]]);
         $this->publish();
         $html = $this->live();

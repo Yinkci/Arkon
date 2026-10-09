@@ -6,6 +6,7 @@ use App\Arkon\Ai\AiConnections;
 use App\Arkon\Ai\AiException;
 use App\Arkon\Ai\ProposalPrompt;
 use App\Arkon\Ai\ProposalService;
+use App\Arkon\Ai\WebsiteProposalService;
 use App\Arkon\Database\Transactions;
 use App\Arkon\Errors\ArkonException;
 use App\Arkon\Pages\PageService;
@@ -82,7 +83,7 @@ final class McpServer
             'protocolVersion' => in_array($requested, self::PROTOCOL_VERSIONS, true) ? $requested : self::PROTOCOL_VERSIONS[1],
             'capabilities' => ['tools' => ['listChanged' => false]],
             'serverInfo' => ['name' => 'arkon', 'version' => '1.0.0'],
-            'instructions' => 'Arkon CMS: build or refine one page from native blocks. Flow: arkon_list_pages → arkon_get_page → arkon_get_proposal_format → write a proposal as JSON matching the schema → arkon_submit_proposal with the page\'s draftVersion as baseVersion. The proposal is validated and waits in Arkon\'s editor (AI tab) where the user previews it and applies or discards it; you cannot apply or publish. If validation fails, fix the listed problems and submit again with a new requestKey.',
+            'instructions' => 'Arkon CMS: for a complete website use arkon_get_website_context then arkon_submit_website_proposal and review it at /admin/website. For one page, flow: arkon_list_pages → arkon_get_page → arkon_get_proposal_format → write a proposal as JSON matching the schema → arkon_submit_proposal with the page\'s draftVersion as baseVersion. The proposal is validated and waits in Arkon\'s editor (AI tab) where the user previews it and applies or discards it; you cannot apply or publish. If validation fails, fix the listed problems and submit again with a new requestKey.',
         ];
     }
 
@@ -92,6 +93,9 @@ final class McpServer
         $page = ['pageId' => ['type' => 'string', 'description' => 'Page id from arkon_list_pages']];
 
         return [
+            ['name' => 'arkon_get_website_context', 'description' => 'Read the paired site, capture draft versions, and get the schema and rules for one multi-page website proposal. Context expires after 30 minutes. No page or resource draft is changed.', 'inputSchema' => ['type' => 'object', 'properties' => new \stdClass, 'additionalProperties' => false]],
+            ['name' => 'arkon_submit_website_proposal', 'description' => 'Submit an editable multi-page website proposal for review at /admin/website. Use the contextId and proposal schema from arkon_get_website_context. Nothing is applied or published.', 'inputSchema' => ['type' => 'object', 'additionalProperties' => false, 'required' => ['contextId', 'prompt', 'requestKey', 'proposal'], 'properties' => ['contextId' => ['type' => 'string'], 'prompt' => ['type' => 'string'], 'requestKey' => ['type' => 'string'], 'proposal' => ['type' => 'object']]]],
+            ['name' => 'arkon_get_website_proposal_status', 'description' => 'Read your own multi-page website proposal status; never applies or publishes.', 'inputSchema' => ['type' => 'object', 'additionalProperties' => false, 'required' => ['proposalId'], 'properties' => ['proposalId' => ['type' => 'string']]], 'annotations' => ['readOnlyHint' => true]],
             [
                 'name' => 'arkon_list_pages',
                 'description' => 'List the pages of the Arkon site this connection is paired with: id, title, URL path, status and current draft version.',
@@ -149,6 +153,9 @@ final class McpServer
             $this->connections->touch($connection->id);
             $ctx = $this->connections->context($connection, 'ai');
             $result = match ($name) {
+                'arkon_get_website_context' => app(WebsiteProposalService::class)->mcpContext($ctx),
+                'arkon_submit_website_proposal' => app(WebsiteProposalService::class)->submit($ctx, $arguments, $connection->id),
+                'arkon_get_website_proposal_status' => app(WebsiteProposalService::class)->status($ctx, (string) ($arguments['proposalId'] ?? '')),
                 'arkon_list_pages' => $this->listPages($ctx),
                 'arkon_get_page' => $this->getPage($ctx, (string) ($arguments['pageId'] ?? '')),
                 'arkon_get_proposal_format' => $this->format($ctx, (string) ($arguments['pageId'] ?? '')),
@@ -194,6 +201,8 @@ final class McpServer
                 // Published shared resources only (instances render published versions; drafts are never shown).
                 'reusableComponents' => array_map(fn ($id, $c) => ['componentId' => $id, ...$c], array_keys($context['components']), $context['components']),
                 'designTokens' => $context['tokens'],
+                'publishedMenus' => $context['menus'],
+                'publishedForms' => $context['forms'],
                 'editorUrl' => $this->editorUrl($pageId),
             ];
         }, isolation: 'REPEATABLE READ', readOnly: true);

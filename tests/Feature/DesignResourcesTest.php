@@ -298,7 +298,7 @@ class DesignResourcesTest extends DatabaseTestCase
     {
         $asset = app(MediaService::class)->upload($this->f['ctx'], self::png(), 'logo.png');
         $id = $this->components()->create($this->f['ctx'], ['name' => 'Logo', 'nodes' => Json::decode(Json::encode([
-            ['id' => 'logo0001', 'type' => 'image', 'version' => 4, 'props' => ['image' => ['assetId' => $asset['id'], 'alt' => 'Logo']]],
+            ['id' => 'logo0001', 'type' => 'image', 'version' => 6, 'props' => ['image' => ['assetId' => $asset['id'], 'alt' => 'Logo']]],
         ]))])['id'];
         $this->components()->publish($this->f['ctx'], $id, ['expectedVersion' => 1, 'idempotencyKey' => self::key()]);
         $key = substr($asset['url'], 7);

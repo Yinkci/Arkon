@@ -16,13 +16,16 @@ export interface PageRow {
 }
 
 export interface MediaInfo {
+    optimizationWarning?: string | null;
     id: string;
     url: string;
     width: number;
     height: number;
     mime: string;
-    /** The original file name, when known (shown instead of the storage id). */
+    /** The human-readable library title, falling back to the original filename. */
     name?: string;
+    defaultAlt?: string;
+    defaultCaption?: string;
 }
 
 /** A reusable component of the site, as pages see it: only its published version is ever used. */
@@ -86,7 +89,7 @@ export interface EditorInit {
 
 export interface SharedProps {
     auth: { user: { id: string; name: string; email: string } | null };
-    site: { id: string; name: string; role: string } | null;
+    site: { id: string; name: string; role: string; url?: string } | null;
     can: Record<string, boolean>;
     [key: string]: unknown;
 }

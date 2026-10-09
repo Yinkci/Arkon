@@ -7,11 +7,13 @@ use App\Arkon\Audit\AuditLog;
 use App\Arkon\Components\DocumentValidator;
 use App\Arkon\Database\Transactions;
 use App\Arkon\Design\DesignResources;
+use App\Arkon\Design\PageRefreshes;
 use App\Arkon\Errors\ConflictException;
 use App\Arkon\Errors\NotFoundException;
 use App\Arkon\Errors\ValidationException;
 use App\Arkon\Media\MediaService;
 use App\Arkon\Media\MediaSigner;
+use App\Arkon\Navigation\MenuService;
 use App\Arkon\Renderer\PageRenderer;
 use App\Arkon\Renderer\RenderException;
 use App\Arkon\Schema\OperationException;
@@ -164,7 +166,7 @@ class PageService
             // The page's images first, then the site's most recent uploads (to choose from).
             'media' => $this->media->withNames($ctx->siteId, array_values($this->media->mediaMap($ctx->siteId, array_values(array_unique([
                 ...$this->store->safeMediaRefs($doc, pinned: $recovery !== null),
-                ...DB::table('media_assets')->where('site_id', $ctx->siteId)->orderByDesc('created_at')->limit(100)->pluck('id')->all(),
+                ...DB::table('media_assets')->where('site_id', $ctx->siteId)->whereNull('archived_at')->orderByDesc('created_at')->limit(100)->pluck('id')->all(),
             ]))))),
             'permissions' => [
                 'edit' => Permissions::allows($role, 'page.edit'),
@@ -315,14 +317,7 @@ class PageService
      */
     public function livePage(string $siteId, string $path): ?object
     {
-        return DB::table('live_pages as l')
-            ->join('publications as p', 'p.id', '=', 'l.publication_id')
-            ->join('pages as pg', fn ($j) => $j->on('pg.site_id', '=', 'l.site_id')->on('pg.id', '=', 'l.page_id'))
-            ->whereNull('pg.deleted_at')
-            ->where('l.site_id', $siteId)
-            ->where('l.path', $path)
-            // The animation runtime the stored HTML loads, if any (its script policy allows exactly that file).
-            ->first(['p.id as publication_id', 'p.html', DB::raw("p.render_inputs->>'motion' AS motion_runtime")]);
+        return app(PublicPages::class)->livePage($siteId, $path);
     }
 
     /**
@@ -332,15 +327,7 @@ class PageService
      */
     public function resolveRedirect(string $siteId, string $path): ?string
     {
-        $target = DB::table('redirects as r')
-            ->join('live_pages as l', fn ($j) => $j->on('l.site_id', '=', 'r.site_id')->on('l.page_id', '=', 'r.page_id'))
-            ->join('pages as p', fn ($j) => $j->on('p.site_id', '=', 'r.site_id')->on('p.id', '=', 'r.page_id'))
-            ->whereNull('p.deleted_at')
-            ->where('r.site_id', $siteId)
-            ->where('r.from_path', $path)
-            ->value('l.path');
-
-        return $target !== null && $target !== $path ? $target : null;
+        return app(PublicPages::class)->resolveRedirect($siteId, $path);
     }
 
     // ── Writing drafts ──────────────────────────────────────────────────────
@@ -498,7 +485,7 @@ class PageService
         $key = $valid['idempotencyKey'];
         $fingerprint = Fingerprint::of(['kind' => 'publish', 'pageId' => $pageId, 'expectedVersion' => $expectedVersion]);
 
-        return $this->transactions->run(function () use ($ctx, $pageId, $expectedVersion, $key, $fingerprint) {
+        $result = $this->transactions->run(function () use ($ctx, $pageId, $expectedVersion, $key, $fingerprint) {
             $this->authorizer->authorize($ctx, 'page.publish');
 
             $replay = function () use ($ctx, $key, $fingerprint): ?array {
@@ -556,7 +543,7 @@ class PageService
             }
 
             // Rendered while holding the epoch lock: what it reads is the published state at `epoch`.
-            $rendered = $this->store->renderForSite($ctx->siteId, $meta->title, $meta->path, $doc, true);
+            $rendered = MenuService::withPaths($ctx->siteId, [$pageId => $meta->path], fn () => $this->store->renderForSite($ctx->siteId, $meta->title, $meta->path, $doc, true));
             $publicationId = Uuid::v7();
             $created = DB::selectOne(
                 'INSERT INTO publications (id, site_id, page_id, revision_id, path, html, epoch, idempotency_key, request_fingerprint, render_inputs, published_by)
@@ -585,6 +572,7 @@ class PageService
                 );
             }
 
+            MenuService::targetChanged($ctx->siteId, $pageId, $epoch);
             $this->audit->forContext($ctx, 'page.publish', 'page', $pageId, [
                 'publicationId' => $publicationId, 'revisionId' => $revisionId, 'epoch' => $epoch,
                 'version' => (int) $draft->version, 'path' => $meta->path, 'redirectedFrom' => $movedFrom,
@@ -592,6 +580,11 @@ class PageService
 
             return ['publicationId' => $publicationId, 'revisionId' => $revisionId, 'epoch' => $epoch, 'publishedAt' => Time::iso($created->created_at), 'replayed' => false];
         });
+        if (DB::transactionLevel() === 0 && DB::table('page_refreshes')->where('site_id', $ctx->siteId)->where('status', 'pending')->exists()) {
+            app(PageRefreshes::class)->run($ctx->siteId);
+        }
+
+        return $result;
     }
 
     // ── Reproduction (internal: audits and tooling) ─────────────────────────────

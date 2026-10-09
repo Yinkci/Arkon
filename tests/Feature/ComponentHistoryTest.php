@@ -72,7 +72,7 @@ class ComponentHistoryTest extends DatabaseTestCase
     {
         $v1 = $this->publish(1);
         $stored = $this->publication($v1['publicationId']);
-        $this->assertSame(['hero@4', 'page@3'], json_decode($stored->render_inputs, true)['components']);
+        $this->assertSame(['hero@5', 'page@6'], json_decode($stored->render_inputs, true)['components']);
         $this->assertStringContainsString('ak-hero3__heading', $stored->html);
 
         $this->registerHeroNext();
@@ -99,15 +99,15 @@ class ComponentHistoryTest extends DatabaseTestCase
         // The editor receives the page migrated to the next version (5).
         $state = $this->pages()->editorState($this->f['ctx'], $this->f['pageId']);
         $hero = $state['draft']['document']['nodes'][$this->f['heroId']];
-        $this->assertSame(5, $hero['version']);
+        $this->assertSame(6, $hero['version']);
         $this->assertSame('Original text', $hero['props']['body']);
 
         // Publishing the unsaved, in-memory migration stores the migrated document as its own revision.
         $v2 = $this->publish(1);
         $this->assertNotSame($v1['revisionId'], $v2['revisionId']);
-        $this->assertSame(['hero' => 5, 'page' => 3], $this->versionsIn($v2['revisionId']));
+        $this->assertSame(['hero' => 6, 'page' => 6], $this->versionsIn($v2['revisionId']));
         $this->assertSame('Published with components upgraded to current versions', DB::table('page_revisions')->where('id', $v2['revisionId'])->value('message'));
-        $this->assertSame(['hero' => 4, 'page' => 3], $this->versionsIn($v1['revisionId']), 'history is never rewritten');
+        $this->assertSame(['hero' => 5, 'page' => 6], $this->versionsIn($v1['revisionId']), 'history is never rewritten');
         $html = $this->publication($v2['publicationId'])->html;
         $this->assertStringContainsString('ak-hero4__body', $html);
         $this->assertSame('published', $this->pages()->listPages($this->f['ctx'])[0]['status']);
@@ -115,7 +115,7 @@ class ComponentHistoryTest extends DatabaseTestCase
         // Saving an edit persists v5; both publications still reproduce exactly.
         $saved = $this->pages()->saveDraft($this->f['ctx'], ['pageId' => $this->f['pageId'], 'baseVersion' => 1, 'saveKey' => self::key(),
             'operations' => [['op' => 'updateProps', 'nodeId' => $this->f['heroId'], 'set' => ['body' => 'New body']]]]);
-        $this->assertSame(['hero' => 5, 'page' => 3], $this->versionsIn($saved['revision']['id']));
+        $this->assertSame(['hero' => 6, 'page' => 6], $this->versionsIn($saved['revision']['id']));
         foreach ([$v1, $v2] as $publication) {
             $result = $this->pages()->reproducePublication($this->f['siteId'], $publication['publicationId']);
             $this->assertTrue($result['matches'], $publication['publicationId']);

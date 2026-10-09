@@ -37,6 +37,9 @@ async function publicHtml(page: Page, path: string) {
 
 /** Drags the source (a Layers row or palette item) onto the target: into the middle of a container row, or just before/after a row. A quick, ordinary drag: released on arrival. */
 async function drop(page: Page, source: Locator, target: Locator, where: 'inside' | 'before' | 'after') {
+    // Scroll as a user would before measuring drag coordinates; rows can extend below the panel.
+    await target.scrollIntoViewIfNeeded();
+    await source.scrollIntoViewIfNeeded();
     const s = (await source.boundingBox())!;
     const t = (await target.boundingBox())!;
     const y = where === 'inside' ? t.height / 2 : where === 'before' ? t.height * 0.15 : t.height * 0.85;
@@ -77,11 +80,11 @@ test('build a layout with the palette, layers, drag and drop and undo/redo, then
     const link = page.getByLabel('Link');
     await link.fill('javascript:alert(1)');
     await expect(page.getByRole('alert').filter({ hasText: 'Use a link starting with' })).toBeVisible();
-    await expect(canvas(page).locator('a.ak-btn2')).toHaveAttribute('href', '/');
+    await expect(canvas(page).locator('a:is(.ak-btn2,.ak-btn3)')).toHaveAttribute('href', '#');
     await link.fill('/contact');
-    await expect(canvas(page).locator('a.ak-btn2')).toHaveAttribute('href', '/contact');
+    await expect(canvas(page).locator('a:is(.ak-btn2,.ak-btn3)')).toHaveAttribute('href', '/contact');
     await page.getByLabel('Label').fill('Contact us');
-    await expect(canvas(page).locator('a.ak-btn2')).toHaveText('Contact us');
+    await expect(canvas(page).locator('a:is(.ak-btn2,.ak-btn3)')).toHaveText('Contact us');
 
     // Accessible reordering: move the button above the text inside its column.
     await page.getByRole('button', { name: 'Move Button up' }).click();
@@ -191,7 +194,7 @@ test('an unfinished link is kept and flagged, and blocks Preview and Publish unt
     await expect(status(page)).toHaveText('Unsaved changes, 1 invalid field not saved');
     await page.getByRole('button', { name: 'Save draft' }).click();
     await expect(status(page)).toHaveText('1 invalid field not saved');
-    await expect(canvas(page).locator('a.ak-btn2')).toHaveAttribute('href', '/contact');
+    await expect(canvas(page).locator('a:is(.ak-btn2,.ak-btn3)')).toHaveAttribute('href', '/contact');
 
     // Selecting something else and coming back keeps what was typed.
     await openLayers(page);
@@ -310,8 +313,8 @@ test('a link made invalid while Preview waits for its save closes the preview in
     await page.getByRole('button', { name: 'Preview' }).click();
     const preview = await next;
     await expect(preview).toHaveURL(new RegExp(`/preview/${id}$`));
-    await expect(preview.locator('a.ak-btn2')).toHaveText('Get in touch');
-    await expect(preview.locator('a.ak-btn2')).toHaveAttribute('href', '/contact');
+    await expect(preview.locator('a:is(.ak-btn2,.ak-btn3)')).toHaveText('Get in touch');
+    await expect(preview.locator('a:is(.ak-btn2,.ak-btn3)')).toHaveAttribute('href', '/contact');
     await preview.close();
 });
 

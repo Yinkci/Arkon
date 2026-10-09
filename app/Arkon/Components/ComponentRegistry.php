@@ -2,24 +2,47 @@
 
 namespace App\Arkon\Components;
 
+use App\Arkon\Components\Render\BackTopV1;
 use App\Arkon\Components\Render\ButtonV1;
 use App\Arkon\Components\Render\ButtonV2;
+use App\Arkon\Components\Render\ButtonV3;
 use App\Arkon\Components\Render\ColumnsV1;
 use App\Arkon\Components\Render\ColumnsV2;
 use App\Arkon\Components\Render\ColumnV1;
 use App\Arkon\Components\Render\ColumnV2;
 use App\Arkon\Components\Render\ComponentRenderer;
+use App\Arkon\Components\Render\FormV1;
+use App\Arkon\Components\Render\FormV2;
+use App\Arkon\Components\Render\FormV3;
 use App\Arkon\Components\Render\FragmentV1;
 use App\Arkon\Components\Render\GroupV1;
+use App\Arkon\Components\Render\GroupV2;
 use App\Arkon\Components\Render\HeroV1;
 use App\Arkon\Components\Render\HeroV2;
 use App\Arkon\Components\Render\HeroV3;
+use App\Arkon\Components\Render\IconV1;
 use App\Arkon\Components\Render\ImageV1;
 use App\Arkon\Components\Render\ImageV3;
+use App\Arkon\Components\Render\ImageV4;
 use App\Arkon\Components\Render\InstanceV1;
+use App\Arkon\Components\Render\LogoV1;
+use App\Arkon\Components\Render\NavigationV1;
 use App\Arkon\Components\Render\PageV1;
 use App\Arkon\Components\Render\PageV3;
+use App\Arkon\Components\Render\PageV4;
+use App\Arkon\Components\Render\PageV5;
 use App\Arkon\Components\Render\SectionV1;
+use App\Arkon\Components\Render\SectionV2;
+use App\Arkon\Components\Render\SectionV3;
+use App\Arkon\Components\Render\SliderV1;
+use App\Arkon\Components\Render\SliderV2;
+use App\Arkon\Components\Render\SliderV3;
+use App\Arkon\Components\Render\SliderV4;
+use App\Arkon\Components\Render\SliderV5;
+use App\Arkon\Components\Render\SliderV6;
+use App\Arkon\Components\Render\SliderV7;
+use App\Arkon\Components\Render\SliderV8;
+use App\Arkon\Components\Render\SlideV1;
 use App\Arkon\Components\Render\TextV1;
 use App\Arkon\Components\Render\TextV2;
 use App\Arkon\Support\Json;
@@ -86,6 +109,33 @@ final class ComponentRegistry
      * remove an entry: publications made with it must stay reproducible.
      */
     public const RENDERERS = [
+        'logo@2' => LogoV1::class,
+        'image@6' => ImageV4::class,
+        'hero@5' => HeroV3::class,
+        'form@2' => FormV2::class,
+        'page@6' => PageV5::class,
+        'section@5' => SectionV2::class,
+        'group@5' => GroupV2::class,
+        'column@6' => ColumnV2::class,
+        'fragment@4' => FragmentV1::class,
+        'button@5' => ButtonV2::class,
+        'logo@1' => LogoV1::class,
+        'icon@1' => IconV1::class,
+        'slider@1' => SliderV1::class,
+        'slider@2' => SliderV2::class,
+        'slider@3' => SliderV3::class,
+        'slider@4' => SliderV4::class,
+        'slider@5' => SliderV5::class,
+        'slider@6' => SliderV6::class,
+        'slider@7' => SliderV7::class,
+        'slider@8' => SliderV8::class,
+        'image@5' => ImageV4::class,
+        'form@3' => FormV3::class,
+        'button@6' => ButtonV3::class,
+        'section@6' => SectionV3::class,
+        'slide@1' => SlideV1::class,
+        'back-to-top@1' => BackTopV1::class,
+
         'page@1' => PageV1::class,
         // v2 only widens which sections a page may contain; its markup is unchanged.
         'page@2' => PageV1::class,
@@ -122,6 +172,19 @@ final class ComponentRegistry
         'columns@3' => ColumnsV2::class,
         'column@3' => ColumnV2::class,
         'instance@2' => InstanceV1::class,
+        'form@1' => FormV1::class,
+        'page@5' => PageV4::class,
+        'navigation@1' => NavigationV1::class,
+        'section@4' => SectionV2::class,
+        'group@4' => GroupV1::class,
+        'column@5' => ColumnV2::class,
+        'fragment@3' => FragmentV1::class,
+        'button@4' => ButtonV2::class,
+        'page@4' => PageV4::class,
+        'section@3' => SectionV1::class,
+        'group@3' => GroupV1::class,
+        'column@4' => ColumnV2::class,
+        'fragment@2' => FragmentV1::class,
     ];
 
     /** @return array<string, Closure(array): array> "type@fromVersion" → props of version+1 */
@@ -130,6 +193,26 @@ final class ComponentRegistry
         // Props arrive in raw form (nested objects may be stdClass). Styles produced here never contain
         // empty objects, so they stay objects when encoded.
         return [
+            'logo@1' => fn (array $props) => $props,
+            'image@5' => fn (array $props) => $props,
+            'hero@4' => fn (array $props) => $props,
+            'form@2' => fn (array $props) => $props,
+            'image@4' => fn (array $props) => $props,
+            'button@5' => fn (array $props) => $props,
+            'section@5' => fn (array $props) => $props,
+            'slider@7' => fn (array $props) => $props,
+            'slider@6' => fn (array $props) => $props,
+            'slider@5' => fn (array $props) => [...$props, 'paginationAlign' => $props['controlsAlign'] ?? 'start', 'paginationPosition' => 'bottom'],
+            'slider@4' => fn (array $props) => [...$props, 'arrowPlacement' => 'grouped'],
+            'slider@3' => fn (array $props) => [...$props, 'transition' => 'none', 'transitionDuration' => '500', 'showPauseControl' => true],
+            'slider@2' => fn (array $props) => [...$props, 'pauseOnHover' => true],
+            'slider@1' => fn (array $props) => [...$props, 'pagination' => 'numbers', 'arrows' => true, 'controlsAlign' => 'start', 'controlsTone' => 'light'],
+            'page@5' => fn (array $props) => $props,
+            'section@4' => fn (array $props) => $props,
+            'group@4' => fn (array $props) => $props,
+            'column@5' => fn (array $props) => $props,
+            'fragment@3' => fn (array $props) => $props,
+            'button@4' => fn (array $props) => $props,
             'page@1' => fn (array $props) => $props,
             'image@1' => fn (array $props) => $props,
             'page@2' => fn (array $props) => $props,
@@ -175,6 +258,17 @@ final class ComponentRegistry
             'columns@2' => fn (array $props) => $props,
             'column@2' => fn (array $props) => $props,
             'instance@1' => fn (array $props) => $props,
+            'page@4' => fn (array $props) => $props,
+            'section@3' => fn (array $props) => [...$props, 'anchor' => ''],
+            'group@3' => fn (array $props) => $props,
+            'column@4' => fn (array $props) => $props,
+            'fragment@2' => fn (array $props) => $props,
+            'button@3' => fn (array $props) => $props,
+            'page@3' => fn (array $props) => $props,
+            'section@2' => fn (array $props) => $props,
+            'group@2' => fn (array $props) => $props,
+            'column@3' => fn (array $props) => $props,
+            'fragment@1' => fn (array $props) => $props,
         ];
     }
 

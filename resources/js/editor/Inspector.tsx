@@ -1,3 +1,4 @@
+import { usePage } from '@inertiajs/react';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { currentDefinition } from '@/arkon/components/registry';
 import { componentName, partsOf, resolvePart, styleFieldOf, type Part } from '@/arkon/editor/parts';
@@ -45,7 +46,7 @@ export interface InspectorProps {
     canEdit: boolean;
     canUpload: boolean;
     onChange(ops: PageOperation[], coalesceKey?: string): void;
-    onUpload(file: File): Promise<MediaInfo | null>;
+    onUpload(file: File, progress?: (percent: number) => void): Promise<MediaInfo | null>;
     /** Unresolved field input by `${nodeId}:${prop}`; survives selection changes. */
     unresolved: Record<string, UnresolvedField>;
     onUnresolved(key: string, field: UnresolvedField | null): void;
@@ -67,7 +68,7 @@ export interface InspectorProps {
     /** Blocks the page keeps still (they hold its likely LCP: an image or the main heading), by node id, from the last canvas render. */
     motion?: { protected?: Record<string, Protection> };
     /** Plays a block's entrance animation once on the canvas (after the render showing its settings). */
-    onReplay?(nodeId: string): void;
+    onReplay?(nodeId: string, action?: 'slider-play' | 'slider-pause'): void;
 }
 
 type NodeInspectorProps = Omit<InspectorProps, 'part'> & {
@@ -119,6 +120,8 @@ export function Inspector(props: InspectorProps) {
               tokens: props.tokens,
               media: props.media,
               canEdit: props.canEdit,
+              canUpload: props.canUpload,
+              onUpload: props.onUpload,
               onStyle: (next: Style, key?: string) => set({ style: next }, key),
           }
         : null;
@@ -457,12 +460,18 @@ function ImagePartBody(props: NodeInspectorProps & { prop: string; extra?: React
                     media={props.media}
                     canEdit={props.canEdit}
                     canUpload={props.canUpload}
-                    onChoose={(assetId) => set({ [props.prop]: assetId ? { assetId, alt: image?.alt ?? '' } : null })}
+                    onChoose={(assetId, chosen) => {
+                        const asset = chosen ?? props.media.find((m) => m.id === assetId);
+                        set({
+                            [props.prop]: assetId ? { assetId, alt: asset?.defaultAlt ?? '' } : null,
+                            ...(props.node.type === 'image' && assetId ? { caption: asset?.defaultCaption ?? '' } : {}),
+                        });
+                    }}
                     onUpload={props.onUpload}
                 />
                 {image && (
                     <TextField
-                        label="Alternative text (required to publish)"
+                        label="Alternative text (empty for decorative images)"
                         value={image.alt}
                         max={300}
                         disabled={!props.canEdit}
@@ -479,7 +488,7 @@ function ImagePartBody(props: NodeInspectorProps & { prop: string; extra?: React
                         title="Image size"
                         testId="image-sizing"
                         properties={props.sizes}
-                        hint="Sizes apply to the image only, not to the block or section around it."
+                        hint="Sizes apply to this image on the selected screen. The image asset and alternative text are shared across screens."
                     />
                     <PanelSection title="Fit and crop" data-testid="image-fit">
                         <StyleControl target={props.style} property="objectFit" label="Fit" hint={COVER_HINT} />
@@ -699,6 +708,47 @@ function TextBody(props: NodeInspectorProps) {
     );
 }
 
+/** Content stays shared; visual presets follow the selected screen. */
+function ResponsivePreset({ props, property, label, options }: { props: NodeInspectorProps; property: string; label: string; options: [string, string][] }) {
+    const responsive = (props.node.props.responsive ?? {}) as Record<string, Record<string, string>>;
+    const screen = props.breakpoint;
+    const own = screen === 'base' ? String(props.node.props[property]) : (responsive[screen]?.[property] ?? 'inherit');
+    let inherited = String(props.node.props[property]);
+    if (screen === 'mobile' && responsive.tablet?.[property] && responsive.tablet[property] !== 'inherit') inherited = responsive.tablet[property];
+    const set = (value: string) =>
+        screen === 'base'
+            ? props.set({ [property]: value })
+            : props.set({ responsive: { ...responsive, [screen]: { ...responsive[screen], [property]: value } } });
+    return (
+        <div>
+            <SelectField
+                label={label}
+                value={own}
+                options={[
+                    ...(screen === 'base'
+                        ? []
+                        : [['inherit', `Inherited (${options.find(([value]) => value === inherited)?.[1] ?? inherited})`] as [string, string]]),
+                    ...options,
+                ]}
+                disabled={!props.canEdit}
+                onChange={set}
+            />
+            <p className="mt-1 text-xs text-muted">
+                {screen === 'base'
+                    ? 'Applies on every screen unless overridden.'
+                    : own === 'inherit'
+                      ? `Inherited from ${screen === 'mobile' && responsive.tablet?.[property] && responsive.tablet[property] !== 'inherit' ? 'tablet' : 'desktop'}.`
+                      : `${screen === 'tablet' ? 'Tablet' : 'Mobile'} override.`}
+            </p>
+            {screen !== 'base' && own !== 'inherit' && (
+                <button className="text-xs text-accent" disabled={!props.canEdit} onClick={() => set('inherit')}>
+                    Reset {label}
+                </button>
+            )}
+        </div>
+    );
+}
+
 function ButtonBody(props: NodeInspectorProps) {
     const { node, canEdit, set, unresolved, onUnresolved, part } = props;
     const p = node.props;
@@ -724,6 +774,8 @@ function ButtonBody(props: NodeInspectorProps) {
     };
     return (
         <>
+            <ScreenBar props={props.node.props} breakpoint={props.breakpoint} onBreakpoint={props.onBreakpoint} />
+            <p className="px-4 py-2 text-xs text-muted">Label and link are shared across screens. Appearance and size follow the selected screen.</p>
             <PanelSection title="Button">
                 <TextField label="Label" value={String(p.label ?? '')} max={80} disabled={!canEdit} onChange={(v) => set({ label: v }, 'label')} />
                 <div>
@@ -742,7 +794,10 @@ function ButtonBody(props: NodeInspectorProps) {
                         onChange={(e) => editLink(e.target.value)}
                     />
                     <p id={`${linkId}-hint`} role={linkError ? 'alert' : undefined} className={`mt-1 text-[11px] ${linkError ? 'text-danger' : 'text-muted'}`}>
-                        {linkError ?? 'A page on this site (/about), a section (#top), or a full web, email or phone link.'}
+                        {linkError ??
+                            (applied === '#'
+                                ? 'Placeholder destination — choose a real link when ready.'
+                                : 'A page on this site (/about), a section (#top), or a full web, email or phone link.')}
                     </p>
                     {pending && (
                         <div
@@ -760,27 +815,25 @@ function ButtonBody(props: NodeInspectorProps) {
                         </div>
                     )}
                 </div>
-                <SelectField
+                <ResponsivePreset
+                    props={props}
+                    property="variant"
                     label="Appearance"
-                    value={(p.variant as string) ?? 'primary'}
                     options={[
                         ['primary', 'Primary (filled)'],
                         ['secondary', 'Secondary (outline)'],
                         ['text', 'Text link'],
                     ]}
-                    disabled={!canEdit}
-                    onChange={(v) => set({ variant: v })}
                 />
-                <SelectField
+                <ResponsivePreset
+                    props={props}
+                    property="size"
                     label="Size"
-                    value={(p.size as string) ?? 'medium'}
                     options={[
                         ['small', 'Small'],
                         ['medium', 'Medium'],
                         ['large', 'Large'],
                     ]}
-                    disabled={!canEdit}
-                    onChange={(v) => set({ size: v })}
                 />
                 <label htmlFor={tabId} className="flex items-center gap-2 text-[0.8125rem]">
                     <input
@@ -803,18 +856,18 @@ function SectionBody(props: NodeInspectorProps) {
     const p = props.node.props;
     return (
         <>
+            <ScreenBar props={props.node.props} breakpoint={props.breakpoint} onBreakpoint={props.onBreakpoint} />
             <PanelSection title="Section">
-                <SelectField
+                <ResponsivePreset
+                    props={props}
+                    property="contentWidth"
                     label="Content width"
-                    value={(p.contentWidth as string) ?? 'default'}
                     options={[
                         ['narrow', 'Narrow (text)'],
                         ['default', 'Default'],
                         ['wide', 'Wide'],
                         ['full', 'Full width'],
                     ]}
-                    disabled={!props.canEdit}
-                    onChange={(v) => props.set({ contentWidth: v })}
                 />
                 <ElementField
                     {...props}
@@ -827,6 +880,19 @@ function SectionBody(props: NodeInspectorProps) {
                     ]}
                     fallback="section"
                 />
+                <label className="block text-sm">
+                    Section anchor
+                    <input
+                        className="mt-2 w-full rounded border border-line bg-surface p-2"
+                        placeholder="services"
+                        value={String(props.node.props.anchor ?? '')}
+                        disabled={!props.canEdit}
+                        onChange={(e) => {
+                            if (/^(?:[a-zA-Z][a-zA-Z0-9_-]{0,63})?$/.test(e.target.value)) props.set({ anchor: e.target.value });
+                        }}
+                    />
+                    <span className="text-xs text-muted">Use #services in a link to jump to this section.</span>
+                </label>
                 <AddInside
                     node={props.node}
                     canEdit={props.canEdit}
@@ -905,7 +971,8 @@ function ColumnsBody(props: NodeInspectorProps) {
     const [reduceTo, setReduceTo] = useState<number | null>(null);
     const [message, setMessage] = useState<{ tone: 'info' | 'error'; text: string } | null>(null);
     const style = styleOf(node.props);
-    const base = style.root?.base?.columns;
+    const screen = props.breakpoint;
+    const base = effectiveValue(style, 'root', 'columns', screen).value;
 
     const change = (count: number, content: 'move' | 'delete' = 'move'): boolean => {
         const result = setColumnCount(document, node.id, count, content);
@@ -949,6 +1016,7 @@ function ColumnsBody(props: NodeInspectorProps) {
 
     return (
         <>
+            <ScreenBar props={node.props} breakpoint={screen} onBreakpoint={props.onBreakpoint} />
             <PanelSection title="Columns" data-testid="columns-structure">
                 <div>
                     <p className="ui-label">Number of columns</p>
@@ -981,7 +1049,17 @@ function ColumnsBody(props: NodeInspectorProps) {
                 )}
             </PanelSection>
             <PanelSection title="Widths" data-testid="columns-widths">
-                <p className="text-[11px] leading-snug text-muted">How the columns share the width on larger screens.</p>
+                <p className="text-[11px] leading-snug text-muted">Column proportions for the selected screen. The number of blocks stays the same.</p>
+                <p className="text-xs text-muted">
+                    {style.root?.[screen]?.columns === undefined
+                        ? 'Inherited / component default'
+                        : `${screen === 'base' ? 'All screens' : screen === 'tablet' ? 'Tablet' : 'Mobile'} setting`}
+                </p>
+                {style.root?.[screen]?.columns !== undefined && (
+                    <Button size="sm" onClick={() => setScreen(screen, null)} disabled={!canEdit}>
+                        Reset column widths
+                    </Button>
+                )}
                 <div className="flex flex-wrap gap-1.5" role="group" aria-label="Column widths">
                     {[
                         { id: 'equal', label: 'Equal', tracks: null as string | null },
@@ -994,7 +1072,7 @@ function ColumnsBody(props: NodeInspectorProps) {
                                 type="button"
                                 aria-pressed={active}
                                 disabled={!canEdit || n < 2}
-                                onClick={() => setScreen('base', option.tracks)}
+                                onClick={() => setScreen(screen, option.tracks ?? String(n))}
                                 title={option.label}
                                 data-testid={`columns-width-${option.id.replaceAll(' ', '-')}`}
                                 className={`flex h-12 w-16 flex-col items-center justify-center gap-1 rounded-md border text-[10px] ${
@@ -1009,20 +1087,20 @@ function ColumnsBody(props: NodeInspectorProps) {
                 </div>
                 {props.style && n > 1 && (
                     <StyleControl
-                        target={{ ...props.style, breakpoint: 'base' }}
+                        target={{ ...props.style, breakpoint: screen }}
                         property="columns"
-                        label="Custom widths (all screens)"
+                        label="Custom column widths"
                         hint={`For example ${['1fr', '2fr', '1fr', '1fr', '1fr', '1fr'].slice(0, n).join(' ')}: one value per column.`}
                         check={(value) =>
-                            widthIssues({ id: node.id, type: node.type, props: { style: { root: { base: { columns: value } } } } }, 'Columns', n)[0]?.message ??
-                            null
+                            widthIssues({ id: node.id, type: node.type, props: { style: { root: { [screen]: { columns: value } } } } }, 'Columns', n)[0]
+                                ?.message ?? null
                         }
                     />
                 )}
             </PanelSection>
             <PanelSection title="On smaller screens" data-testid="columns-responsive">
                 {screenSelect('tablet', 'Tablets (899 px and narrower)', 'Changing this never adds or removes columns.')}
-                {screenSelect('mobile', 'Phones (599 px and narrower)', 'Stacked by default, so each column gets the full width.')}
+                {screenSelect('mobile', 'Phones (599 px and narrower)', 'New layouts start stacked on mobile. Choose Same as tablets to remove that override.')}
             </PanelSection>
             <DesignArea props={props} exclude={['columns']} />
             <ReduceColumnsDialog
@@ -1157,16 +1235,23 @@ function InstanceBody(props: NodeInspectorProps) {
     );
 }
 
-function GenericBody(props: NodeInspectorProps) {
+function GenericBody(props: NodeInspectorProps & { only?: string[]; sectionTitle?: string; withoutDesign?: boolean; fieldLabels?: Record<string, string> }) {
     const definition = currentDefinition(props.node.type);
     return (
         <>
-            <PanelSection title={definition?.label ?? 'Content'}>
+            <PanelSection title={props.sectionTitle ?? definition?.label ?? 'Content'}>
+                {props.node.type === 'slider' && !props.only && (
+                    <p className="text-xs text-muted">
+                        Autoplay runs in Preview and on the live page. Use the playback settings below to test the canvas; selecting or editing content stops
+                        playback. Keyboard focus and reduced-motion preferences can pause autoplay.
+                    </p>
+                )}
                 {Object.entries(definition?.props ?? {})
-                    .filter(([key]) => key !== 'style')
+                    .filter(([key]) => key !== 'style' && key !== 'responsive' && (!props.only || props.only.includes(key)))
+                    .sort(([a], [b]) => (props.only ? props.only.indexOf(a) - props.only.indexOf(b) : 0))
                     .map(([key, field]) => {
                         const ui = definition?.editor?.fields?.[key];
-                        const label = ui?.label ?? key;
+                        const label = props.fieldLabels?.[key] ?? ui?.label ?? key;
                         const value = props.node.props[key];
                         if (field.type === 'string')
                             return (
@@ -1180,13 +1265,80 @@ function GenericBody(props: NodeInspectorProps) {
                                     onChange={(v) => props.set({ [key]: v }, key)}
                                 />
                             );
+                        if (field.type === 'boolean')
+                            return (
+                                <label key={key} className="flex items-center gap-2 text-sm">
+                                    <input
+                                        type="checkbox"
+                                        checked={value === true}
+                                        disabled={!props.canEdit}
+                                        onChange={(e) => props.set({ [key]: e.target.checked })}
+                                    />
+                                    {label}
+                                </label>
+                            );
+                        if (field.type === 'link') {
+                            const fieldKey = props.node.id + ':' + key;
+                            const pending = props.unresolved[fieldKey];
+                            return (
+                                <div key={key}>
+                                    <TextField
+                                        max={field.maxLength ?? 2000}
+                                        label={label}
+                                        value={pending?.value ?? String(value ?? '')}
+                                        disabled={!props.canEdit}
+                                        onChange={(v) => {
+                                            if (matches('link', v)) {
+                                                props.onUnresolved(fieldKey, null);
+                                                props.set({ [key]: v }, key);
+                                            } else
+                                                props.onUnresolved(fieldKey, {
+                                                    nodeId: props.node.id,
+                                                    prop: key,
+                                                    label,
+                                                    value: v,
+                                                    error: 'Enter a safe complete link or #.',
+                                                });
+                                        }}
+                                    />
+                                    {pending && (
+                                        <p role="alert" className="text-xs text-danger">
+                                            {pending.error}
+                                            <button onClick={() => props.onUnresolved(fieldKey, null)}>Revert link</button>
+                                        </p>
+                                    )}
+                                </div>
+                            );
+                        }
+                        if (
+                            props.node.type !== 'slider' &&
+                            field.type === 'enum' &&
+                            definition?.props.responsive?.type === 'object' &&
+                            definition.props.responsive.properties?.tablet?.type === 'object' &&
+                            definition.props.responsive.properties.tablet.properties?.[key]
+                        ) {
+                            return (
+                                <ResponsivePreset key={key} props={props} property={key} label={label} options={field.values.map((value) => [value, value])} />
+                            );
+                        }
                         if (field.type === 'enum')
                             return (
                                 <SelectField
                                     key={key}
                                     label={label}
                                     value={String(value ?? '')}
-                                    options={field.values.map((v) => [v, v])}
+                                    options={field.values.map((v) => [
+                                        v,
+                                        props.node.type === 'slider' && key === 'interval'
+                                            ? `${Number(v) / 1000} ${Number(v) === 1000 ? 'second' : 'seconds'}`
+                                            : props.node.type === 'slider' && ['paginationAlign', 'controlsAlign'].includes(key)
+                                              ? ({ start: 'Left', center: 'Center', end: 'Right' }[v] ?? v)
+                                              : props.node.type === 'slider' && key === 'arrowPlacement'
+                                                ? v === 'edges'
+                                                    ? 'Left/right edges'
+                                                    : 'Grouped'
+                                                : v,
+                                    ])}
                                     disabled={!props.canEdit}
                                     onChange={(v) => props.set({ [key]: v })}
                                 />
@@ -1202,11 +1354,17 @@ function GenericBody(props: NodeInspectorProps) {
                                         canEdit={props.canEdit}
                                         canUpload={props.canUpload}
                                         onUpload={props.onUpload}
-                                        onChoose={(id) => props.set({ [key]: id ? { assetId: id, alt: image?.alt ?? '' } : null })}
+                                        onChoose={(id, chosen) =>
+                                            props.set({
+                                                [key]: id
+                                                    ? { assetId: id, alt: chosen?.defaultAlt ?? props.media.find((m) => m.id === id)?.defaultAlt ?? '' }
+                                                    : null,
+                                            })
+                                        }
                                     />
                                     {image && (
                                         <TextField
-                                            label={label + ' alternative text (required to publish)'}
+                                            label={label + ' alternative text (empty for decorative images)'}
                                             value={image.alt}
                                             max={field.properties.alt?.type === 'string' ? (field.properties.alt.maxLength ?? 300) : 300}
                                             disabled={!props.canEdit}
@@ -1219,14 +1377,245 @@ function GenericBody(props: NodeInspectorProps) {
                         return null;
                     })}
             </PanelSection>
+            {!props.withoutDesign && <DesignArea props={props} />}
+        </>
+    );
+}
+
+function NavigationBody(props: NodeInspectorProps) {
+    const { siteMenus = [] } = usePage<{ siteMenus: { id: string; name: string; published_version: number | null }[] }>().props;
+    return (
+        <div className="space-y-3">
+            <label className="block text-sm">
+                Menu
+                <select
+                    className="mt-2 w-full rounded border border-line bg-surface p-2"
+                    disabled={!props.canEdit}
+                    value={String(props.node.props.menuId ?? '')}
+                    onChange={(e) => props.set({ menuId: e.target.value })}
+                >
+                    <option value="">Choose a menu</option>
+                    {siteMenus.map((m) => (
+                        <option key={m.id} value={m.id}>
+                            {m.name}
+                            {m.published_version ? '' : ' (unpublished)'}
+                        </option>
+                    ))}
+                </select>
+            </label>
+            <a className="text-sm text-accent" href="/admin/navigation" target="_blank" rel="noopener noreferrer">
+                Manage menus
+            </a>
             <DesignArea props={props} />
+        </div>
+    );
+}
+
+function FormBody(props: NodeInspectorProps) {
+    const { node, set, canEdit } = props;
+    const { siteForms = [] } = usePage<{ siteForms: { id: string; name: string; published_version: number | null }[] }>().props;
+    const selected = node.props.form as { id: string } | null;
+    return (
+        <div className="space-y-3">
+            <ScreenBar props={node.props} breakpoint={props.breakpoint} onBreakpoint={props.onBreakpoint} />
+            <label className="block text-sm">
+                Form definition
+                <select
+                    className="mt-2 w-full rounded border border-line bg-surface p-2"
+                    value={selected?.id ?? ''}
+                    disabled={!canEdit}
+                    onChange={(e) => set({ form: e.target.value ? { id: e.target.value } : null })}
+                >
+                    <option value="">Choose a form</option>
+                    {siteForms.map((f) => (
+                        <option key={f.id} value={f.id}>
+                            {f.name}
+                            {f.published_version ? '' : ' (unpublished)'}
+                        </option>
+                    ))}
+                </select>
+            </label>
+            <a href="/admin/forms" target="_blank" rel="noopener noreferrer" className="text-sm text-accent">
+                Manage forms and enquiries
+            </a>
+            <GenericBody {...props} />
+            <p className="text-xs text-muted">
+                Form fields are edited once in Forms. Publish the form before publishing this page. Newsletter entries are saved in Forms; no mailing-list
+                service is connected.
+            </p>
+        </div>
+    );
+}
+
+function SlideBody(props: NodeInspectorProps) {
+    return (
+        <>
+            <GenericBody {...props} />
+            <AddInside
+                node={props.node}
+                canEdit={props.canEdit}
+                onChange={props.onChange}
+                types={['text', 'image', 'button', 'group', 'columns', 'icon', 'logo']}
+            />
+        </>
+    );
+}
+
+function SliderBody(props: NodeInspectorProps) {
+    const storedProps = props.node.props;
+    const responsive = (storedProps.responsive ?? {}) as Record<string, Record<string, string>>;
+    const screen = props.breakpoint;
+    const effective = { ...storedProps };
+    for (const bp of screen === 'mobile' ? ['tablet', 'mobile'] : screen === 'tablet' ? ['tablet'] : []) {
+        for (const [key, value] of Object.entries(responsive[bp] ?? {})) {
+            if (value !== 'inherit') effective[key] = value === 'true' ? true : value === 'false' ? false : value;
+        }
+    }
+    const responsiveSet: NodeInspectorProps['set'] = (values) => {
+        if (screen === 'base') return props.set(values);
+        const overrides = { ...responsive[screen] };
+        for (const [key, value] of Object.entries(values)) overrides[key] = String(value);
+        props.set({ responsive: { ...responsive, [screen]: overrides } });
+    };
+    const original = props;
+    props = { ...props, node: { ...props.node, props: effective } };
+    const visibleArrows = props.node.props.arrows !== false;
+    const grouped = props.node.props.arrowPlacement !== 'edges';
+    const pagination = props.node.props.pagination !== 'none';
+    const arrowsStyle = props.style ? { ...props.style, part: resolvePart(props.node, 'arrows') } : null;
+    const rootStyle = props.style ? { ...props.style, part: resolvePart(props.node, 'root') } : null;
+    const fields = (title: string, keys: string[], labels?: Record<string, string>) => (
+        <div>
+            <GenericBody {...props} set={responsiveSet} only={keys} sectionTitle={title} withoutDesign fieldLabels={labels} />
+            {screen !== 'base' && (
+                <div className="space-y-1 px-4 pb-3 text-xs text-muted">
+                    {keys.map((key) => {
+                        const own = responsive[screen]?.[key];
+                        const label = labels?.[key] ?? currentDefinition('slider')?.editor?.fields?.[key]?.label ?? key;
+                        return (
+                            <div key={key} className="flex items-center justify-between gap-2">
+                                <span>
+                                    {label}: {own && own !== 'inherit' ? `${screen === 'tablet' ? 'Tablet' : 'Mobile'} override` : 'Inherited'}
+                                </span>
+                                {own && own !== 'inherit' && (
+                                    <button
+                                        disabled={!props.canEdit}
+                                        onClick={() => original.set({ responsive: { ...responsive, [screen]: { ...responsive[screen], [key]: 'inherit' } } })}
+                                    >
+                                        Reset {label}
+                                    </button>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+    return (
+        <>
+            <ScreenBar props={storedProps} breakpoint={screen} onBreakpoint={props.onBreakpoint} />
+            <p className="px-4 py-2 text-xs text-muted">
+                Desktop / All screens is the default. Tablet inherits desktop; mobile inherits tablet unless overridden.
+            </p>
+            <PanelSection title="Slides">
+                <TextField
+                    label="Accessible slider label"
+                    value={String(props.node.props.label ?? '')}
+                    max={100}
+                    disabled={!props.canEdit}
+                    onChange={(value) => props.set({ label: value }, 'label')}
+                />
+                <p className="text-xs text-muted">The canvas shows one slide at a time. Choose a slide to edit it.</p>
+                {(props.node.children ?? []).map((id, i) => (
+                    <button key={id} className="ui-input my-1 text-left" onClick={() => props.onSelectPart(id, 'root')}>
+                        Edit slide {i + 1}
+                    </button>
+                ))}
+                <Button
+                    disabled={!props.canEdit || (props.node.children?.length ?? 0) >= 6}
+                    onClick={() => props.onChange(insertOps({ parentId: props.node.id, index: props.node.children?.length ?? 0 }, createNodes('slide')))}
+                >
+                    Add slide
+                </Button>
+            </PanelSection>
+            {fields('Playback', ['autoplay', ...(props.node.props.autoplay ? ['interval', 'pauseOnHover', 'showPauseControl'] : [])])}
+            <PanelSection title="Canvas playback">
+                <p className="text-xs text-muted">
+                    Test without changing the draft or adding controls to the page. Editing stops playback; reduced motion is respected.
+                </p>
+                <div className="flex gap-2">
+                    <Button disabled={!props.canEdit || (props.node.children?.length ?? 0) < 2} onClick={() => props.onReplay?.(props.node.id, 'slider-play')}>
+                        Play slideshow
+                    </Button>
+                    <Button disabled={!props.canEdit} onClick={() => props.onReplay?.(props.node.id, 'slider-pause')}>
+                        Pause slideshow
+                    </Button>
+                </div>
+            </PanelSection>
+            {fields('Transition', ['transition', ...(props.node.props.transition !== 'none' ? ['transitionDuration'] : [])])}
+            {fields(
+                'Arrows',
+                [
+                    'arrows',
+                    ...(visibleArrows
+                        ? [
+                              'arrowPlacement',
+                              ...(grouped ? ['controlsAlign', 'groupedArrowPosition', 'arrowGap'] : []),
+                              'arrowHorizontalOffset',
+                              ...(grouped && props.node.props.groupedArrowPosition !== 'middle' ? ['arrowVerticalOffset'] : []),
+                          ]
+                        : []),
+                ],
+                { controlsAlign: 'Horizontal position', groupedArrowPosition: 'Vertical position' },
+            )}
+            {visibleArrows && fields('Arrow appearance', ['arrowAppearance', 'arrowShape', 'arrowButtonSize', 'arrowIconSize'])}
+            {visibleArrows && arrowsStyle && (
+                <PanelSection title="Arrow colors and border">
+                    <ScreenBar props={props.node.props} breakpoint={props.breakpoint} onBreakpoint={props.onBreakpoint} slot="arrows" />
+                    <StyleControl target={arrowsStyle} property="color" label="Arrow icon color" />
+                    <StyleControl
+                        target={arrowsStyle}
+                        property="backgroundColor"
+                        label="Arrow background color"
+                        hint="Use #00000000 for no background. Reset returns to the appearance preset."
+                    />
+                    <Button
+                        disabled={!props.canEdit}
+                        onClick={() =>
+                            arrowsStyle.onStyle(withStyleValue(styleOf(props.node.props), 'arrows', props.breakpoint, 'backgroundColor', '#00000000'))
+                        }
+                    >
+                        Transparent background
+                    </Button>
+                    <StyleControl target={arrowsStyle} property="borderColor" label="Arrow border color" />
+                    <StyleControl target={arrowsStyle} property="borderWidth" label="Arrow border width" />
+                    <StyleControl target={arrowsStyle} property="borderStyle" label="Arrow border style" />
+                    <StyleControl target={arrowsStyle} property="borderRadius" label="Arrow corner radius" />
+                    <StyleControl target={arrowsStyle} property="hoverColor" label="Arrow hover icon color" />
+                    <StyleControl target={arrowsStyle} property="hoverBackground" label="Arrow hover background color" />
+                </PanelSection>
+            )}
+            {fields('Pagination', ['pagination', ...(pagination ? ['paginationAlign', 'paginationPosition'] : [])])}
+            {fields('Shared control colors', ['controlsTone'])}
+            {rootStyle && (
+                <PanelSection title="Slider design">
+                    <p className="text-xs text-muted">These settings style the whole slider, not its arrow buttons.</p>
+                    <ScreenBar props={props.node.props} breakpoint={props.breakpoint} onBreakpoint={props.onBreakpoint} slot="root" />
+                    <StyleGroups target={rootStyle} title="Slider layout and appearance" />
+                </PanelSection>
+            )}
         </>
     );
 }
 
 const BODIES: Record<string, (props: NodeInspectorProps) => React.JSX.Element> = {
+    slider: SliderBody,
+    slide: SlideBody,
     hero: HeroBody,
     image: ImageBody,
+    form: FormBody,
+    navigation: NavigationBody,
     text: TextBody,
     button: ButtonBody,
     section: SectionBody,
@@ -1306,6 +1695,8 @@ function PageInspector(props: InspectorProps) {
                             tokens: props.tokens,
                             media: props.media,
                             canEdit,
+                            canUpload: props.canUpload,
+                            onUpload: props.onUpload,
                             onStyle: (style: Style, key) => onChange([{ op: 'updateProps', nodeId: root.id, set: { style } }], key && `${root.id}:${key}`),
                         }}
                     />

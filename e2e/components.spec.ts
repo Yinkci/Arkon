@@ -69,7 +69,7 @@ async function interceptSave(page: Page, mode: 'delay' | 'drop-response-after-co
 }
 
 async function selectButton(page: Page) {
-    await canvas(page).locator('.ak-btn2').first().click();
+    await canvas(page).locator(':is(.ak-btn2,.ak-btn3)').first().click();
     await expect(linkField(page)).toBeVisible();
 }
 

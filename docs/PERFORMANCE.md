@@ -2,13 +2,11 @@
 
 Published pages are static HTML stored at publish time: one document with one inline `<style>` (base styles, the
 CSS of the component versions used, the generated style rules, and only the design-token variables that CSS uses),
-no external stylesheets, no web fonts (system font stacks), and no JavaScript, except one deferred ~2.5 KB file
-(`/_arkon/motion-3.js`, on pages with any entrance animation; pages published earlier keep `motion-1.js` or
-`motion-2.js`, loaded only with "when scrolled into view" entrances) (see "Entrance animations" below). Images are responsive WebP variants with
+no external stylesheets and system fonts by default. Choosing Inter adds a locally served font (Latin subset with full-character fallback). Public JavaScript is conditional: the versioned ~2.5 KB animation runtime and/or the ~4.9 KB slider/back-to-top runtime, both deferred and pinned by integrity. Older publications retain their recorded runtime versions. Images are responsive WebP variants with
 `srcset`/`sizes`, intrinsic `width`/`height`, `fetchpriority="high"` for the likely LCP image only and lazy loading
 for the rest. The editor, React, Inertia, the canvas bridge, drag and drop and the AI panel are admin-only assets and
 never appear in public HTML (asserted by PHPUnit and Playwright: no `/build/`, no `data-ak-`, and no `<script` except
-that runtime's one tag on pages that need it).
+the exact runtime tags on pages that need them).
 
 ## Lab measurements (Lighthouse)
 
@@ -253,3 +251,28 @@ Before this milestone, holding the pointer still at the edge scrolled 24 px and 
 hit request to the canvas and waited for its reply. The first profile of the new code also found the bridge
 re-measuring every block each frame (a ResizeObserver re-armed on every measurement) and sending selection rectangles
 during drags; both were fixed before these measurements.
+
+
+## Website/contact foundation (8 October 2026)
+
+The new /perf-contact fixture uses linked shared header/footer components and a native three-field form. Run it with PERF_PAGES=/perf-contact and PERF_OUT=storage/perf-website. On the existing mobile profile, three Lighthouse scores were 81, 100, 100 (median 100); median LCP 1,082 ms, CLS 0, TBT 63 ms. Output used 2,573 bytes CSS, approximately 4.7 KB HTML and zero script downloads. The direct throttled browser reported LCP 628/496/456 ms, CLS 0 during load and scrolling, zero long tasks and slowest synthetic taps 24/24/16 ms. This is a small, image-free contact fixture on the local PHP server; it is not field data or a promise for arbitrary AI-generated layouts. Header/footer landmarks are excluded from new renderer image-priority indexing, so a header logo does not steal automatic priority from the first main-content image.
+
+## Native navigation verification (8 October 2026)
+
+The /perf-contact fixture now includes native desktop/mobile navigation and a dropdown in its shared header. Three mobile Lighthouse runs scored 100/100/100: median LCP 979 ms, CLS 0, TBT 8 ms, generated CSS 3,483 bytes, approximately 6.3 KB HTML and zero script downloads. Direct throttled Chromium measured LCP 740/1232/528 ms, CLS 0 during load and scroll, and synthetic taps 24/24/16 ms. Reports are stored in storage/perf-navigation. This image-free local fixture measures the new navigation path; field Core Web Vitals and photographic generated sites still need their own measurements.
+
+## Reference website builder (9 October 2026)
+
+Three mobile Lighthouse 12.8.2 runs per page, production settings on the local PHP server, 4× CPU slowdown and simulated mobile network throttling. No other test suite ran during this final measurement. Reports and direct browser observations are in storage/perf-reference-final; regenerate with PERF_PAGES=/perf-reference,/perf-reference-inter,/perf-contact and PERF_OUT=storage/perf-reference-final.
+
+| Fixture | Scores (three runs) | Median score | Median LCP | CLS | Median TBT | Transfer | Public scripts |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Reference layout, default system fonts | 99 / 98 / 97 | 98 | 2,159 ms | 0 | 109 ms | 88.3 KB | 1, 4,861 bytes |
+| Same layout, locally served Inter | 97 / 93 / 96 | 96 | 2,531 ms | 0.005 | 0 ms | 161.3 KB | 1, 4,861 bytes |
+| Plain contact page | 100 / 100 / 100 | 100 | 918 ms | 0 | 0 ms | 6.9 KB | 0 |
+
+The reference includes a sticky logo/navigation header, two-slide hero, managed background images with overlays, service cards, a real newsletter form and footer/back-to-top. Imagery is generated placeholder data, not large photographic production assets. The widget runtime is conditional; React/Inertia/editor code is absent from public HTML.
+
+Direct throttled Chromium (three runs) measured reference LCP 700/776/588 ms, CLS 0 during load and scrolling, zero long tasks, and slowest synthetic taps 48/16/16 ms. The Inter variant measured LCP 652/628/696 ms and CLS 0.005; contact measured 424/392/400 ms and CLS 0. Synthetic taps are not field INP. Browser observations and simulated Lighthouse LCP use different methods and must not be treated as interchangeable.
+
+The system-font layout meets the local LCP/CLS targets. Optional Inter increases transfer and its median simulated LCP is just above 2.5 seconds. Prefer system fonts for the fastest first visit; choosing a web font has a measurable cost even when served locally. Font-display swap, reserved slide height, responsive backgrounds and initial-image preloads limit regressions but do not guarantee field Core Web Vitals. Measure final photos, content and deployment with real-user data.

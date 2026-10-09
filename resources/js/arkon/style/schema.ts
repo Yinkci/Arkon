@@ -5,7 +5,7 @@ import { isPlainObject, matches, message, rules } from '../rules';
 export const BREAKPOINTS = ['base', 'tablet', 'mobile'] as const;
 export type Breakpoint = (typeof BREAKPOINTS)[number];
 
-export type StyleKind = 'enum' | 'length' | 'number' | 'color' | 'ratio' | 'columns' | 'font' | 'shadow' | 'image' | 'time';
+export type StyleKind = 'enum' | 'length' | 'number' | 'color' | 'ratio' | 'columns' | 'font' | 'shadow' | 'image' | 'time' | 'gradient';
 
 export interface StyleProperty {
     group: string;
@@ -159,6 +159,10 @@ export function styleValueProblem(definition: Pick<StyleProperty, 'label' | 'kin
                 ? message('styleOutOfRange', { label: definition.label, min: definition.min!, max: definition.max!, unit: 'ms' })
                 : null;
         }
+        case 'gradient':
+            return /^(?:0|45|90|135|180|225|270|315)deg #[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})? #[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?$/.exec(value)?.[0] === value
+                ? null
+                : invalid();
         case 'color':
             return value === 'transparent' || matches('styleColor', value) ? null : invalid();
         case 'ratio':
@@ -201,6 +205,7 @@ export function expectedValues(definition: Pick<StyleProperty, 'kind'> & Partial
         font: () => `one of ${Object.keys(styleRules.fonts).join(', ')}`,
         shadow: () => `one of ${Object.keys(styleRules.shadows).join(', ')}`,
         image: () => 'an image reference',
+        gradient: () => 'an angle (0,45,90,135,180,225,270,315deg) and two hex colours, e.g. 90deg #102030ff #10203000',
     }[definition.kind]();
     return [first, ...(definition.keywords ?? []), ...(definition.tokens ?? []).map((group) => `a @${group} token`)].join(' or ');
 }

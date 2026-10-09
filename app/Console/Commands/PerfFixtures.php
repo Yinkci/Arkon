@@ -2,7 +2,11 @@
 
 namespace App\Console\Commands;
 
+use App\Arkon\Components\PatternLibrary;
+use App\Arkon\Design\ComponentService;
+use App\Arkon\Forms\FormService;
 use App\Arkon\Media\MediaService;
+use App\Arkon\Navigation\MenuService;
 use App\Arkon\Pages\PageService;
 use App\Arkon\Schema\Operations;
 use App\Arkon\Sites\SiteContext;
@@ -54,8 +58,8 @@ class PerfFixtures extends Command
                 'image' => ['assetId' => $photos[0]['id'], 'alt' => 'A walled garden with flowering borders'],
                 'style' => $set(['root' => ['base' => ['direction' => 'row'], 'tablet' => ['direction' => 'column', 'align' => 'stretch'], 'mobile' => ['direction' => 'column']], 'media' => ['base' => ['height' => '500px', 'objectFit' => 'cover'], 'mobile' => ['height' => '320px']]]),
             ], 'children' => ['butn0001', 'butn0002']],
-            ['id' => 'butn0001', 'type' => 'button', 'version' => 3, 'props' => ['label' => 'Get a quote', 'href' => '/contact']],
-            ['id' => 'butn0002', 'type' => 'button', 'version' => 3, 'props' => ['label' => 'Our work', 'href' => '/work', 'variant' => 'secondary']],
+            ['id' => 'butn0001', 'type' => 'button', 'version' => 6, 'props' => ['label' => 'Get a quote', 'href' => '/contact']],
+            ['id' => 'butn0002', 'type' => 'button', 'version' => 6, 'props' => ['label' => 'Our work', 'href' => '/work', 'variant' => 'secondary']],
             ['id' => 'text0001', 'type' => 'text', 'version' => 3, 'props' => ['text' => 'What we do', 'element' => 'h2']],
             ['id' => 'text0002', 'type' => 'text', 'version' => 3, 'props' => ['text' => str_repeat('We plan, plant and look after gardens of every size, from courtyards to estates. ', 6)]],
         ];
@@ -72,8 +76,8 @@ class PerfFixtures extends Command
                 $col = sprintf('col%d%d0001', $row, $c);
                 $img = sprintf('img%d%d0001', $row, $c);
                 $children[] = $col;
-                $nodes[] = ['id' => $col, 'type' => 'column', 'version' => 3, 'props' => $o, 'children' => [$img]];
-                $nodes[] = ['id' => $img, 'type' => 'image', 'version' => 4, 'props' => [
+                $nodes[] = ['id' => $col, 'type' => 'column', 'version' => 6, 'props' => $o, 'children' => [$img]];
+                $nodes[] = ['id' => $img, 'type' => 'image', 'version' => 5, 'props' => [
                     'image' => ['assetId' => $photos[1 + ($row * 3 + $c) % 6]['id'], 'alt' => 'Garden project '.($row * 3 + $c + 1)],
                     'caption' => 'Project '.($row * 3 + $c + 1),
                     'style' => ['media' => ['base' => ['aspectRatio' => '4/3', 'objectFit' => 'cover']]],
@@ -83,7 +87,7 @@ class PerfFixtures extends Command
             $cols[] = $id;
             $nodes[] = ['id' => $id, 'type' => 'columns', 'version' => 3, 'props' => ['style' => ['root' => ['tablet' => ['columns' => '2'], 'mobile' => ['columns' => '1']]]], 'children' => $children];
         }
-        $nodes[] = ['id' => 'imagbig01', 'type' => 'image', 'version' => 4, 'props' => ['image' => ['assetId' => $photos[6]['id'], 'alt' => 'A meadow garden at dusk'], 'caption' => 'Meadow planting, 2026', 'style' => ['root' => ['base' => ['maxWidth' => '@container.wide']]]]];
+        $nodes[] = ['id' => 'imagbig01', 'type' => 'image', 'version' => 5, 'props' => ['image' => ['assetId' => $photos[6]['id'], 'alt' => 'A meadow garden at dusk'], 'caption' => 'Meadow planting, 2026', 'style' => ['root' => ['base' => ['maxWidth' => '@container.wide']]]]];
         $this->page($pages, $ctx, '/perf-images', 'Perf images', $nodes, ['text0001', ...$cols, 'imagbig01']);
         // The heading and the first row hold the likely LCP (left still); the second row and the wide photo fade up in view.
         $this->page($pages, $ctx, '/perf-images-motion', 'Perf images motion', self::animate($nodes, ['text0001' => 'load', 'cols00001' => 'view', 'cols10001' => 'view', 'imagbig01' => 'view']), ['text0001', ...$cols, 'imagbig01']);
@@ -94,16 +98,16 @@ class PerfFixtures extends Command
         foreach (range(1, 3) as $s) {
             $section = "sect{$s}0001";
             $top[] = $section;
-            $nodes[] = ['id' => $section, 'type' => 'section', 'version' => 2, 'props' => ['contentWidth' => $s === 2 ? 'wide' : 'default', 'style' => ['root' => ['base' => ['backgroundColor' => $s % 2 ? '@color.surface' : '@color.background', 'paddingTop' => '@space.xl', 'paddingBottom' => '@space.xl']]]], 'children' => ["head{$s}0001", "row{$s}00001"]];
+            $nodes[] = ['id' => $section, 'type' => 'section', 'version' => 6, 'props' => ['contentWidth' => $s === 2 ? 'wide' : 'default', 'style' => ['root' => ['base' => ['backgroundColor' => $s % 2 ? '@color.surface' : '@color.background', 'paddingTop' => '@space.xl', 'paddingBottom' => '@space.xl']]]], 'children' => ["head{$s}0001", "row{$s}00001"]];
             $nodes[] = ['id' => "head{$s}0001", 'type' => 'text', 'version' => 3, 'props' => ['text' => $s === 1 ? 'A layout with depth' : "Section {$s}", 'element' => $s === 1 ? 'h1' : 'h2']];
             $nodes[] = ['id' => "row{$s}00001", 'type' => 'columns', 'version' => 3, 'props' => ['style' => ['root' => ['base' => ['columns' => '1fr 2fr 1fr', 'gap' => '@space.lg'], 'tablet' => ['columns' => '2'], 'mobile' => ['columns' => '1']]]], 'children' => ["c{$s}a00001", "c{$s}b00001", "c{$s}c00001"]];
             foreach (['a', 'b', 'c'] as $k) {
-                $nodes[] = ['id' => "c{$s}{$k}00001", 'type' => 'column', 'version' => 3, 'props' => $o, 'children' => ["g{$s}{$k}00001"]];
-                $nodes[] = ['id' => "g{$s}{$k}00001", 'type' => 'group', 'version' => 2, 'props' => ['style' => ['root' => ['base' => ['direction' => 'row', 'wrap' => 'wrap', 'gap' => '@space.sm', 'paddingTop' => '@space.md', 'paddingLeft' => '@space.md', 'paddingRight' => '@space.md', 'paddingBottom' => '@space.md', 'borderWidth' => '1px', 'borderStyle' => 'solid', 'borderColor' => '@color.border', 'borderRadius' => '@radius.md'], 'mobile' => ['direction' => 'column']]]], 'children' => ["n{$s}{$k}00001", "b{$s}{$k}00001"]];
-                $nodes[] = ['id' => "n{$s}{$k}00001", 'type' => 'group', 'version' => 2, 'props' => ['style' => ['root' => ['base' => ['gap' => '@space.xs']]]], 'children' => ["t{$s}{$k}00001", "p{$s}{$k}00001"]];
+                $nodes[] = ['id' => "c{$s}{$k}00001", 'type' => 'column', 'version' => 6, 'props' => $o, 'children' => ["g{$s}{$k}00001"]];
+                $nodes[] = ['id' => "g{$s}{$k}00001", 'type' => 'group', 'version' => 5, 'props' => ['style' => ['root' => ['base' => ['direction' => 'row', 'wrap' => 'wrap', 'gap' => '@space.sm', 'paddingTop' => '@space.md', 'paddingLeft' => '@space.md', 'paddingRight' => '@space.md', 'paddingBottom' => '@space.md', 'borderWidth' => '1px', 'borderStyle' => 'solid', 'borderColor' => '@color.border', 'borderRadius' => '@radius.md'], 'mobile' => ['direction' => 'column']]]], 'children' => ["n{$s}{$k}00001", "b{$s}{$k}00001"]];
+                $nodes[] = ['id' => "n{$s}{$k}00001", 'type' => 'group', 'version' => 5, 'props' => ['style' => ['root' => ['base' => ['gap' => '@space.xs']]]], 'children' => ["t{$s}{$k}00001", "p{$s}{$k}00001"]];
                 $nodes[] = ['id' => "t{$s}{$k}00001", 'type' => 'text', 'version' => 3, 'props' => ['text' => "Card {$s}{$k}", 'element' => 'h3']];
                 $nodes[] = ['id' => "p{$s}{$k}00001", 'type' => 'text', 'version' => 3, 'props' => ['text' => 'Nested two groups deep inside a column of a Columns block in a section.', 'style' => ['root' => ['base' => ['color' => '@color.muted', 'fontSize' => '@fontSize.sm']]]]];
-                $nodes[] = ['id' => "b{$s}{$k}00001", 'type' => 'button', 'version' => 3, 'props' => ['label' => 'Details', 'href' => '#', 'size' => 'small', 'variant' => 'secondary']];
+                $nodes[] = ['id' => "b{$s}{$k}00001", 'type' => 'button', 'version' => 6, 'props' => ['label' => 'Details', 'href' => '#', 'size' => 'small', 'variant' => 'secondary']];
             }
         }
         $this->page($pages, $ctx, '/perf-nested', 'Perf nested', $nodes, $top);
@@ -125,21 +129,115 @@ class PerfFixtures extends Command
         ];
         foreach (['Spring', 'Summer', 'Autumn'] as $i => $season) {
             $n = $i + 1;
-            $nodes[] = ['id' => "coli000{$n}", 'type' => 'column', 'version' => 3, 'props' => $o, 'children' => ["card000{$n}"]];
-            $nodes[] = ['id' => "card000{$n}", 'type' => 'group', 'version' => 2, 'props' => ['style' => ['root' => ['base' => ['paddingTop' => '@space.md', 'paddingBottom' => '@space.md', 'paddingLeft' => '@space.md', 'paddingRight' => '@space.md', 'backgroundColor' => '@color.surface', 'borderRadius' => '@radius.md']]]], 'children' => ["cath000{$n}", "catx000{$n}"]];
+            $nodes[] = ['id' => "coli000{$n}", 'type' => 'column', 'version' => 6, 'props' => $o, 'children' => ["card000{$n}"]];
+            $nodes[] = ['id' => "card000{$n}", 'type' => 'group', 'version' => 5, 'props' => ['style' => ['root' => ['base' => ['paddingTop' => '@space.md', 'paddingBottom' => '@space.md', 'paddingLeft' => '@space.md', 'paddingRight' => '@space.md', 'backgroundColor' => '@color.surface', 'borderRadius' => '@radius.md']]]], 'children' => ["cath000{$n}", "catx000{$n}"]];
             $nodes[] = ['id' => "cath000{$n}", 'type' => 'text', 'version' => 3, 'props' => ['text' => $season, 'element' => 'h3']];
             $nodes[] = ['id' => "catx000{$n}", 'type' => 'text', 'version' => 3, 'props' => ['text' => "What we do in {$season}: planting, feeding and tidying, timed for the season."]];
         }
         $top = ['text0001', 'text0002', 'cols0001'];
         foreach (range(1, 3) as $s) {
-            $nodes[] = ['id' => "more{$s}0001", 'type' => 'section', 'version' => 2, 'props' => ['style' => ['root' => ['base' => ['minHeight' => '70vh']]]], 'children' => ["mort{$s}0001", "morp{$s}0001"]];
+            $nodes[] = ['id' => "more{$s}0001", 'type' => 'section', 'version' => 6, 'props' => ['style' => ['root' => ['base' => ['minHeight' => '70vh']]]], 'children' => ["mort{$s}0001", "morp{$s}0001"]];
             $nodes[] = ['id' => "mort{$s}0001", 'type' => 'text', 'version' => 3, 'props' => ['text' => "Further down {$s}", 'element' => 'h2']];
             $nodes[] = ['id' => "morp{$s}0001", 'type' => 'text', 'version' => 3, 'props' => ['text' => str_repeat('A section further down the page. ', 8)]];
             $top[] = "more{$s}0001";
         }
         $this->page($pages, $ctx, '/perf-intro-motion', 'Perf intro motion', self::animate($nodes, ['text0002' => 'view', 'card0001' => 'view', 'card0002' => 'view', 'card0003' => 'view', 'more10001' => 'view', 'more20001' => 'view', 'more30001' => 'view']), $top);
 
-        $this->info('Published /perf-hero, /perf-images, /perf-nested, /perf-intro-motion and the -motion variants.');
+        // Shared header/footer and a native contact form: the complete-website baseline.
+        $forms = app(FormService::class);
+        $form = $forms->save($ctx, ['baseVersion' => 0, 'requestKey' => Uuid::v7(), 'definition' => [
+            'name' => 'Performance contact', 'submitLabel' => 'Send enquiry', 'successMessage' => 'Thank you for your enquiry.',
+            'fields' => [
+                ['id' => 'name', 'label' => 'Your name', 'type' => 'text', 'required' => true],
+                ['id' => 'email', 'label' => 'Email', 'type' => 'email', 'required' => true],
+                ['id' => 'message', 'label' => 'Message', 'type' => 'textarea', 'required' => true],
+            ],
+        ]]);
+        $forms->publish($ctx, $form['id'], ['expectedVersion' => 1, 'requestKey' => Uuid::v7()]);
+        $components = app(ComponentService::class);
+        $menus = app(MenuService::class);
+        $menu = $menus->save($ctx, ['baseVersion' => 0, 'requestKey' => Uuid::v7(), 'definition' => ['name' => 'Main navigation', 'items' => [
+            ['id' => 'home', 'label' => 'Home', 'type' => 'url', 'pageId' => null, 'href' => '/perf-hero', 'anchor' => '', 'parentId' => null],
+            ['id' => 'services', 'label' => 'Services', 'type' => 'url', 'pageId' => null, 'href' => '/perf-nested', 'anchor' => '', 'parentId' => null],
+            ['id' => 'consulting', 'label' => 'Garden consulting', 'type' => 'url', 'pageId' => null, 'href' => '/perf-contact', 'anchor' => '', 'parentId' => 'services'],
+            ['id' => 'contact', 'label' => 'Contact', 'type' => 'url', 'pageId' => null, 'href' => '/perf-contact', 'anchor' => '', 'parentId' => null],
+        ]]]);
+        $menus->publish($ctx, $menu['id'], ['expectedVersion' => 1, 'requestKey' => Uuid::v7()]);
+        $shared = [];
+        foreach (['header', 'footer'] as $slot) {
+            $component = $components->create($ctx, ['name' => 'Performance '.$slot, 'nodes' => [
+                ['id' => $slot.'001', 'type' => 'group', 'version' => 5, 'props' => ['element' => $slot], 'children' => $slot === 'header' ? ['label001', 'nav00001'] : ['label001']],
+                ['id' => 'label001', 'type' => 'text', 'version' => 3, 'props' => ['text' => 'Garden Studio — thoughtful outdoor spaces.']],
+                ...($slot === 'header' ? [['id' => 'nav00001', 'type' => 'navigation', 'version' => 1, 'props' => ['menuId' => $menu['id']]]] : []),
+            ]]);
+            $components->publish($ctx, $component['id'], ['expectedVersion' => 1, 'idempotencyKey' => Uuid::v7()]);
+            $shared[$slot] = $component['id'];
+        }
+        $this->page($pages, $ctx, '/perf-contact', 'Contact | Garden Studio', [
+            ['id' => 'header01', 'type' => 'instance', 'version' => 2, 'props' => ['componentId' => $shared['header']]],
+            ['id' => 'heading1', 'type' => 'text', 'version' => 3, 'props' => ['text' => 'Let’s plan your garden', 'element' => 'h1']],
+            ['id' => 'intro001', 'type' => 'text', 'version' => 3, 'props' => ['text' => 'Tell us about the outdoor space you would like to create.']],
+            ['id' => 'contact1', 'type' => 'form', 'version' => 3, 'props' => ['form' => ['id' => $form['id']]]],
+            ['id' => 'footer01', 'type' => 'instance', 'version' => 2, 'props' => ['componentId' => $shared['footer']]],
+        ], ['header01', 'heading1', 'intro001', 'contact1', 'footer01']);
+
+        $newsletter = $forms->save($ctx, ['baseVersion' => 0, 'requestKey' => Uuid::v7(), 'definition' => [
+            'name' => 'Demo newsletter', 'submitLabel' => 'Subscribe', 'successMessage' => 'Your demo signup has been recorded.',
+            'fields' => [['id' => 'email', 'label' => 'Email address', 'type' => 'email', 'required' => true]],
+        ]]);
+        $forms->publish($ctx, $newsletter['id'], ['expectedVersion' => 1, 'requestKey' => Uuid::v7()]);
+        $library = app(PatternLibrary::class);
+        $demo = $library->document(array_column($library->all(), 'id'));
+        $slideIndex = 0;
+        foreach ($demo['nodes'] as &$node) {
+            $props = Json::entries($node['props']);
+            if ($node['type'] === 'navigation') {
+                $props['menuId'] = $menu['id'];
+            }
+            if ($node['type'] === 'form') {
+                $props['form'] = ['id' => $newsletter['id']];
+            }
+            if ($node['type'] === 'logo') {
+                $props['image'] = ['assetId' => $photos[2]['id'], 'alt' => 'Arkon Studio demo logo'];
+            }
+            if ($node['type'] === 'slide') {
+                $props['style']['root']['base']['backgroundImage'] = ['assetId' => $photos[$slideIndex++ % 2]['id']];
+            }
+            if ($node['type'] === 'text') {
+                $style = Json::toArray($props['style'] ?? []);
+                $style['root']['base']['fontFamily'] = 'inter';
+                $props['style'] = $style;
+            }
+            if ($node['type'] === 'group' && isset($props['style']['root']['base']['backgroundGradient']) && ($props['style']['root']['base']['minHeight'] ?? '') === '22rem') {
+                $props['style']['root']['base']['backgroundImage'] = ['assetId' => $photos[1]['id']];
+            }
+            $node['props'] = $props;
+        }
+        unset($node);
+        $this->page($pages, $ctx, '/perf-reference-inter', 'Arkon Studio — local Inter demonstration', array_values(array_filter($demo['nodes'], fn ($node) => $node['type'] !== 'page')), $demo['nodes'][$demo['root']]['children']);
+        // Compare the same design using the real pattern default: no web font download.
+        foreach ($demo['nodes'] as &$node) {
+            if ($node['type'] === 'text') {
+                $props = Json::entries($node['props']);
+                unset($props['style']['root']['base']['fontFamily']);
+                if ($props['style']['root']['base'] === []) {
+                    $props['style']['root']['base'] = new stdClass;
+                }
+                $node['props'] = $props;
+            }
+        }
+        unset($node);
+        $autoplayDemo = $demo;
+        foreach ($autoplayDemo['nodes'] as &$node) {
+            if ($node['type'] === 'slider') {
+                $node['props']['autoplay'] = true;
+                $node['props']['pauseOnHover'] = true;
+            }
+        }
+        unset($node);
+        $this->page($pages, $ctx, '/perf-reference-autoplay', 'Arkon Studio — autoplay demonstration', array_values(array_filter($autoplayDemo['nodes'], fn ($node) => $node['type'] !== 'page')), $autoplayDemo['nodes'][$autoplayDemo['root']]['children']);
+        $this->page($pages, $ctx, '/perf-reference', 'Arkon Studio — builder demonstration', array_values(array_filter($demo['nodes'], fn ($node) => $node['type'] !== 'page')), $demo['nodes'][$demo['root']]['children']);
+        $this->info('Published /perf-reference and /perf-contact, /perf-hero, /perf-images, /perf-nested, /perf-intro-motion and the -motion variants.');
 
         return self::SUCCESS;
     }
@@ -171,7 +269,7 @@ class PerfFixtures extends Command
         $root = 'root'.substr(str_replace('-', '', $pageId), -8);
         DB::table('pages')->insert(['id' => $pageId, 'site_id' => $ctx->siteId, 'path' => $path, 'title' => $title]);
         DB::table('page_drafts')->insert(['page_id' => $pageId, 'site_id' => $ctx->siteId, 'version' => 1, 'document' => Json::encode([
-            'schemaVersion' => 1, 'root' => $root, 'nodes' => [$root => ['id' => $root, 'type' => 'page', 'version' => 3, 'props' => new stdClass, 'children' => []]], 'seo' => new stdClass,
+            'schemaVersion' => 1, 'root' => $root, 'nodes' => [$root => ['id' => $root, 'type' => 'page', 'version' => 6, 'props' => new stdClass, 'children' => []]], 'seo' => new stdClass,
         ])]);
         $byId = array_column($nodes, null, 'id');
         $ops = [];

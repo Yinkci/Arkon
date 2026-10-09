@@ -238,7 +238,7 @@ test('reusable components: made from a block, edited and published once, updatin
     await expect(notice(page)).toContainText('Published');
 
     // Edit the component on its own page and publish it: the live page follows.
-    await page.goto('/admin/design');
+    await page.goto('/admin/design/components');
     await page.getByRole('link', { name: 'Delivery banner' }).click();
     await expect(page.getByTestId('component-status')).toContainText('Pages show v1');
     await canvas(page).locator('p.ak-text2').click();

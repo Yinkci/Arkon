@@ -47,6 +47,53 @@ process.stdin.on('end', async () => {
         process.exit(0);
     };
 
+    const websiteText = /<website>([\s\S]*?)<\/website>/.exec(stdin)?.[1];
+    if (websiteText) {
+        const context = JSON.parse(websiteText);
+        const proposal = (changes) => ({ summary: 'Editable page blocks', notes: [], tokenChanges: [], changes });
+        const add = (type, props, parent = 'page', ref = null) => ({ action: 'add', parent, index: null, ref, block: { type, props } });
+        const pages = ['Home', 'About', 'Services', 'Contact'].map((title) => ({
+            pageId: null,
+            title: `Website ${title}`,
+            path: `/website-${title.toLowerCase()}`,
+            seo: { title: `${title} | Garden Studio`, description: 'Landscaping services and enquiries for Garden Studio.' },
+            proposal: proposal([
+                add('hero', {
+                    heading: title === 'Home' ? 'Gardens made for everyday life' : title,
+                    text: 'Thoughtful landscaping for your outdoor space.',
+                    style: [],
+                }),
+                ...(title === 'Contact' ? [add('form', { form: { id: context.form.id }, style: [] })] : []),
+            ]),
+        }));
+        const header = [
+            add('group', { element: 'header', style: [] }, 'page', 'header'),
+            add('text', { text: 'Garden Studio', element: 'p', style: [] }, 'new:header'),
+            add('group', { element: 'nav', style: [] }, 'new:header', 'nav'),
+            ...pages.map((p) => add('button', { label: p.title, href: p.path, variant: 'text', style: [] }, 'new:nav')),
+        ];
+        reply({
+            summary: 'Four-page landscaping website',
+            pages,
+            header: proposal(header),
+            footer: proposal([
+                add('group', { element: 'footer', style: [] }, 'page', 'footer'),
+                add('text', { text: 'Garden Studio — plan your outdoor project.', element: 'p', style: [] }, 'new:footer'),
+            ]),
+            form: {
+                name: 'Website enquiry',
+                submitLabel: 'Send enquiry',
+                successMessage: 'Thank you. Your enquiry was received.',
+                fields: [
+                    { id: 'name', label: 'Your name', type: 'text', required: true, options: [] },
+                    { id: 'email', label: 'Email', type: 'email', required: true, options: [] },
+                    { id: 'message', label: 'Message', type: 'textarea', required: true, options: [] },
+                ],
+            },
+            tokenChanges: [],
+        });
+    }
+
     if (request.includes('MOCK-LIMIT')) {
         console.log(
             JSON.stringify({ type: 'result', subtype: 'success', is_error: true, result: 'Claude AI usage limit reached|1791331200', api_error_status: 429 }),

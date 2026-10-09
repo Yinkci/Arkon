@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Arkon\Errors\ArkonException;
 use App\Arkon\Pages\PageService;
-use App\Arkon\Renderer\Motion;
 use App\Http\AdminContext;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -26,7 +25,7 @@ class PreviewController extends Controller
             // Same script policy as the live page: none, or exactly the animation runtime the page uses.
             return response($preview['html'], 200, [
                 ...self::HEADERS,
-                'Content-Security-Policy' => "default-src 'self'; script-src ".Motion::scriptSrc($preview['runtime'], $request->getSchemeAndHttpHost())."; style-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'",
+                'Content-Security-Policy' => PublicPageController::csp($preview['runtime'], $request->getSchemeAndHttpHost(), $preview['html']),
             ]);
         } catch (ArkonException $error) {
             $notFound = $error->code() === 'NOT_FOUND';

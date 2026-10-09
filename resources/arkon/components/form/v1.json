@@ -1,0 +1,45 @@
+{
+  "type": "form",
+  "version": 1,
+  "label": "Contact form",
+  "children": false,
+  "props": {
+    "form": {
+      "type": "object",
+      "nullable": true,
+      "default": null,
+      "properties": {
+        "id": {
+          "type": "uuid"
+        }
+      }
+    },
+    "style": {
+      "type": "style",
+      "slots": {
+        "root": {
+          "label": "Form",
+          "groups": [
+            "spacing",
+            "size",
+            "placement",
+            "background",
+            "border"
+          ]
+        }
+      },
+      "default": {}
+    }
+  },
+  "defaultProps": {
+    "form": null,
+    "style": {}
+  },
+  "publishChecks": [
+    {
+      "rule": "present",
+      "prop": "form",
+      "message": "Choose a contact form"
+    }
+  ]
+}

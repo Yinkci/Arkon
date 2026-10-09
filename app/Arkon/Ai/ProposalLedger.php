@@ -92,7 +92,7 @@ final class ProposalLedger
     /** Inside the site lock: the user's earlier waiting or running request for this page is superseded. */
     public function supersede(SiteContext $ctx, string $pageId): int
     {
-        return DB::table('ai_proposals')->where('site_id', $ctx->siteId)->where('page_id', $pageId)->where('created_by', $ctx->userId)
+        return DB::table('ai_proposals')->where('site_id', $ctx->siteId)->where('page_id', $pageId)->where('scope', 'page')->where('created_by', $ctx->userId)
             ->where('source', 'panel')->whereIn('status', ['queued', 'running'])
             ->update(['status' => 'cancelled', 'error_code' => AiException::SUPERSEDED, 'error_message' => 'Replaced by a newer request.',
                 'lease_token' => null, 'lease_expires_at' => null, 'resolved_at' => DB::raw('now()')]);
@@ -109,14 +109,14 @@ final class ProposalLedger
     public function find(SiteContext $ctx, string $pageId, string $id): ?object
     {
         return Uuid::isValid($id)
-            ? DB::table('ai_proposals')->where('id', $id)->where('site_id', $ctx->siteId)->where('page_id', $pageId)->where('created_by', $ctx->userId)->first(self::COLUMNS)
+            ? DB::table('ai_proposals')->where('id', $id)->where('site_id', $ctx->siteId)->where('page_id', $pageId)->where('scope', 'page')->where('created_by', $ctx->userId)->first(self::COLUMNS)
             : null;
     }
 
     /** The user's requests on this page that are still in progress or waiting for review. */
     public function reviewable(SiteContext $ctx, string $pageId): array
     {
-        return DB::table('ai_proposals')->where('site_id', $ctx->siteId)->where('page_id', $pageId)->where('created_by', $ctx->userId)
+        return DB::table('ai_proposals')->where('site_id', $ctx->siteId)->where('page_id', $pageId)->where('scope', 'page')->where('created_by', $ctx->userId)
             ->whereIn('status', ['queued', 'running', 'proposed', 'empty'])->orderBy('created_at')->limit(20)->get(self::COLUMNS)->all();
     }
 
@@ -161,15 +161,30 @@ final class ProposalLedger
         $lease = Uuid::v7();
         $rows = DB::select(
             "UPDATE ai_proposals SET status = 'running', lease_token = ?, lease_expires_at = now() + make_interval(secs => ?),
-                attempts = attempts + 1, started_at = now(), connection_id = ?
+                attempts = attempts + 1, started_at = now(), connection_id = ?, activity = 'generating', heartbeat_at = now(), validation_issues = NULL, website_candidate = NULL
              WHERE id = (SELECT id FROM ai_proposals WHERE site_id = ? AND status = 'queued' AND source = 'panel'
                          ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1)
                AND ".self::connectionEligible('?').'
-             RETURNING id, site_id, page_id, created_by, prompt, base_version, attempts, lease_token',
+             RETURNING id, site_id, page_id, created_by, prompt, base_version, attempts, lease_token, scope, website_snapshot',
             [$lease, (int) config('arkon.ai.lease_seconds'), $connectionId, $siteId, $connectionId],
         );
 
         return $rows[0] ?? null;
+    }
+
+    /** Progress and diagnostics are fenced by the same live lease as results. Raw output never reaches the browser. */
+    public function websiteActivity(string $id, string $lease, string $stage, array $issues = [], mixed $candidate = null): bool
+    {
+        $issues = array_map(fn ($issue) => ['path' => mb_substr((string) ($issue['path'] ?? ''), 0, 200), 'message' => mb_substr((string) ($issue['message'] ?? ''), 0, 1000)], array_slice($issues, 0, 20));
+        $encoded = $candidate === null ? null : Json::encode($candidate);
+        if ($encoded !== null && strlen($encoded) > 2097152) {
+            $encoded = null;
+        }
+
+        return DB::update(
+            'UPDATE ai_proposals SET activity = ?, heartbeat_at = now(), validation_issues = ?::jsonb, website_candidate = ?::jsonb WHERE id = ? AND scope = \'website\' AND '.self::HOLDS_LEASE,
+            [$stage, Json::encode(array_slice($issues, 0, 20)), $encoded, $id, $lease],
+        ) === 1;
     }
 
     /**
@@ -180,7 +195,7 @@ final class ProposalLedger
     public function renew(string $id, string $lease): bool
     {
         return DB::update(
-            'UPDATE ai_proposals SET lease_expires_at = now() + make_interval(secs => ?) WHERE id = ? AND '.self::HOLDS_LEASE,
+            'UPDATE ai_proposals SET heartbeat_at = now(), lease_expires_at = now() + make_interval(secs => ?) WHERE id = ? AND '.self::HOLDS_LEASE,
             [(int) config('arkon.ai.lease_seconds'), $id, $lease],
         ) === 1;
     }
@@ -198,6 +213,12 @@ final class ProposalLedger
             ->update([...$this->proposalColumns($compiled, (string) DB::table('ai_proposals')->where('id', $id)->value('site_id')), 'lease_token' => null, 'lease_expires_at' => null]) === 1;
     }
 
+    public function finishWebsite(string $id, string $lease, array $result): bool
+    {
+        return DB::table('ai_proposals')->where('id', $id)->where('scope', 'website')->whereRaw(self::HOLDS_LEASE, [$lease])
+            ->update(['status' => 'proposed', 'summary' => $result['summary'], 'website_result' => Json::encode($result), 'lease_token' => null, 'lease_expires_at' => null]) === 1;
+    }
+
     public function failRun(string $id, string $lease, string $code, string $message): bool
     {
         return DB::table('ai_proposals')->where('id', $id)->whereRaw(self::HOLDS_LEASE, [$lease])
@@ -205,10 +226,10 @@ final class ProposalLedger
     }
 
     /** Back to the queue while attempts remain (a later claim gets a fresh lease token), otherwise failed. */
-    private const REQUEUE = "status = CASE WHEN attempts < ? THEN 'queued' ELSE 'failed' END,
-                error_code = CASE WHEN attempts < ? THEN NULL ELSE ? END,
-                error_message = CASE WHEN attempts < ? THEN NULL ELSE ? END,
-                resolved_at = CASE WHEN attempts < ? THEN NULL ELSE now() END,
+    private const REQUEUE = "status = CASE WHEN scope = 'page' AND attempts < ? THEN 'queued' ELSE 'failed' END,
+                error_code = CASE WHEN scope = 'page' AND attempts < ? THEN NULL ELSE ? END,
+                error_message = CASE WHEN scope = 'page' AND attempts < ? THEN NULL ELSE ? END,
+                resolved_at = CASE WHEN scope = 'page' AND attempts < ? THEN NULL ELSE now() END,
                 lease_token = NULL, lease_expires_at = NULL";
 
     private static function requeueBindings(string $message): array

@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\File;
  */
 final class HeroNext implements ComponentRenderer
 {
-    public const VERSION = 5;
+    public const VERSION = 6;
 
     public function render(RenderContext $ctx): Element
     {
