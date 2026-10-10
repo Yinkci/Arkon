@@ -5,7 +5,8 @@ import { Link } from '@inertiajs/react';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { Issue } from '@/arkon/rules';
 import { Icon, type IconName } from '@/Components/Icon';
-import { ArkonMark, Button, Notice, StatusPill, type Tone } from '@/Components/ui';
+import { ArkonLogo } from '@/Components/ArkonLogo';
+import { Button, Notice, StatusPill, type Tone } from '@/Components/ui';
 import type { Viewport } from './Canvas';
 
 export interface SaveState {
@@ -109,7 +110,7 @@ export function BackMark({ href, label }: { href: string; label: string }) {
             className="group flex h-8 shrink-0 items-center gap-1 rounded-md pr-1 pl-1 text-muted transition-colors hover:bg-hover hover:text-fg"
         >
             <Icon name="arrowLeft" className="size-3.5 transition-transform group-hover:-translate-x-0.5" />
-            <ArkonMark className="size-6" />
+            <ArkonLogo className="size-6" />
         </Link>
     );
 }

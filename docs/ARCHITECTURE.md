@@ -661,6 +661,22 @@ paid API path and no Anthropic SDK; Arkon never reads, stores or exports Claude'
 - **Permissions:** `page.edit` (owners, admins, editors) to ask, submit, apply or discard; viewers get 403, other sites
   404; a request can only be seen, applied or discarded by its creator.
 
+### Trash
+
+Pages, forms and images share one Trash model built on their existing soft-delete columns (`pages.deleted_at`,
+`site_forms.archived_at`, `media_assets.archived_at`); no extra soft-delete layer. Moving to the Trash goes through the
+same service methods as before (a page goes offline and frees its URL; a form on a live page is refused; an image keeps
+working where it is used). Restore brings back the same id with everything attached; a page is refused while another
+page uses its URL. **Delete permanently** sets `purged_at` (migration `2026_10_19_000001_trash`): the item leaves the
+Trash for good, while append-only history (revisions, publications, form versions, media variants) stays, so old
+publications still reproduce. A form's entries are deleted with it; images have no permanent deletion yet. Nothing
+expires automatically. `POST /admin/api/{pages,forms,media}/bulk` (`Support\Bulk`) applies one action to up to 100 items,
+each through the single-item method in its own transaction, reporting `done` and `failed` per item; a missing permission
+fails the whole request.
+
+Database sessions run in UTC (`config/database.php`, the same zone as `app.timezone`), so timestamps PHP writes without
+an offset are stored as written. Rows written before this setting on a server in another zone keep that offset.
+
 ## 7. Security
 
 - **Sign-in**: Laravel session guard, database sessions (`arkon_session`, HttpOnly, SameSite=Lax; set

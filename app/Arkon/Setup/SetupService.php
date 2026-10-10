@@ -67,7 +67,7 @@ class SetupService
      * @param  list<string>  $hosts
      * @return array{siteId: string, created: bool}
      */
-    public function seedDemoSite(array $hosts, string $name = 'Arkon Demo'): array
+    public function seedDemoSite(array $hosts, string $name = 'Arkon'): array
     {
         $hosts = array_values(array_filter(array_map(fn ($h) => strtolower(trim($h)), $hosts)));
         if ($hosts === []) {

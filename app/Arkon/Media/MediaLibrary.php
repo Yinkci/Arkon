@@ -19,22 +19,27 @@ class MediaLibrary
 {
     public function __construct(private Authorizer $auth, private Transactions $tx, private AuditLog $audit) {}
 
-    public function browse(SiteContext $ctx, string $q = '', string $sort = 'newest', int $page = 1): array
+    public const PER_PAGE = 48;
+
+    /** `library` or `trash` (assets removed from the library: archived_at). */
+    public function browse(SiteContext $ctx, string $q = '', string $sort = 'newest', int $page = 1, string $status = 'library'): array
     {
         $this->auth->authorize($ctx, 'media.view');
-        $query = DB::table('media_assets')->where('site_id', $ctx->siteId)->whereNull('archived_at');
+        $status = $status === 'trash' ? 'trash' : 'library';
+        $counts = (array) DB::table('media_assets')->where('site_id', $ctx->siteId)->selectRaw('count(*) FILTER (WHERE archived_at IS NULL) AS library, count(*) FILTER (WHERE archived_at IS NOT NULL) AS trash')->first();
+        $query = DB::table('media_assets')->where('site_id', $ctx->siteId)->when($status === 'trash', fn ($q) => $q->whereNotNull('archived_at'), fn ($q) => $q->whereNull('archived_at'));
         if ($q !== '') {
             $query->whereRaw('(strpos(lower(title),lower(?))>0 OR strpos(lower(original_name),lower(?))>0 OR strpos(lower(alt_text),lower(?))>0 OR strpos(lower(caption),lower(?))>0)', [$q, $q, $q, $q]);
         }
         $total = (clone $query)->count();
-        $page = min(max(1, $page), max(1, (int) ceil($total / 36)));
+        $page = min(max(1, $page), max(1, (int) ceil($total / self::PER_PAGE)));
         [$column,$direction] = match ($sort) {
             'oldest' => ['created_at', 'asc'],'name' => ['title', 'asc'],'largest' => ['bytes', 'desc'],'smallest' => ['bytes', 'asc'],default => ['created_at', 'desc']
         };
-        $rows = $query->orderBy($column, $direction)->orderBy('id')->offset(($page - 1) * 36)->limit(36)->get();
+        $rows = $query->orderBy($column, $direction)->orderBy('id')->offset(($page - 1) * self::PER_PAGE)->limit(self::PER_PAGE)->get();
         $variants = DB::table('media_variants')->where('site_id', $ctx->siteId)->whereIn('asset_id', $rows->pluck('id'))->orderBy('width')->get()->groupBy('asset_id');
 
-        return ['items' => $rows->map(fn ($a) => $this->present($a, $variants->get($a->id, collect())->all()))->all(), 'total' => $total, 'page' => $page, 'pages' => max(1, (int) ceil($total / 36)), 'q' => $q, 'sort' => $sort];
+        return ['items' => $rows->map(fn ($a) => $this->present($a, $variants->get($a->id, collect())->all()))->all(), 'total' => $total, 'page' => $page, 'pages' => max(1, (int) ceil($total / self::PER_PAGE)), 'perPage' => self::PER_PAGE, 'q' => $q, 'sort' => $sort, 'status' => $status, 'counts' => array_map('intval', $counts)];
     }
 
     private function asset(SiteContext $ctx, string $id, bool $lock = false): object
@@ -61,6 +66,9 @@ class MediaLibrary
 
     private function present(object $a, array $variants): array
     {
+        // Grid thumbnails: the smallest WebP sizes, so a library page never downloads originals.
+        $small = array_values(array_filter($variants, fn ($v) => $v->format === 'webp' && (int) $v->width <= 640));
+        $thumb = $small[0] ?? null;
         $preview = null;
         foreach ($variants as $v) {
             $preview = $v;
@@ -69,7 +77,7 @@ class MediaLibrary
             }
         }
 
-        return ['id' => $a->id, 'title' => $a->title ?: $a->original_name, 'alt' => $a->alt_text, 'caption' => $a->caption, 'description' => $a->description, 'version' => (int) $a->metadata_version, 'originalName' => $a->original_name, 'url' => MediaService::url($a->storage_key), 'previewUrl' => MediaService::url($preview?->storage_key ?? $a->storage_key), 'mime' => $a->mime, 'width' => (int) $a->width, 'height' => (int) $a->height, 'bytes' => (int) $a->bytes, 'createdAt' => $a->created_at, 'archived' => $a->archived_at !== null, 'webpVariants' => array_values(array_map(fn ($v) => ['url' => MediaService::url($v->storage_key), 'width' => (int) $v->width, 'height' => (int) $v->height, 'bytes' => (int) $v->bytes], array_filter($variants, fn ($v) => $v->format === 'webp'))), 'optimization' => ['count' => count($variants), 'previewBytes' => $preview ? (int) $preview->bytes : null, 'status' => $variants ? 'WebP sizes available' : 'Original available; no smaller WebP sizes recorded']];
+        return ['id' => $a->id, 'title' => $a->title ?: $a->original_name, 'alt' => $a->alt_text, 'caption' => $a->caption, 'description' => $a->description, 'version' => (int) $a->metadata_version, 'originalName' => $a->original_name, 'url' => MediaService::url($a->storage_key), 'previewUrl' => MediaService::url($preview?->storage_key ?? $a->storage_key), 'thumbUrl' => MediaService::url($thumb?->storage_key ?? $preview?->storage_key ?? $a->storage_key), 'thumbSrcset' => implode(', ', array_map(fn ($v) => MediaService::url($v->storage_key).' '.$v->width.'w', $small)), 'mime' => $a->mime, 'width' => (int) $a->width, 'height' => (int) $a->height, 'bytes' => (int) $a->bytes, 'createdAt' => $a->created_at, 'archived' => $a->archived_at !== null, 'webpVariants' => array_values(array_map(fn ($v) => ['url' => MediaService::url($v->storage_key), 'width' => (int) $v->width, 'height' => (int) $v->height, 'bytes' => (int) $v->bytes], array_filter($variants, fn ($v) => $v->format === 'webp'))), 'optimization' => ['count' => count($variants), 'previewBytes' => $preview ? (int) $preview->bytes : null, 'status' => $variants ? 'WebP sizes available' : 'Original available; no smaller WebP sizes recorded']];
     }
 
     public function save(SiteContext $ctx, string $id, array $input): array
@@ -132,6 +140,48 @@ class MediaLibrary
             DB::table('media_assets')->where('site_id', $ctx->siteId)->where('id', $id)->update(['archived_at' => DB::raw('now()'), 'metadata_version' => $version + 1]);
             $this->audit->forContext($ctx, 'media.archive', 'media', $id);
         });
+    }
+
+    /** Brings an image back from the Trash with the same id, metadata, files and sizes. */
+    public function restore(SiteContext $ctx, string $id): void
+    {
+        $this->auth->authorize($ctx, 'page.delete');
+        $this->tx->run(function () use ($ctx, $id) {
+            $this->auth->authorize($ctx, 'page.delete');
+            $a = $this->asset($ctx, $id, true);
+            if ($a->archived_at === null) {
+                return;
+            }
+            DB::table('media_assets')->where('site_id', $ctx->siteId)->where('id', $id)->update(['archived_at' => null, 'metadata_version' => (int) $a->metadata_version + 1]);
+            $this->audit->forContext($ctx, 'media.restore', 'media', $id);
+        });
+    }
+
+    /**
+     * How many of the given images are in use, for one summary before moving them to the Trash:
+     * on live pages, in page drafts, or in reusable component drafts. (Trashed images keep working
+     * where they are used; the summary says so, it does not block.)
+     *
+     * @param  list<string>  $ids
+     * @return array{livePages: int, drafts: int, components: int}
+     */
+    public function usageSummary(SiteContext $ctx, array $ids): array
+    {
+        $this->auth->authorize($ctx, 'media.view');
+        $ids = array_values(array_unique(array_filter($ids, fn ($id) => is_string($id) && Uuid::isValid($id))));
+        if ($ids === [] || count($ids) > 100) {
+            return ['livePages' => 0, 'drafts' => 0, 'components' => 0];
+        }
+        $live = DB::table('publication_media as m')->join('live_pages as l', 'l.publication_id', '=', 'm.publication_id')
+            ->where('m.site_id', $ctx->siteId)->whereIn('m.asset_id', $ids)->distinct()->count('m.asset_id');
+        $used = fn (string $table, string $column, ?callable $scope = null) => count(array_filter($ids, fn ($id) => DB::table($table)->where('site_id', $ctx->siteId)
+            ->when($scope, $scope)->whereRaw("strpos({$column}::text,?)>0", [$id])->exists()));
+
+        return [
+            'livePages' => $live,
+            'drafts' => $used('page_drafts', 'document', fn ($q) => $q->whereIn('page_id', DB::table('pages')->where('site_id', $ctx->siteId)->whereNull('deleted_at')->select('id'))),
+            'components' => $used('reusable_components', 'draft'),
+        ];
     }
 
     private function usage(SiteContext $ctx, string $id): array

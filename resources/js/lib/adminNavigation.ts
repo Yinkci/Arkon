@@ -7,12 +7,12 @@ export interface AdminDestination {
     permission: string;
     matches?: string[];
 }
-// One registry drives sidebar groups, breadcrumbs and navigation commands.
+// One registry drives sidebar groups and breadcrumbs.
 export const adminDestinations: AdminDestination[] = [
     { href: '/admin', label: 'Dashboard', group: 'Overview', icon: 'home', permission: 'page.view' },
     { href: '/admin/pages', label: 'Pages', group: 'Content', icon: 'pages', permission: 'page.view', matches: ['/admin/editor/'] },
     { href: '/admin/media', label: 'Media library', group: 'Content', icon: 'image', permission: 'media.view' },
-    { href: '/admin/forms', label: 'Forms & enquiries', group: 'Content', icon: 'form', permission: 'page.view' },
+    { href: '/admin/forms', label: 'Forms', group: 'Content', icon: 'form', permission: 'page.view' },
     { href: '/admin/design', label: 'Global styles', group: 'Design', icon: 'palette', permission: 'page.view' },
     {
         href: '/admin/design/components',

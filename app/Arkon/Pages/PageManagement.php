@@ -14,6 +14,7 @@ use App\Arkon\Sites\SiteContext;
 use App\Arkon\Support\Fingerprint;
 use App\Arkon\Support\Input;
 use App\Arkon\Support\Json;
+use App\Arkon\Support\Time;
 use App\Arkon\Support\Uuid;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -220,8 +221,8 @@ class PageManagement
     }
 
     /**
-     * Soft-deletes a page: it disappears from the admin, goes offline if it was
-     * live, and frees its URL. Revisions, publications and audit history are
+     * Moves a page to the Trash: it leaves the page list, goes offline if it was
+     * live, and frees its URL (restore() brings it back). Revisions, publications and audit history are
      * kept. Repeating the request after it succeeded is a no-op.
      *
      * @return array{wasDeleted: bool, wasLive: bool}
@@ -263,5 +264,75 @@ class PageManagement
         }
 
         return $result;
+    }
+
+    /**
+     * Pages in the Trash, most recently trashed first.
+     *
+     * @return list<array{id: string, title: string, path: string, version: int, deletedAt: string|null}>
+     */
+    public function trash(SiteContext $ctx): array
+    {
+        $this->authorizer->authorize($ctx, 'page.view');
+
+        return DB::table('pages as p')->join('page_drafts as d', 'd.page_id', '=', 'p.id')
+            ->where('p.site_id', $ctx->siteId)->whereNotNull('p.deleted_at')->whereNull('p.purged_at')
+            ->orderByDesc('p.deleted_at')->orderBy('p.id')->get(['p.id', 'p.title', 'p.path', 'p.deleted_at', 'd.version'])
+            ->map(fn ($r) => ['id' => $r->id, 'title' => $r->title, 'path' => $r->path, 'version' => (int) $r->version, 'deletedAt' => Time::iso($r->deleted_at)])->all();
+    }
+
+    /**
+     * Brings a page back from the Trash with the same id, URL, draft, SEO and history. It returns
+     * unpublished (moving it to the Trash took it offline). Refused while another page uses its URL.
+     *
+     * @return array{wasRestored: bool}
+     */
+    public function restore(SiteContext $ctx, string $pageId): array
+    {
+        $pageId = Input::id($pageId);
+
+        return $this->transactions->run(function () use ($ctx, $pageId) {
+            $this->authorizer->authorize($ctx, 'page.delete');
+            $this->store->lockDraft($ctx->siteId, $pageId);
+            $row = DB::table('pages')->where('site_id', $ctx->siteId)->where('id', $pageId)->whereNull('purged_at')->first() ?? throw new NotFoundException('Page');
+            if ($row->deleted_at === null) {
+                return ['wasRestored' => false];
+            }
+            $taken = DB::table('pages')->where('site_id', $ctx->siteId)->where('path', $row->path)->whereNull('deleted_at')->value('title');
+            if ($taken !== null) {
+                throw new ConflictException("“{$taken}” now uses {$row->path}. Change that page’s URL, then restore “{$row->title}”.");
+            }
+            DB::table('pages')->where('id', $pageId)->update(['deleted_at' => null, 'deleted_by' => null, 'updated_at' => now()]);
+            $this->audit->forContext($ctx, 'page.restore', 'page', $pageId, ['title' => $row->title, 'path' => $row->path]);
+
+            return ['wasRestored' => true];
+        });
+    }
+
+    /**
+     * Deletes a page in the Trash permanently: it leaves the Trash and cannot be restored. Its
+     * revisions, publications and audit history are append-only and stay for the record.
+     *
+     * @return array{wasPurged: bool}
+     */
+    public function purge(SiteContext $ctx, string $pageId): array
+    {
+        $pageId = Input::id($pageId);
+
+        return $this->transactions->run(function () use ($ctx, $pageId) {
+            $this->authorizer->authorize($ctx, 'page.delete');
+            $this->store->lockDraft($ctx->siteId, $pageId);
+            $row = DB::table('pages')->where('site_id', $ctx->siteId)->where('id', $pageId)->first() ?? throw new NotFoundException('Page');
+            if ($row->purged_at !== null) {
+                return ['wasPurged' => false];
+            }
+            if ($row->deleted_at === null) {
+                throw new ConflictException("Move “{$row->title}” to the Trash before deleting it permanently.");
+            }
+            DB::table('pages')->where('id', $pageId)->update(['purged_at' => now()]);
+            $this->audit->forContext($ctx, 'page.purge', 'page', $pageId, ['title' => $row->title, 'path' => $row->path]);
+
+            return ['wasPurged' => true];
+        });
     }
 }

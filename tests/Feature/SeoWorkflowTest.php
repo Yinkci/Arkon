@@ -95,6 +95,52 @@ final class SeoWorkflowTest extends DatabaseTestCase
         $this->get('http://seo.test/')->assertOk()->assertSee('<title>New search title</title>', false)->assertSee('"@type":"ContactPage"', false);
     }
 
+    public function test_the_seo_workspace_ranks_live_issues_and_filters_pages_by_health(): void
+    {
+        $f = $this->siteFixture();
+        $this->addDomain($f['siteId'], 'seo.test');
+        app(PageService::class)->publish($f['ctx'], ['pageId' => $f['pageId'], 'expectedVersion' => 1, 'idempotencyKey' => self::key()]);
+        $about = $this->addPage($f['siteId'], '/about', 'About us');
+        $dashboard = app(SeoDashboard::class);
+
+        $r = $dashboard->overview($f['siteId'], 1);
+        $live = $r['rows'][array_search($f['pageId'], array_column($r['rows'], 'id'), true)]['published'];
+        $this->assertSame(['score' => $live['score'], 'label' => $live['label'], 'published' => 1, 'pages' => 2], array_intersect_key($r['summary'], array_flip(['score', 'label', 'published', 'pages'])));
+        $this->assertSame(2, $r['counts']['all']);
+        $this->assertSame(1, $r['counts']['unpublished']);
+        $this->assertSame(1, $r['counts'][array_search($live['label'], SeoDashboard::FILTERS, true)]);
+
+        // Needs attention: only live issues that cost points, ranked by points lost, each naming its pages.
+        $lost = array_filter($live['checks'], fn ($c) => in_array($c['status'], ['critical', 'important'], true));
+        $this->assertEqualsCanonicalizing(array_column($lost, 'id'), array_column($r['attention'], 'id'));
+        $impacts = array_column($r['attention'], 'impact');
+        $sorted = $impacts;
+        rsort($sorted);
+        $this->assertSame($sorted, $impacts);
+        foreach ($r['attention'] as $item) {
+            $this->assertSame([['id' => $f['pageId'], 'title' => 'Home']], $item['pages']);
+        }
+        if ($live['description'] === '') {
+            $description = $r['attention'][array_search('description', array_column($r['attention'], 'id'), true)];
+            $this->assertSame(['Missing meta description', true], [$description['label'], $description['aiFixable']]);
+        }
+
+        // Technical SEO, grouped; the sitemap lists the indexable live page.
+        $this->assertSame(['Indexing', 'Metadata', 'Links and URLs'], array_column($r['technical'], 'group'));
+        $sitemap = collect($r['technical'][0]['items'])->firstWhere('id', 'sitemap');
+        $this->assertSame(['ok', '/sitemap.xml'], [$sitemap['status'], $sitemap['href']]);
+
+        // Filters and search narrow the rows; the unpublished page is never in a health band.
+        $this->assertSame([$about], array_column($dashboard->overview($f['siteId'], 1, '', 'unpublished')['rows'], 'id'));
+        $this->assertSame([$f['pageId']], array_column($dashboard->overview($f['siteId'], 1, '', array_search($live['label'], SeoDashboard::FILTERS, true))['rows'], 'id'));
+        $this->assertSame([$about], array_column($dashboard->overview($f['siteId'], 1, 'ABOUT')['rows'], 'id'));
+        $this->assertSame([], $dashboard->overview($f['siteId'], 1, '50%')['rows']);
+        $row = $dashboard->overview($f['siteId'], 1, 'about')['rows'][0];
+        $this->assertFalse($row['needsRepair']);
+        $this->assertNull($row['published']);
+        $this->assertNotContains('suggestion', array_column($row['issues'], 'severity'));
+    }
+
     public function test_social_images_cannot_cross_sites_and_invalid_default_image_is_validation_error(): void
     {
         $f = $this->siteFixture();

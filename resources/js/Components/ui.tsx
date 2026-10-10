@@ -389,6 +389,34 @@ export function Panel({
     );
 }
 
+/** The heading row of a `Panel` with `padded={false}`: title on the left, a link or control on the right. */
+export function PanelHeading({ id, title, aside }: { id: string; title: ReactNode; aside?: ReactNode }) {
+    return (
+        <div className="flex min-h-14 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-line px-6 py-3">
+            <h2 id={id} className="t-section">
+                {title}
+            </h2>
+            {aside}
+        </div>
+    );
+}
+
+/**
+ * Parts of a whole as one bar (decorative: the counts beside it carry the words). Empty parts are
+ * skipped; with no total the bar is an empty track.
+ */
+export function ProportionBar({ parts, className = '' }: { parts: { count: number; className: string }[]; className?: string }) {
+    const total = parts.reduce((sum, part) => sum + part.count, 0);
+    return (
+        <div aria-hidden="true" className={`flex h-2 gap-0.5 overflow-hidden rounded-full bg-sunken ${className}`}>
+            {total > 0 &&
+                parts.map((part, i) =>
+                    part.count ? <span key={i} className={`${part.className} h-full`} style={{ width: `${(part.count / total) * 100}%` }} /> : null,
+                )}
+        </div>
+    );
+}
+
 /** A loading placeholder in the shape of the content it stands for. */
 export function Skeleton({ className = 'h-4 w-full' }: { className?: string }) {
     return <span aria-hidden="true" className={`block animate-pulse rounded-md bg-sunken ${className}`} />;
@@ -407,22 +435,5 @@ export function Avatar({ name, className = 'size-7 text-2xs' }: { name?: string 
         <span aria-hidden="true" className={`grid shrink-0 place-items-center rounded-md bg-sunken font-semibold text-muted ${className}`}>
             {initials}
         </span>
-    );
-}
-
-/** The Arkon mark (follows the theme). */
-export function ArkonMark({ className = 'size-6', inverse }: { className?: string; /** On the dark navigation rail. */ inverse?: boolean }) {
-    return (
-        <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-            <rect width="24" height="24" rx="6" fill={inverse ? 'var(--ak-nav-fg)' : 'var(--ak-fg)'} />
-            <path
-                d="M6.5 17.5 12 6l5.5 11.5M8.6 13.2h6.8"
-                fill="none"
-                stroke={inverse ? 'var(--ak-nav)' : 'var(--ak-canvas)'}
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-            />
-        </svg>
     );
 }

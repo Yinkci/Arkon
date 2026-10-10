@@ -20,17 +20,13 @@ test('dashboard summarizes and all management routes have a clear home', async (
     await page.goto('/admin/design/components');
     await expect(page.getByRole('heading', { name: 'Global styles', exact: true })).toHaveCount(0);
 });
-test('command search has keyboard navigation and reaches a page builder', async ({ page }) => {
+test('the top bar has the location and View site, without a search', async ({ page }) => {
     await page.goto('/admin');
-    await page.getByRole('button', { name: 'Search Ctrl / ⌘ K' }).click();
-    await page.keyboard.press('Escape');
+    await expect(page.getByRole('link', { name: 'View site' }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /search/i })).toHaveCount(0);
+    await expect(page.getByRole('searchbox')).toHaveCount(0);
     await page.keyboard.press('Control+k');
-    const dialog = page.getByRole('dialog', { name: 'Go to a page or section' });
-    await expect(dialog).toBeVisible();
-    await dialog.getByLabel('Search pages and sections').fill('Home');
-    await expect(dialog.getByRole('option', { name: 'Home /', exact: false })).toBeVisible();
-    await page.keyboard.press('Enter');
-    await expect(page).toHaveURL(/\/admin\/editor\//);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 test('media upload and page management work at mobile widths in both themes', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });

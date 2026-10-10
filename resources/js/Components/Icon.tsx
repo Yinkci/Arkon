@@ -60,6 +60,8 @@ const PATHS = {
     unlink: 'M6.5 9.5l3-3M3 3l10 10',
     copy: 'M5.5 5.5h8v8h-8zM10.5 5.5v-3h-8v8h3',
     columns: 'M2 2.5h12v11H2zM6 2.5v11M10 2.5v11',
+    grid: 'M2.5 2.5h4.5v4.5h-4.5zM9 2.5h4.5v4.5H9zM2.5 9h4.5v4.5h-4.5zM9 9h4.5v4.5H9z',
+    list: 'M5.5 4h8M5.5 8h8M5.5 12h8M2.5 4h.01M2.5 8h.01M2.5 12h.01',
     play: 'M5 3v10l8-5z',
     motion: 'M2 11.5h3M3.5 8.5h3M2 5.5h3M9.5 3.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9z',
 } as const;

@@ -5,6 +5,7 @@ import { DragController } from '@/editor/drag/controller';
 import { FormDragFeedback } from './dragFeedback';
 import { ConditionEditor } from './ConditionEditor';
 import { field, fieldTypes, formLimits, place, rows, newRow, copyField, remove, type Field, type FieldType } from './schema';
+import { plural } from '@/lib/mutate';
 
 export function FormBuilder({ fields, onChange, disabled }: { fields: Field[]; onChange: (fields: Field[]) => void; disabled: boolean }) {
     const [selected, setSelected] = useState<string | null>(null),
@@ -396,7 +397,7 @@ export function FormBuilder({ fields, onChange, disabled }: { fields: Field[]; o
                                 >
                                     {groups.map((r, i) => (
                                         <option key={r.id} value={r.id}>
-                                            Row {i + 1} · {r.fields.length} fields
+                                            Row {i + 1} · {plural(r.fields.length, 'field')}
                                         </option>
                                     ))}
                                     <option value={'new_' + f.id}>New row</option>

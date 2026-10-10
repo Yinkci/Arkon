@@ -97,6 +97,9 @@ return [
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            // The same zone as the app (config app.timezone). PHP writes timestamps without an offset;
+            // a server in another zone would otherwise store them hours off.
+            'timezone' => 'UTC',
         ],
 
         'sqlsrv' => [

@@ -46,6 +46,9 @@
     --text-xl--line-height: 1.625rem;
     --text-2xl: 1.375rem;
     --text-2xl--line-height: 1.75rem;
+    /* One figure per view that must read first (the SEO site score); never body or headings. */
+    --text-display: 2.25rem;
+    --text-display--line-height: 1;
 
     --radius-sm: 0.25rem;
     --radius: 0.25rem;
@@ -679,16 +682,7 @@ html.ak-dragging * {
 .ui-management-table .ui-cell-date {
     white-space: nowrap;
 }
-.ui-management-table .ui-mobile-label,
-.ui-management-table .ui-overflow-preview,
-.ui-management-table .ui-overflow-settings {
-    display: none;
-}
-.ui-row-overflow {
-    list-style: none;
-    font-weight: 600;
-}
-.ui-row-overflow::-webkit-details-marker {
+.ui-management-table .ui-mobile-label {
     display: none;
 }
 @container (max-width:1000px) {
@@ -697,12 +691,6 @@ html.ak-dragging * {
     }
     .ui-management-table .ui-col-date {
         width: 11rem;
-    }
-    .ui-management-table .ui-direct-preview {
-        display: none;
-    }
-    .ui-management-table .ui-overflow-preview {
-        display: block;
     }
 }
 @container (max-width:850px) {
@@ -715,11 +703,9 @@ html.ak-dragging * {
     .ui-management-table .ui-col-actions {
         width: 9rem;
     }
+    /* Settings stays in the row menu. */
     .ui-management-table .ui-direct-settings {
         display: none;
-    }
-    .ui-management-table .ui-overflow-settings {
-        display: block;
     }
 }
 @container (max-width:520px) {
@@ -761,13 +747,5 @@ html.ak-dragging * {
     .ui-management-table .ui-mobile-label {
         display: inline;
     }
-    .ui-management-table .ui-overflow-settings {
-        display: none;
-    }
 }
 
-@container (min-width:1001px) {
-    .ui-management-table .ui-responsive-overflow {
-        display: none;
-    }
-}

@@ -41,19 +41,9 @@ class AdminUxTest extends DatabaseTestCase
         }
     }
 
-    public function test_search_is_literal_bounded_and_never_returns_other_sites_or_deleted_pages(): void
+    public function test_the_top_bar_search_endpoint_is_gone(): void
     {
-        $other = $this->siteFixture('owner', 'Other');
-        $this->addPage($other['siteId'], '/unique-match', 'Other match');
-        $this->addPage($this->f['siteId'], '/match', 'Match');
-        $deleted = $this->addPage($this->f['siteId'], '/removed-match', 'Removed match');
-        DB::table('pages')->where('id', $deleted)->update(['deleted_at' => now()]);
-        $this->getJson('/admin/search?q=match')->assertOk()->assertJsonCount(1, 'pages')->assertJsonPath('pages.0.title', 'Match');
-        $this->getJson('/admin/search?q=%25')->assertOk()->assertJsonCount(0, 'pages');
-        foreach (range(1, 12) as $i) {
-            $this->addPage($this->f['siteId'], '/search-'.$i, 'Search '.$i);
-        }
-        $this->getJson('/admin/search?q=search')->assertJsonCount(10, 'pages');
+        $this->getJson('/admin/search?q=match')->assertNotFound();
     }
 
     public function test_settings_is_permission_gated_on_the_server_not_only_navigation(): void

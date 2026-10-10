@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Arkon\Pages\PageManagement;
 use App\Arkon\Pages\PageService;
 use App\Http\AdminContext;
 use App\Http\Controllers\Controller;
@@ -11,8 +12,10 @@ use Inertia\Response;
 
 class PagesController extends Controller
 {
-    public function index(Request $request, PageService $pages): Response
+    public function index(Request $request, PageService $pages, PageManagement $management): Response
     {
-        return Inertia::render('Admin/Pages', ['pages' => $pages->listPages(AdminContext::of($request)->ctx())]);
+        $ctx = AdminContext::of($request)->ctx();
+
+        return Inertia::render('Admin/Pages', ['pages' => $pages->listPages($ctx), 'trash' => $management->trash($ctx)]);
     }
 }

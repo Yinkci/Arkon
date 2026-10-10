@@ -25,21 +25,9 @@ class SiteOverviewController extends Controller
 
     public function media(Request $r, MediaLibrary $media)
     {
-        $input = $r->validate(['q' => 'nullable|string|max:120', 'sort' => 'nullable|in:newest,oldest,name,largest,smallest', 'page' => 'nullable|integer|min:1|max:100000']);
+        $input = $r->validate(['q' => 'nullable|string|max:120', 'sort' => 'nullable|in:newest,oldest,name,largest,smallest', 'page' => 'nullable|integer|min:1|max:100000', 'status' => 'nullable|in:library,trash']);
 
-        return Inertia::render('Admin/Media', ['library' => $media->browse(AdminContext::of($r)->ctx(), trim($input['q'] ?? ''), $input['sort'] ?? 'newest', (int) ($input['page'] ?? 1))]);
-    }
-
-    public function search(Request $r, Authorizer $auth)
-    {
-        $ctx = AdminContext::of($r)->ctx();
-        $auth->authorize($ctx, 'page.view');
-        $input = $r->validate(['q' => 'nullable|string|max:120']);
-        $q = trim($input['q'] ?? '');
-        // strpos is literal: '%' and '_' in search text are not wildcard queries.
-        $pages = $q === '' ? [] : DB::table('pages')->where('site_id', $ctx->siteId)->whereNull('deleted_at')->whereRaw('(strpos(lower(title), lower(?)) > 0 OR strpos(lower(path), lower(?)) > 0)', [$q, $q])->orderBy('title')->limit(10)->get(['id', 'title', 'path'])->all();
-
-        return response()->json(['pages' => $pages]);
+        return Inertia::render('Admin/Media', ['library' => $media->browse(AdminContext::of($r)->ctx(), trim($input['q'] ?? ''), $input['sort'] ?? 'newest', (int) ($input['page'] ?? 1), $input['status'] ?? 'library')]);
     }
 
     public function settings(Request $r, Authorizer $auth, PublicPages $public)
@@ -54,7 +42,8 @@ class SiteOverviewController extends Controller
     {
         $ctx = AdminContext::of($r)->ctx();
         $auth->authorize($ctx, 'page.view');
+        $input = $r->validate(['page' => 'nullable|integer|min:1|max:100000', 'q' => 'nullable|string|max:120', 'status' => 'nullable|string|in:'.implode(',', array_keys(SeoDashboard::FILTERS))]);
 
-        return Inertia::render('Admin/SeoDashboard', $seo->overview($ctx->siteId, (int) $r->query('page', 1)));
+        return Inertia::render('Admin/SeoDashboard', $seo->overview($ctx->siteId, (int) ($input['page'] ?? 1), trim($input['q'] ?? ''), $input['status'] ?? 'all'));
     }
 }

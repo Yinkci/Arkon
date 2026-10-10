@@ -3,8 +3,8 @@ import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 
 import { useTheme, type ThemePreference } from '@/lib/theme';
 import type { SharedProps } from '@/types';
 import { Icon, type IconName } from './Icon';
-import { ArkonMark } from './ui';
-import { AdminSearch } from './AdminSearch';
+import { ArkonLogo } from './ArkonLogo';
+import { Toaster } from './Toast';
 import { currentDestination, visibleDestinations, type AdminDestination } from '@/lib/adminNavigation';
 
 const THEMES: { value: ThemePreference; label: string; icon: IconName }[] = [
@@ -103,16 +103,14 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                 className={`${menuOpen ? 'flex' : 'hidden'} flex-col bg-nav text-nav-text lg:border-r lg:border-nav-edge lg:sticky lg:top-0 lg:flex lg:h-dvh lg:shrink-0 lg:transition-[width] lg:duration-150 ${collapsed ? 'lg:w-[4.5rem]' : 'lg:w-[17rem]'}`}
             >
                 <div className={`hidden h-16 shrink-0 items-center lg:flex ${collapsed ? 'justify-center' : 'px-5'}`}>
-                    {collapsed ? (
-                        <span title={siteName}>
-                            <ArkonMark inverse className="size-8" />
-                        </span>
-                    ) : (
-                        <SiteIdentity name={siteName} url={site?.url} role={site?.role} />
-                    )}
+                    {collapsed ? <DashboardMark title={siteName} /> : <SiteIdentity name={siteName} url={site?.url} role={site?.role} />}
                 </div>
 
-                <nav ref={navRef} aria-label="Main" className="ak-scroll ak-scroll-dark ak-scroll-fade min-h-0 flex-1 scroll-py-8 pt-2 pr-0.5 pb-6 pl-3 lg:pt-3">
+                <nav
+                    ref={navRef}
+                    aria-label="Main"
+                    className="ak-scroll ak-scroll-dark ak-scroll-fade min-h-0 flex-1 scroll-py-8 pt-2 pr-0.5 pb-6 pl-3 lg:pt-3"
+                >
                     <ul className="space-y-0.5">
                         {pinned.map((item) => (
                             <NavItem key={item.href} item={item} active={current?.href === item.href} collapsed={collapsed} />
@@ -202,7 +200,6 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                         <span className="truncate font-semibold text-fg">{current?.label ?? 'Arkon'}</span>
                     </p>
                     <div className="flex items-center gap-2">
-                        <AdminSearch />
                         {site?.url && (
                             <a
                                 href={site.url}
@@ -219,6 +216,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                 <main id="admin-content" tabIndex={-1} className="flex-1 outline-none">
                     {children}
                 </main>
+                <Toaster />
             </div>
         </div>
     );
@@ -248,10 +246,19 @@ function NavItem({ item, active, collapsed }: { item: AdminDestination; active: 
     );
 }
 
+/** The Arkon mark on the rail (white, for the dark surface), linking to the Dashboard. */
+function DashboardMark({ title }: { title?: string }) {
+    return (
+        <Link href="/admin" aria-label="Arkon dashboard" title={title} className="shrink-0 rounded-full">
+            <ArkonLogo surface="dark" className="size-8" />
+        </Link>
+    );
+}
+
 function SiteIdentity({ name, url, role }: { name: string; url?: string | null; role?: string }) {
     return (
         <div className="flex min-w-0 items-center gap-3">
-            <ArkonMark inverse className="size-8 shrink-0" />
+            <DashboardMark />
             <span className="min-w-0 leading-tight">
                 <span className="block truncate text-sm font-semibold text-nav-fg">{name}</span>
                 <span className="block truncate text-xs text-nav-muted">

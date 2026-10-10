@@ -25,10 +25,10 @@ final class FormsController extends Controller
 
     public function index(Request $r, FormManagement $forms)
     {
-        $v = $r->validate(['q' => 'nullable|string|max:120', 'page' => 'nullable|integer|min:1|max:100000']);
+        $v = $r->validate(['q' => 'nullable|string|max:120', 'page' => 'nullable|integer|min:1|max:100000', 'status' => 'nullable|in:'.implode(',', FormManagement::STATUSES)]);
         $a = AdminContext::of($r);
 
-        return Inertia::render('Admin/Forms', ['library' => $forms->browse($a->ctx(), $v['q'] ?? '', (int) ($v['page'] ?? 1)), 'permissions' => $this->permissions($a)]);
+        return Inertia::render('Admin/Forms', ['library' => $forms->browse($a->ctx(), $v['q'] ?? '', (int) ($v['page'] ?? 1), $v['status'] ?? 'all'), 'permissions' => $this->permissions($a)]);
     }
 
     public function show(Request $r, FormManagement $forms, string $form)

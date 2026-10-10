@@ -104,12 +104,13 @@ class MediaLibraryTest extends DatabaseTestCase
         $f = $this->siteFixture();
         $m = app(MediaService::class);
         $l = app(MediaLibrary::class);
-        for ($i = 0; $i < 38; $i++) {
+        $perPage = MediaLibrary::PER_PAGE;
+        for ($i = 0; $i < $perPage + 2; $i++) {
             $m->upload($f['ctx'], self::png(), sprintf('photo-%02d.png', $i));
         }
         $first = $l->browse($f['ctx'], '', 'name');
-        $this->assertCount(36, $first['items']);
-        $this->assertSame(38, $first['total']);
+        $this->assertCount($perPage, $first['items']);
+        $this->assertSame($perPage + 2, $first['total']);
         $this->assertSame('photo-00.png', $first['items'][0]['title']);
         $this->assertCount(2, $l->browse($f['ctx'], '', 'name', 2)['items']);
     }

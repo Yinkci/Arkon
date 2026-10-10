@@ -1,7 +1,8 @@
 import { Head, useForm } from '@inertiajs/react';
 import type { ReactNode } from 'react';
 import { Icon } from '@/Components/Icon';
-import { ArkonMark, Button } from '@/Components/ui';
+import { ArkonLogo } from '@/Components/ArkonLogo';
+import { Button } from '@/Components/ui';
 import { useTheme } from '@/lib/theme';
 
 /** A centred card framed by crop marks, the same marks the builder draws around what you edit. */
@@ -20,7 +21,13 @@ export function AuthFrame({ children }: { children: ReactNode }) {
                 ).map((corner) => (
                     <span key={corner} aria-hidden className={`absolute size-5 border-accent ${corner}`} />
                 ))}
-                <div className="rounded-xl border border-line bg-surface p-8 shadow-hairline">{children}</div>
+                <div className="rounded-xl border border-line bg-surface p-8 shadow-hairline">
+                    <p className="mb-6 flex items-center gap-2.5">
+                        <ArkonLogo className="size-9" />
+                        <span className="text-base font-semibold tracking-tight">Arkon</span>
+                    </p>
+                    {children}
+                </div>
             </div>
         </main>
     );
@@ -33,11 +40,7 @@ export default function Login({ next }: { next: string }) {
     return (
         <AuthFrame>
             <Head title="Sign in" />
-            <div className="flex items-center gap-2.5">
-                <ArkonMark className="size-8" />
-                <span className="text-sm font-semibold tracking-tight">Arkon</span>
-            </div>
-            <h1 className="mt-6 t-page">Sign in</h1>
+            <h1 className="t-page">Sign in</h1>
             <p className="mt-1 text-ui text-muted">Design, edit and publish your site.</p>
             <form
                 className="mt-6 space-y-4"

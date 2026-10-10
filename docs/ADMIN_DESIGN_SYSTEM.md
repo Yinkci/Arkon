@@ -27,6 +27,18 @@ else. Neutrals are slightly warm. Hierarchy comes from type, spacing and surface
 nested boxes. The crop-mark motif (login card, selected part on the canvas) is the one
 decorative signature.
 
+## Brand
+
+The official Arkon mark (a circle around a stylized A) is the only product logo; there is no wordmark, so where a name
+is needed the word "Arkon" is set as text beside it. `Components/ArkonLogo.tsx` is the one source: `surface="dark"`
+(white mark: the navigation rail, the mobile bar), `surface="light"` (graphite mark), or `auto` (follows the admin theme:
+the builder toolbar, sign-in). It is decorative unless given a `label`; the rail mark links to the Dashboard as
+"Arkon dashboard". Assets live in `resources/brand` (256 px copies, bundled and content-hashed by Vite) with the
+originals in `resources/brand/source`; names say the surface (`arkon-mark-on-dark.png`). The admin favicon is the mark
+for the system appearance (`resources/views/app.blade.php`). Never on public websites, their `/favicon.ico`, system
+emails or generated content: those carry the site's own branding. Never recolor, filter, stretch or put the mark on a
+backing shape.
+
 ## Tokens (`resources/css/app.css`)
 
 **Dark-neutral scale** (the only dark tones; no pure black, no one-off near-blacks): `dark-1` #1f1f1f (dark-mode canvas, wells) · `dark-2` #262626 (dark-mode panels, light-mode text) · `dark-3` #2d2d2d (base: navigation rail, primary actions) · `dark-4` #363636 (hover, elevated) · `dark-5` #404040 (active, pressed, rail dividers) · `dark-6` #4a4a4a (strong edges in dark mode). Shadows, `--ak-hover` and the dialog `scrim` use the same neutral (`--ak-dark-rgb`). Tailwind's default shadow scale is removed and `black` maps to `dark-1`, so stray `shadow-xl` or `bg-black` cannot reintroduce pure black.
@@ -67,6 +79,11 @@ titles, 36 px controls. Change the scale in `app.css`, never per component. Buil
   actions align with the title.
 - `SectionHeader`, `Panel`, `EmptyState`, `Notice`, `StatusPill`, `Segmented`, `Skeleton`,
   `Spinner`, `Avatar`, `Kbd`.
+- `PanelHeading` (the heading row of an unpadded `Panel`) and `ProportionBar` (parts of a whole as one decorative bar;
+  the counts beside it carry the words).
+- SEO scores (`Components/SeoScore.tsx`, bands in `lib/seo.ts`): `ScoreRing` for the one headline score of a view (the
+  only use of `text-display`), `ScoreMark` (icon, number, band) in lists. Bands: Excellent `live`, Good `site`, Needs
+  improvement `changed`, Needs attention `danger`.
 - Scroll areas: `ak-scroll` (thin inset thumb, no track or arrows, stable gutter; clearer on hover and drag), `ak-scroll-dark` on the rail (and automatically in the dark theme), `ak-scroll-fade` for a 12 px edge fade. Used by the navigation rail, builder panels, the command palette and the media dialog; the page itself keeps the browser scrollbar. The rail scrolls only its navigation: identity and account stay fixed, and the current destination is scrolled into view.
 - Form classes: `.ui-input`, `.ui-field` (a label that wraps its control), `.ui-label`,
   `.ui-hint`, `.ui-check`, `.ui-link`, `.ui-activity` (indeterminate progress).
@@ -105,8 +122,27 @@ titles, 36 px controls. Change the scale in `app.css`, never per component. Buil
 5. Check light, dark, 1280 px and 390 px: `$env:SCREENSHOTS='label'; npx playwright test e2e/screenshots.spec.ts`.
 
 
-## Compact management tables
+## Admin lists (Pages, Forms, Media library)
 
-Use the shared `ui-management-list` and `ui-management-table` pattern for lists with a primary name, compact status/count columns and lightweight management links. Semantic captions, column scopes and row-name scopes remain intact. The name opens the editor; numeric counts link to the matching data view. Short columns have intentional widths and numeric headers/data share right alignment. Row padding is 10px vertically, using existing surface, line, status and typography tokens. Lists cap at 72rem so extra-wide screens do not create oversized name columns.
+One pattern, from `Components/ListManagement.tsx` and `lib/mutate.ts`:
 
-Container queries adapt to the actual panel width: below 1000px Preview moves into overflow; below 850px the desktop Updated column is hidden; below 650px Settings moves into overflow. Below 520px rows stack as cards with their date and direct Settings link restored. Header information remains available to assistive technology. Overflow is reserved for secondary actions; do not expose nonexistent Delete operations. Forms links to its protected Archive settings instead. Hide an otherwise empty wide-screen overflow for read-only users.
+- **Status tabs** (`StatusTabs`, a `Segmented` with counts) and search above the list. Trash is the last tab, shown to
+  roles that can move items there.
+- **Selection**: `useSelection(visibleIds)` plus real checkboxes (`Checkbox`, `SelectAllCheckbox` with the
+  indeterminate state). Ids that leave the list leave the selection. In the media grid the checkbox sits beside the
+  card's open button, never inside it.
+- **Bulk bar** (`BulkBar`): appears only with a selection: the count, the actions for it, Clear selection.
+- **Row menu** (`RowMenu` + `MenuItem`): rendered in a portal next to its trigger, kept inside the viewport; one open at
+  a time; closes on an outside click, Escape (focus returns to the trigger), choosing an item, or scrolling. Arrow keys
+  move between items. Direct actions (View live, Edit, Entries, Settings) stay on the row.
+- **Confirmation**: `ConfirmDialog` for Move to Trash, Delete permanently and Unpublish: a title that names the item or
+  the count, one sentence of consequence, Cancel and the action (busy label while it runs). No typed confirmation:
+  the Trash makes moving recoverable, and Delete permanently says it cannot be undone. Restore runs directly.
+- **After a change**: `bulk()` posts to `/admin/api/<resource>/bulk` (`{ action, items }` → `{ done, failed }`), then
+  `reloadProps()` waits for Inertia to apply fresh props before the dialog closes, so rows, counts and pages are
+  current without a browser reload. `toast()` (`Components/Toast.tsx`) confirms ("3 pages moved to Trash."); item
+  failures are reported with the server's reason.
+- **Empty states**: `ListEmpty` ("Trash is empty") instead of an empty table.
+
+The Forms table keeps the compact `ui-management-list` / `ui-management-table` container queries: below 850px the
+Updated column hides, below 650px Settings moves to the row menu, below 520px rows stack as cards.

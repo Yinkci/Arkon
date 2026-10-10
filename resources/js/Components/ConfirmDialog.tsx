@@ -5,23 +5,25 @@ import { Button } from './ui';
 export interface ConfirmDialogProps {
     open: boolean;
     title: string;
-    children: ReactNode;
+    children?: ReactNode;
     confirmLabel: string;
-    /** When set, the user must type this exact text before confirming. */
-    requireText?: string;
+    /** Shown on the confirm button while the action runs, e.g. "Moving to Trash…". */
+    busyLabel?: string;
     tone?: 'danger' | 'default';
     /** Resolves to an error message to show, or null when done. */
     onConfirm(): Promise<string | null>;
     onClose(): void;
 }
 
-/** Modal confirmation built on <dialog>: focus is trapped and Escape cancels. */
-export function ConfirmDialog({ open, title, children, confirmLabel, requireText, tone = 'default', onConfirm, onClose }: ConfirmDialogProps) {
+/**
+ * The one confirmation dialog of the admin (Move to Trash, Restore, Delete permanently, Unpublish):
+ * built on <dialog>, so focus is trapped and Escape cancels. While the action runs it cannot be
+ * closed or confirmed twice; a failure stays in the dialog with the server's reason.
+ */
+export function ConfirmDialog({ open, title, children, confirmLabel, busyLabel = 'Working…', tone = 'default', onConfirm, onClose }: ConfirmDialogProps) {
     const ref = useRef<HTMLDialogElement>(null);
-    const [typed, setTyped] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [pending, setPending] = useState(false);
-    const inputId = useId();
     const titleId = useId();
 
     useEffect(() => {
@@ -31,17 +33,11 @@ export function ConfirmDialog({ open, title, children, confirmLabel, requireText
         if (!open && dialog.open) dialog.close();
     }, [open]);
 
-    const reset = () => {
-        setTyped('');
-        setError(null);
-        setPending(false);
-    };
     const close = () => {
         if (pending) return;
-        reset();
+        setError(null);
         onClose();
     };
-    const ready = !requireText || typed === requireText;
 
     return (
         <dialog
@@ -58,31 +54,25 @@ export function ConfirmDialog({ open, title, children, confirmLabel, requireText
                 className="space-y-4 p-6"
                 onSubmit={async (event) => {
                     event.preventDefault();
-                    if (!ready || pending) return;
+                    if (pending) return;
                     setPending(true);
                     setError(null);
-                    const message = await onConfirm();
+                    let message: string | null;
+                    try {
+                        message = await onConfirm();
+                    } catch {
+                        message = 'The outcome could not be confirmed (network problem). Check the list, then try again.';
+                    }
                     setPending(false);
                     if (message) setError(message);
-                    else {
-                        reset();
-                        onClose();
-                    }
+                    else onClose();
                 }}
             >
                 <h2 id={titleId} className="flex items-center gap-2 text-base font-semibold">
                     {tone === 'danger' && <Icon name="alert" className="size-4 text-danger" />}
                     {title}
                 </h2>
-                <div className="space-y-2 text-sm text-muted">{children}</div>
-                {requireText && (
-                    <div>
-                        <label htmlFor={inputId} className="ui-label">
-                            Type <code className="rounded bg-sunken px-1 font-mono text-fg">{requireText}</code> to confirm
-                        </label>
-                        <input id={inputId} value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" className="ui-input" />
-                    </div>
-                )}
+                {children && <div className="space-y-2 text-sm text-muted">{children}</div>}
                 {error && (
                     <p role="alert" className="text-sm text-danger">
                         {error}
@@ -92,8 +82,8 @@ export function ConfirmDialog({ open, title, children, confirmLabel, requireText
                     <Button onClick={close} disabled={pending}>
                         Cancel
                     </Button>
-                    <Button type="submit" variant={tone === 'danger' ? 'danger' : 'primary'} busy={pending} disabled={!ready || pending}>
-                        {pending ? 'Working…' : confirmLabel}
+                    <Button type="submit" variant={tone === 'danger' ? 'danger' : 'primary'} busy={pending} disabled={pending}>
+                        {pending ? busyLabel : confirmLabel}
                     </Button>
                 </div>
             </form>

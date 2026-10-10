@@ -40,9 +40,16 @@ test('SEO is discoverable, updates from draft output and publishes real head met
     await page.goto('/admin/seo');
     await expect(page.getByRole('heading', { name: 'SEO', exact: true })).toBeVisible();
     const row = page.getByRole('row').filter({ has: page.getByText('seo-workflow', { exact: true }) });
-    await expect(row).toContainText('100 — Excellent');
-    await row.getByRole('link', { name: 'Review / AI fix' }).click();
+    // Draft and live, each as score and band; a page with no issues offers details, not a fix.
+    await expect(row.getByRole('cell').nth(0)).toContainText('100Excellent');
+    await expect(row.getByRole('cell').nth(1)).toContainText('100Excellent');
+    await expect(row.getByRole('link', { name: 'View details' })).toBeVisible();
+    await row.getByRole('link', { name: 'seo-workflow' }).click();
     await expect(page.getByTestId('seo-panel')).toBeVisible();
+    // The workspace's Fix with AI lands on the AI action without starting a request.
+    await page.goto(`/admin/editor/${id}?panel=seo&ai=1`);
+    await expect(page.getByRole('button', { name: 'Improve SEO with AI' })).toBeFocused();
+    await expect(page.getByTestId('ai-proposal')).toHaveCount(0);
 });
 test('SEO AI generation is reviewable, projects a real score and uses normal history', async ({ page }) => {
     const id = await createPage('/seo-ai', 'Our services');

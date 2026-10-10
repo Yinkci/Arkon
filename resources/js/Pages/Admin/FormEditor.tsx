@@ -4,6 +4,7 @@ import { AdminLayout } from '@/Components/AdminLayout';
 import { AdminPageHeader } from '@/Components/AdminPageHeader';
 import { Button, ButtonLink, EmptyState, Notice } from '@/Components/ui';
 import { ConfirmDialog } from '@/Components/ConfirmDialog';
+import { toast } from '@/Components/Toast';
 import { api, newRequestKey } from '@/lib/api';
 import { FormBuilder } from '@/forms/FormBuilder';
 import { FormEntries } from '@/forms/FormEntries';
@@ -278,10 +279,12 @@ export default function FormEditor({
                             </section>
                             {permissions.manage && (
                                 <section className="space-y-3 rounded-lg border border-line bg-surface p-5">
-                                    <h2 className="t-title">Archive form</h2>
-                                    <p className="t-meta">Remove it from live pages first. Archiving hides the form and retains its entries and history.</p>
+                                    <h2 className="t-title">Move to Trash</h2>
+                                    <p className="t-meta">
+                                        Remove it from live pages first. In the Trash it keeps its entries and history, and Restore brings it back.
+                                    </p>
                                     <Button variant="quiet-danger" disabled={busy || uncertain || dirty} onClick={() => setArchiveOpen(true)}>
-                                        Archive form
+                                        Move to Trash
                                     </Button>
                                 </section>
                             )}
@@ -357,9 +360,9 @@ export default function FormEditor({
             </ConfirmDialog>
             <ConfirmDialog
                 open={archiveOpen}
-                title="Archive this form?"
-                confirmLabel="Archive form"
-                requireText={draft.name}
+                title={`Move “${draft.name}” to Trash?`}
+                confirmLabel="Move to Trash"
+                busyLabel="Moving to Trash…"
                 tone="danger"
                 onClose={() => setArchiveOpen(false)}
                 onConfirm={async () => {
@@ -367,14 +370,15 @@ export default function FormEditor({
                         const r = await api(`/forms/${form.id}/archive`, { body: { version } });
                         if (!r.ok) return r.message;
                         saved.current = JSON.stringify(draft);
+                        toast('Form moved to Trash.');
                         router.visit('/admin/forms');
                         return null;
                     } catch {
-                        return 'The result could not be confirmed. Retry archiving.';
+                        return 'The result could not be confirmed. Try again.';
                     }
                 }}
             >
-                The form will be hidden. Entries and history will be retained. Live references must be removed first.
+                Its entries and history are kept. You can restore it from the Trash.
             </ConfirmDialog>
         </AdminLayout>
     );

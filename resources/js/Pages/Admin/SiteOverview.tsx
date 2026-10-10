@@ -2,6 +2,7 @@ import { Head, Link } from '@inertiajs/react';
 import { AdminLayout } from '@/Components/AdminLayout';
 import { AdminPageHeader } from '@/Components/AdminPageHeader';
 import { ButtonLink, EmptyState } from '@/Components/ui';
+import { plural } from '@/lib/mutate';
 interface Row {
     id: string;
     title: string;
@@ -113,7 +114,7 @@ export default function SiteOverview(props: {
                         )}
                         <div className="flex items-center justify-between text-sm">
                             <span>
-                                {props.total} pages · page {props.page}
+                                {plural(props.total ?? 0, 'page')} · page {props.page}
                             </span>
                             <div className="flex gap-3">
                                 {(props.page ?? 1) > 1 && <Link href={'/admin/seo?page=' + ((props.page ?? 1) - 1)}>Previous</Link>}

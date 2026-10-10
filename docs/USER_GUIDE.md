@@ -8,10 +8,18 @@ How to use the admin and the visual builder. Setup is in the [README](../README.
 - **Dashboard** (`/admin`): site overview, items that need attention (AI proposals waiting for review, pages with
   unpublished changes, live pages not yet updated after a design change), recent content, quick actions and recent
   activity. The light/dark/system theme switch is at the bottom of the left menu and applies to the builder too.
-- **Navigation**: Content (Pages, Media, Forms), Design (Global styles, Reusable components, Navigation, Themes),
-  Build a website, and Site (SEO, live-page updates, settings). **Search** or Ctrl/Cmd+K finds a page.
-- **Pages**: New page, title/URL search, status filters. **Unpublish** and **Delete** (owners and admins) ask for
-  confirmation; history is kept.
+- **Navigation**: Content (Pages, Media library, Forms), Design (Global styles, Reusable components, Navigation,
+  Themes), Build a website, and Site (SEO, live-page updates, settings).
+- **Lists** (Pages, Forms, Media library) share one pattern: status tabs with counts, search, a checkbox per row with
+  select-all, a bar of bulk actions while something is selected, a **More** menu per row, and a **Trash**. Changes
+  show at once with a short confirmation message; nothing needs a browser reload.
+- **Trash** (owners and admins): **Move to Trash** asks once (no typing) and takes a live page offline at once,
+  freeing its URL. In the Trash, **Restore** brings the same page, form or image back (same address, content, entries
+  and history; a restored page is unpublished until you publish it), and **Delete permanently** removes it for good:
+  it cannot be restored. Revisions and publications stay in the audit record; a form’s entries are deleted with it
+  (the confirmation says how many). A form used on a live page must be removed from that page first. Images in the
+  Trash keep working where they are used; there is no permanent deletion for images yet. Nothing empties the Trash
+  automatically.
 - **Roles**: owner and admin can do everything; editors draft (pages, titles, URLs, forms, media) but cannot change
   what is live; viewers can only look.
 
@@ -73,7 +81,10 @@ canvas.
 
 ## Media
 
-`/admin/media` uploads and manages images: preview, title, default alt text and caption, description, file details,
+`/admin/media` shows 48 images per page as a compact grid or a list (name, type, dimensions, size, optimization,
+upload date); the choice is remembered. The grid loads small WebP thumbnails, never the originals. Search and sort run
+on the server. Select images to move them to the Trash together (with one summary of where they are used). Click an
+image for its details: preview, title, default alt text and caption, description, file details,
 the permanent URL and the generated WebP sizes. Uploads are JPEG, PNG, GIF, WebP or AVIF, up to 5 MiB,
 12,000 px per side and 40 million pixels. Smaller WebP copies are made automatically and published pages pick the
 right size per screen. Images stay private (404 to visitors) until a published page uses them. **Remove from
@@ -109,9 +120,12 @@ creates a reviewable proposal without using AI.
 The editor's **SEO** tab (or the score in the toolbar) holds the search title and description, focus topic, social
 share text and image, canonical URL, indexing and structured-data type. An explainable score out of 100 updates as
 you type; each check says what it measures. **Generate** and **Improve SEO with AI** propose metadata for you to
-review; nothing is applied or published without your click. **Site management → SEO** shows draft and live scores
-for every page, and site-wide SEO defaults (title pattern, description, social image, indexing) are saved and
-published there. Published pages carry canonical and social metadata, and the site serves `sitemap.xml` and
+review; nothing is applied or published without your click. **Site management → SEO** shows the site score (the average of
+published pages), issues on live pages ranked by how many points they cost (with the pages affected and whether AI can
+draft a fix), draft and live scores for every page with health filters and search, and grouped technical checks
+(indexing, sitemap, robots.txt, metadata, structured data, links, canonical URLs). **Fix with AI** opens the page’s SEO
+tab at **Improve SEO with AI**; nothing is sent until you click it. Site-wide SEO defaults (title pattern, description, social image, indexing)
+are saved and published from **Site SEO defaults** there. Published pages carry canonical and social metadata, and the site serves `sitemap.xml` and
 `robots.txt`. Details: [SEO_REVIEW.md](SEO_REVIEW.md).
 
 ## Build a website

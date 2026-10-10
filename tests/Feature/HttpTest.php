@@ -107,6 +107,14 @@ class HttpTest extends DatabaseTestCase
         $this->actingAs($this->owner)->get('/preview/'.$this->f['pageId'])->assertHeader('X-Frame-Options', 'SAMEORIGIN');
     }
 
+    public function test_the_admin_has_the_arkon_icon_for_light_and_dark_tabs(): void
+    {
+        $html = $this->withVite()->get('/login')->assertOk()->getContent();
+        // Built, content-hashed copies (never a local path): graphite by default, white for dark tabs.
+        $this->assertMatchesRegularExpression('#<link rel="icon" type="image/png" href="[^"]*/build/assets/arkon-mark-on-light-[\w-]+\.png">#', $html);
+        $this->assertMatchesRegularExpression('#href="[^"]*/build/assets/arkon-mark-on-dark-[\w-]+\.png" media="\(prefers-color-scheme: dark\)"#', $html);
+    }
+
     public function test_there_is_no_public_sign_up(): void
     {
         $this->post('/register', ['email' => 'x@test.local', 'password' => 'whatever-123456'])->assertStatus(405);
@@ -262,7 +270,8 @@ class HttpTest extends DatabaseTestCase
         $html = $response->getContent();
         $this->assertStringContainsString('<h1 class="ak-hero3__heading">Original heading</h1>', $html);
         $this->assertDoesNotMatchRegularExpression('/<script(?! type="application\/ld\+json")/i', $response->getContent());
-        foreach (['data-ak-', '/build/', 'inertia', 'data-page', 'contenteditable'] as $forbidden) {
+        // Arkon's own branding belongs to the admin; a public site carries its own.
+        foreach (['data-ak-', '/build/', 'inertia', 'data-page', 'contenteditable', 'arkon-mark', 'rel="icon"'] as $forbidden) {
             $this->assertStringNotContainsStringIgnoringCase($forbidden, $html);
         }
         $this->assertSame([], $response->headers->getCookies());

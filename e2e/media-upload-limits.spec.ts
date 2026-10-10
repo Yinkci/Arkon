@@ -14,7 +14,6 @@ test('a real 2.8 MiB multipart image is stored and receives WebP delivery copies
     expect(result.data.bytes).toBe(image.length);
     const tile = page.getByRole('button', { name: 'Open real-multipart-2.8.png', exact: true });
     await expect(tile).toBeVisible();
-    await expect(tile).toContainText('WebP optimized');
     await tile.click();
     const dialog = page.getByRole('dialog', { name: 'Image details' });
     const webp = dialog.getByLabel('WebP URL (32px)', { exact: true });

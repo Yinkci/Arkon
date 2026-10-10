@@ -2,7 +2,13 @@ import { Head, router, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { AdminLayout } from '@/Components/AdminLayout';
 import { AdminPageHeader } from '@/Components/AdminPageHeader';
-import { Button, EmptyState, Notice, Spinner } from '@/Components/ui';
+import { ConfirmDialog } from '@/Components/ConfirmDialog';
+import { Icon } from '@/Components/Icon';
+import { BulkBar, Checkbox, ListEmpty, SelectAllCheckbox, StatusTabs, useSelection } from '@/Components/ListManagement';
+import { toast } from '@/Components/Toast';
+import { Button, Notice, Segmented, Spinner } from '@/Components/ui';
+import { bulk, plural, reloadProps, type BulkAction } from '@/lib/mutate';
+import { fullDate, relativeTime } from '@/lib/time';
 import { api, newRequestKey } from '@/lib/api';
 import { uploadMedia } from '@/lib/mediaUpload';
 import { formatBytes as bytes, uploadHelp } from '@/lib/mediaPolicy';
@@ -18,6 +24,9 @@ type Asset = {
     originalName: string;
     url: string;
     previewUrl: string;
+    /** Small WebP sizes for the grid (never the original when a size exists). */
+    thumbUrl: string;
+    thumbSrcset: string;
     width: number;
     height: number;
     mime: string;
@@ -28,7 +37,26 @@ type Asset = {
     optimization: { count: number; previewBytes: number | null; status: string };
     usage?: { draftPages: string[]; livePages: string[]; components: string[]; note: string };
 };
-type Library = { items: Asset[]; total: number; page: number; pages: number; q: string; sort: string };
+type Library = {
+    items: Asset[];
+    total: number;
+    page: number;
+    pages: number;
+    q: string;
+    sort: string;
+    status: 'library' | 'trash';
+    counts: { library: number; trash: number };
+};
+type View = 'grid' | 'list';
+type Usage = { livePages: number; drafts: number; components: number };
+const VIEW_KEY = 'arkon.media.view';
+const storedView = (): View => {
+    try {
+        return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid';
+    } catch {
+        return 'grid';
+    }
+};
 type Fields = Pick<Asset, 'title' | 'alt' | 'caption' | 'description'>;
 
 export default function Media({ library }: { library: Library }) {
@@ -43,7 +71,43 @@ export default function Media({ library }: { library: Library }) {
         [saving, setSaving] = useState(false),
         [message, setMessage] = useState(''),
         [confirmRemove, setConfirmRemove] = useState(false),
-        [loadingDetails, setLoadingDetails] = useState(false);
+        [loadingDetails, setLoadingDetails] = useState(false),
+        [view, setView] = useState<View>(storedView),
+        [trashing, setTrashing] = useState<{ assets: Asset[]; usage: Usage | null } | null>(null);
+    const inTrash = library.status === 'trash';
+    // Selecting is for moving to the Trash and restoring: the same permission as those actions.
+    const selectable = !!can['page.delete'];
+    const selection = useSelection(library.items.map((a) => a.id));
+    const selectedAssets = library.items.filter((a) => selection.has(a.id));
+    function changeView(next: View) {
+        setView(next);
+        try {
+            localStorage.setItem(VIEW_KEY, next);
+        } catch {
+            // Private mode: the choice lasts for this visit only.
+        }
+    }
+    async function act(action: BulkAction, items: { id: string; version?: number }[]): Promise<string | null> {
+        const result = await bulk('media', action, items, ['library']);
+        const done = result.done.length;
+        if (done === 0) return result.failed[0]?.message ?? 'Nothing changed.';
+        toast(`${done === 1 ? 'Image' : plural(done, 'image')} ${action === 'trash' ? 'moved to Trash' : 'restored'}.`);
+        if (result.failed.length) toast(`${plural(result.failed.length, 'image')} not changed: ${result.failed[0]!.message}`, 'error');
+        selection.clear();
+        return null;
+    }
+    async function restoreAssets(assets: Asset[]) {
+        const error = await act(
+            'restore',
+            assets.map((a) => ({ id: a.id })),
+        ).catch(() => 'The outcome could not be confirmed (network problem). Check the Trash, then try again.');
+        if (error) toast(error, 'error');
+    }
+    // One summary of where the chosen images are used, before they move (never one dialog per image).
+    async function askTrash(assets: Asset[]) {
+        const usage = await api<Usage>('/media/usage', { body: { ids: assets.map((a) => a.id) } }).catch(() => null);
+        setTrashing({ assets, usage: usage?.ok ? usage.data : null });
+    }
     const file = useRef<HTMLInputElement>(null),
         dialog = useRef<HTMLDialogElement>(null),
         trigger = useRef<HTMLElement | null>(null),
@@ -134,10 +198,11 @@ export default function Media({ library }: { library: Library }) {
                 flight.current = false;
                 setConfirmRemove(false);
                 close();
-                router.reload({ only: ['library'] });
+                await reloadProps(['library']);
+                toast('Image moved to Trash.');
             } else setError(result.message);
         } catch {
-            setError('Removal could not be confirmed. Retry to confirm it.');
+            setError('The outcome could not be confirmed. Try again.');
         } finally {
             flight.current = false;
             setSaving(false);
@@ -220,23 +285,46 @@ export default function Media({ library }: { library: Library }) {
                     </div>
                 )}
                 {error && !selected && <Notice tone="error">{error}</Notice>}
-                <div className="flex flex-wrap items-end gap-3">
-                    <label className="ui-field flex-1">
-                        Search images
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    {can['page.delete'] ? (
+                        <StatusTabs<'library' | 'trash'>
+                            label="Library or Trash"
+                            value={library.status}
+                            onChange={(status) =>
+                                router.get(
+                                    '/admin/media',
+                                    { q: query, sort, ...(status === 'trash' ? { status } : {}) },
+                                    { preserveState: true, replace: true },
+                                )
+                            }
+                            tabs={[
+                                { value: 'library', label: 'Library', count: library.counts.library },
+                                { value: 'trash', label: 'Trash', count: library.counts.trash },
+                            ]}
+                        />
+                    ) : (
+                        <span />
+                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                        <label className="sr-only" htmlFor="media-search">
+                            Search images
+                        </label>
                         <input
-                            className="ui-input w-full"
+                            id="media-search"
+                            type="search"
+                            className="ui-input w-full sm:w-72"
                             value={query}
                             maxLength={120}
                             onChange={(e) => setQuery(e.target.value)}
-                            placeholder="Title, filename, alt text or caption"
+                            placeholder="Search title, filename, alt text or caption"
                         />
-                    </label>
-                    <label className="ui-field">
-                        Sort
-                        <select className="ui-input block w-36" value={sort} onChange={(e) => setSort(e.target.value)}>
+                        <label className="sr-only" htmlFor="media-sort">
+                            Sort
+                        </label>
+                        <select id="media-sort" className="ui-input w-36" value={sort} onChange={(e) => setSort(e.target.value)}>
                             {[
-                                ['newest', 'Newest'],
-                                ['oldest', 'Oldest'],
+                                ['newest', 'Newest first'],
+                                ['oldest', 'Oldest first'],
                                 ['name', 'Name'],
                                 ['largest', 'Largest'],
                                 ['smallest', 'Smallest'],
@@ -246,65 +334,229 @@ export default function Media({ library }: { library: Library }) {
                                 </option>
                             ))}
                         </select>
-                    </label>
+                        <Segmented<View>
+                            label="View"
+                            value={view}
+                            onChange={changeView}
+                            options={[
+                                { value: 'grid', label: 'Grid', icon: 'grid', hideLabel: true },
+                                { value: 'list', label: 'List', icon: 'list', hideLabel: true },
+                            ]}
+                        />
+                    </div>
                 </div>
-                <p className="t-meta t-num">
-                    {library.total} {library.total === 1 ? 'image' : 'images'} · Images remain private until used on a live page.
-                </p>
-                {library.items.length ? (
-                    <ul className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
-                        {library.items.map((a) => (
-                            <li key={a.id}>
-                                <button
-                                    type="button"
-                                    aria-label={`Open ${a.title}`}
-                                    onClick={() => void open(a)}
-                                    className="group block w-full overflow-hidden rounded-lg border border-line bg-surface text-left shadow-hairline transition-[border-color,box-shadow] duration-100 hover:border-line-strong hover:shadow-raise focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                                >
-                                    <span className="flex aspect-[4/3] items-center justify-center border-b border-line bg-raised p-3">
-                                        <img src={a.previewUrl} alt="" loading="lazy" className="max-h-full max-w-full object-contain" />
-                                    </span>
-                                    <span className="block p-3">
-                                        <span className="block truncate t-title" title={a.title}>
-                                            {a.title}
+                <BulkBar selection={selection} noun={['image', 'images']}>
+                    {inTrash ? (
+                        <Button size="sm" icon="undo" onClick={() => void restoreAssets(selectedAssets)}>
+                            Restore
+                        </Button>
+                    ) : (
+                        <Button size="sm" variant="quiet-danger" icon="trash" onClick={() => void askTrash(selectedAssets)}>
+                            Move to Trash
+                        </Button>
+                    )}
+                </BulkBar>
+                {library.items.length === 0 ? (
+                    <ListEmpty
+                        icon={inTrash ? 'trash' : 'image'}
+                        title={query ? 'No matching images' : inTrash ? 'Trash is empty' : 'Your image library starts here'}
+                    >
+                        {query
+                            ? 'Try another title, filename or description.'
+                            : inTrash
+                              ? 'Images you move to the Trash appear here. Pages that use them keep working.'
+                              : 'Upload your first image, then choose it in the builder.'}
+                    </ListEmpty>
+                ) : view === 'grid' ? (
+                    <div className="space-y-2">
+                        {selectable && (
+                            <label className="inline-flex items-center gap-2 text-sm text-muted">
+                                <SelectAllCheckbox selection={selection} label="Select all images on this page" />
+                                Select all on this page
+                            </label>
+                        )}
+                        <ul
+                            className="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-3 sm:grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))]"
+                            data-testid="media-grid"
+                        >
+                            {library.items.map((a) => (
+                                <li key={a.id} className="group relative" data-testid="media-item">
+                                    <button
+                                        type="button"
+                                        aria-label={`Open ${a.title}`}
+                                        onClick={() => void open(a)}
+                                        className={`block w-full overflow-hidden rounded-lg border bg-surface text-left transition-[border-color,box-shadow] duration-100 hover:border-line-strong hover:shadow-raise focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${selection.has(a.id) ? 'border-accent ring-1 ring-accent' : 'border-line'}`}
+                                    >
+                                        <span className="flex aspect-square items-center justify-center bg-raised p-2">
+                                            <Thumb asset={a} sizes="(min-width: 640px) 10rem, 45vw" />
                                         </span>
-                                        <span className="mt-0.5 block text-2xs text-muted t-num">
-                                            {a.width} × {a.height} · Original {a.mime.replace('image/', '').toUpperCase()}
+                                        <span className="block border-t border-line px-2.5 py-2">
+                                            <span className="block truncate text-ui font-medium" title={a.title}>
+                                                {a.title}
+                                            </span>
+                                            <span className="block truncate text-2xs text-muted t-num">
+                                                {a.width} × {a.height} · {a.mime.replace('image/', '').toUpperCase()}
+                                            </span>
                                         </span>
-                                        <span className="mt-0.5 block text-2xs text-muted t-num">
-                                            {a.optimization.count > 0
-                                                ? `WebP optimized · ${a.optimization.count} sizes`
-                                                : 'Original only · no WebP copies recorded'}
+                                    </button>
+                                    {selectable && (
+                                        <span
+                                            className={`absolute top-1.5 left-1.5 grid size-7 place-items-center rounded-md bg-surface/90 shadow-hairline transition-opacity ${selection.count || selection.has(a.id) ? 'opacity-100' : 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100'}`}
+                                        >
+                                            <Checkbox checked={selection.has(a.id)} onChange={() => selection.toggle(a.id)} label={`Select ${a.title}`} />
                                         </span>
-                                    </span>
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
+                                    )}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
                 ) : (
-                    <EmptyState icon="image" title={query ? 'No matching images' : 'Your image library starts here'}>
-                        {query ? 'Try another title, filename or description.' : 'Upload your first image, then choose it in the builder.'}
-                    </EmptyState>
+                    <div className="overflow-x-auto rounded-lg border border-line bg-surface shadow-hairline">
+                        <table className="w-full min-w-[44rem] text-left text-sm" data-testid="media-list">
+                            <caption className="sr-only">{inTrash ? 'Images in the Trash' : 'Images'}</caption>
+                            <thead className="border-b border-line">
+                                <tr className="t-eyebrow">
+                                    {selectable && (
+                                        <th scope="col" className="w-10 py-2.5 pl-4">
+                                            <SelectAllCheckbox selection={selection} label="Select all images on this page" />
+                                        </th>
+                                    )}
+                                    <th scope="col" className="w-16 py-2.5 pl-4">
+                                        <span className="sr-only">Preview</span>
+                                    </th>
+                                    <th scope="col" className="py-2.5 pr-4">
+                                        Name
+                                    </th>
+                                    <th scope="col" className="py-2.5 pr-4">
+                                        Type
+                                    </th>
+                                    <th scope="col" className="py-2.5 pr-4">
+                                        Dimensions
+                                    </th>
+                                    <th scope="col" className="py-2.5 pr-4 text-right">
+                                        Size
+                                    </th>
+                                    <th scope="col" className="py-2.5 pr-4">
+                                        Optimized
+                                    </th>
+                                    <th scope="col" className="py-2.5 pr-4">
+                                        Uploaded
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {library.items.map((a) => (
+                                    <tr
+                                        key={a.id}
+                                        className={`border-b border-line last:border-0 ${selection.has(a.id) ? 'bg-accent-soft/50' : 'hover:bg-hover'}`}
+                                        data-testid="media-item"
+                                    >
+                                        {selectable && (
+                                            <td className="py-2 pl-4">
+                                                <Checkbox checked={selection.has(a.id)} onChange={() => selection.toggle(a.id)} label={`Select ${a.title}`} />
+                                            </td>
+                                        )}
+                                        <td className="py-2 pl-4">
+                                            <span className="grid size-10 place-items-center overflow-hidden rounded-md bg-raised">
+                                                <Thumb asset={a} sizes="40px" />
+                                            </span>
+                                        </td>
+                                        <th scope="row" className="max-w-0 py-2 pr-4 text-left font-normal">
+                                            <button
+                                                type="button"
+                                                onClick={() => void open(a)}
+                                                className="block max-w-full truncate font-medium text-fg hover:text-accent"
+                                                title={a.title}
+                                            >
+                                                {a.title}
+                                            </button>
+                                            <span className="block truncate text-xs text-muted" title={a.originalName}>
+                                                {a.originalName}
+                                            </span>
+                                        </th>
+                                        <td className="py-2 pr-4 text-muted">{a.mime.replace('image/', '').toUpperCase()}</td>
+                                        <td className="py-2 pr-4 whitespace-nowrap text-muted t-num">
+                                            {a.width} × {a.height}
+                                        </td>
+                                        <td className="py-2 pr-4 text-right whitespace-nowrap text-muted t-num">{bytes(a.bytes)}</td>
+                                        <td className="py-2 pr-4 whitespace-nowrap">
+                                            {a.optimization.count > 0 ? (
+                                                <span className="inline-flex items-center gap-1 text-live">
+                                                    <Icon name="check" className="size-3.5" />
+                                                    WebP
+                                                </span>
+                                            ) : (
+                                                <span className="text-muted">Original only</span>
+                                            )}
+                                        </td>
+                                        <td className="py-2 pr-4 whitespace-nowrap text-muted">
+                                            <time dateTime={a.createdAt} title={fullDate(a.createdAt)}>
+                                                {relativeTime(a.createdAt)}
+                                            </time>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 )}
-                <p className="text-xs text-muted">{uploadHelp()}</p>
-                <div className="flex items-center justify-between">
-                    <Button
-                        disabled={library.page <= 1}
-                        onClick={() => router.get('/admin/media', { q: query, sort, page: library.page - 1 }, { preserveState: true })}
-                    >
-                        Previous page
-                    </Button>
-                    <span className="t-meta t-num">
-                        Page {library.page} of {library.pages}
-                    </span>
-                    <Button
-                        disabled={library.page >= library.pages}
-                        onClick={() => router.get('/admin/media', { q: query, sort, page: library.page + 1 }, { preserveState: true })}
-                    >
-                        Next page
-                    </Button>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="t-meta t-num">
+                        {plural(library.total, 'image')}
+                        {!inTrash && ' · Images remain private until used on a live page.'}
+                    </p>
+                    {library.pages > 1 && (
+                        <div className="flex items-center gap-3">
+                            <Button
+                                size="sm"
+                                disabled={library.page <= 1}
+                                onClick={() =>
+                                    router.get('/admin/media', { q: query, sort, status: library.status, page: library.page - 1 }, { preserveState: true })
+                                }
+                            >
+                                Previous
+                            </Button>
+                            <span className="t-meta t-num">
+                                Page {library.page} of {library.pages}
+                            </span>
+                            <Button
+                                size="sm"
+                                disabled={library.page >= library.pages}
+                                onClick={() =>
+                                    router.get('/admin/media', { q: query, sort, status: library.status, page: library.page + 1 }, { preserveState: true })
+                                }
+                            >
+                                Next
+                            </Button>
+                        </div>
+                    )}
                 </div>
+                <p className="text-xs text-muted">{uploadHelp()}</p>
             </div>
+            <ConfirmDialog
+                open={!!trashing}
+                title={
+                    trashing
+                        ? trashing.assets.length === 1
+                            ? `Move “${trashing.assets[0]!.title}” to Trash?`
+                            : `Move ${plural(trashing.assets.length, 'image')} to Trash?`
+                        : ''
+                }
+                confirmLabel="Move to Trash"
+                busyLabel="Moving to Trash…"
+                onClose={() => setTrashing(null)}
+                onConfirm={() =>
+                    trashing
+                        ? act(
+                              'trash',
+                              trashing.assets.map((a) => ({ id: a.id, version: a.version })),
+                          )
+                        : Promise.resolve(null)
+                }
+            >
+                {trashing && <UsageNote usage={trashing.usage} count={trashing.assets.length} />}
+                <p>They leave the library and image choices. Pages and history that use them keep working, and you can restore them from the Trash.</p>
+            </ConfirmDialog>
             <dialog
                 ref={dialog}
                 aria-labelledby="media-detail-title"
@@ -511,25 +763,25 @@ export default function Media({ library }: { library: Library }) {
                                         </p>
                                     </div>
                                 )}
-                                {can['page.delete'] && (
+                                {can['page.delete'] && !selected.archived && (
                                     <details className="border-t border-line pt-4">
-                                        <summary className="cursor-pointer text-sm text-danger">Remove image</summary>
+                                        <summary className="cursor-pointer text-sm text-danger">Move to Trash</summary>
                                         <p className="my-3 text-sm text-muted">
-                                            Remove from the library and future image choices. Existing pages and history keep working; original files and
-                                            derivatives are retained.
+                                            Remove it from the library and future image choices. Pages and history that use it keep working, and you can restore
+                                            it from the Trash.
                                         </p>
                                         {confirmRemove ? (
                                             <div className="flex flex-wrap gap-2">
                                                 <Button variant="danger" disabled={saving || unsaved} onClick={() => void remove()}>
-                                                    Confirm removal
+                                                    Move to Trash
                                                 </Button>
                                                 <Button disabled={saving} onClick={() => setConfirmRemove(false)}>
-                                                    Cancel removal
+                                                    Cancel
                                                 </Button>
                                             </div>
                                         ) : (
                                             <Button variant="quiet-danger" disabled={saving || unsaved} onClick={() => setConfirmRemove(true)}>
-                                                Remove from library
+                                                Move to Trash…
                                             </Button>
                                         )}
                                     </details>
@@ -540,5 +792,38 @@ export default function Media({ library }: { library: Library }) {
                 )}
             </dialog>
         </AdminLayout>
+    );
+}
+
+/** A grid or list thumbnail from the small WebP sizes; the browser picks one for the tile and screen density. */
+function Thumb({ asset, sizes }: { asset: Asset; sizes: string }) {
+    return (
+        <img
+            src={asset.thumbUrl}
+            srcSet={asset.thumbSrcset || undefined}
+            sizes={asset.thumbSrcset ? sizes : undefined}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            width={asset.width}
+            height={asset.height}
+            className="max-h-full max-w-full object-contain"
+        />
+    );
+}
+
+function UsageNote({ usage, count }: { usage: Usage | null; count: number }) {
+    if (!usage) return <p>Where these images are used could not be checked.</p>;
+    const parts = [
+        usage.livePages && `${plural(usage.livePages, 'image')} on live pages`,
+        usage.drafts && `${plural(usage.drafts, 'image')} in page drafts`,
+        usage.components && `${plural(usage.components, 'image')} in reusable components`,
+    ].filter(Boolean);
+    if (!parts.length) return <p>{count === 1 ? 'This image is' : 'These images are'} not used on any page or component.</p>;
+    return (
+        <p className="flex gap-2 text-fg">
+            <Icon name="alert" className="mt-0.5 size-4 shrink-0 text-changed" />
+            <span>In use: {parts.join(', ')}.</span>
+        </p>
     );
 }

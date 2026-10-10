@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\SiteOverviewController;
 use App\Http\Controllers\Admin\ThemesController;
 use App\Http\Controllers\Admin\WebsiteController;
 use App\Http\Controllers\Api\AiApiController;
+use App\Http\Controllers\Api\BulkController;
 use App\Http\Controllers\Api\DesignApiController;
 use App\Http\Controllers\Api\EditorApiController;
 use App\Http\Controllers\Api\MediaApiController;
@@ -30,7 +31,6 @@ Route::middleware(['auth', 'admin.site'])->group(function () {
     Route::get('/admin', DashboardController::class)->name('admin');
     Route::get('/admin/pages', [PagesController::class, 'index']);
     Route::get('/admin/media', [SiteOverviewController::class, 'media']);
-    Route::get('/admin/search', [SiteOverviewController::class, 'search']);
     Route::get('/admin/seo/defaults', [SeoController::class, 'defaults']);
     Route::get('/admin/seo', [SiteOverviewController::class, 'seo']);
     Route::get('/admin/settings', [SiteOverviewController::class, 'settings']);
@@ -57,6 +57,12 @@ Route::middleware(['auth', 'admin.site'])->group(function () {
         Route::get('/themes', [ThemesController::class, 'state']);
         Route::post('/themes/activate', [ThemesController::class, 'activate']);
         Route::post('/themes/publish', [ThemesController::class, 'publish']);
+        // Trash, Restore and Delete permanently, for one item or many.
+        Route::post('/pages/bulk', [BulkController::class, 'pages']);
+        Route::post('/forms/bulk', [BulkController::class, 'forms']);
+        Route::post('/forms/entry-counts', [BulkController::class, 'formEntries']);
+        Route::post('/media/bulk', [BulkController::class, 'media']);
+        Route::post('/media/usage', [BulkController::class, 'mediaUsage']);
         Route::post('/pages', [PageApiController::class, 'store']);
         Route::post('/pages/{page}/unpublish', [PageApiController::class, 'unpublish']);
         Route::post('/pages/{page}/delete', [PageApiController::class, 'destroy']);

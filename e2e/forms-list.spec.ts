@@ -10,13 +10,12 @@ test('compact forms list exposes direct actions and adapts without horizontal ov
     await page.goto('/admin/forms');
     const row = page.getByRole('row').filter({ has: page.getByRole('link', { name, exact: true }) });
     await expect(row.getByRole('link', { name: 'Settings', exact: true })).toBeVisible();
-    await expect(row.getByRole('link', { name: 'Preview', exact: true })).toBeVisible();
     await expect(row.getByRole('link', { name: 'Entries', exact: true })).toBeVisible();
     const positions = await row
         .locator('th,td')
         .evaluateAll((es) => es.map((e) => ({ left: e.getBoundingClientRect().left, width: e.getBoundingClientRect().width })));
-    expect(positions[0]!.width).toBeLessThan(500);
-    expect(positions[2]!.width).toBeLessThan(100);
+    expect(positions[1]!.width).toBeLessThan(500);
+    expect(positions[3]!.width).toBeLessThan(100);
     await page.screenshot({ path: 'C:/Users/jacob/Documents/Codex/2026-10-06/referenced-chatgpt-conversation-this-is-an/outputs/forms-list-desktop.png' });
     await row.getByRole('link', { name: '0 entries for ' + name }).click();
     await expect(page.getByRole('heading', { name: 'Entries', exact: true })).toBeVisible();
@@ -25,17 +24,16 @@ test('compact forms list exposes direct actions and adapts without horizontal ov
     await expect(page.getByLabel('Form name', { exact: true })).toHaveValue(name);
     await page.goto('/admin/forms');
     await page.setViewportSize({ width: 1000, height: 900 });
-    await expect(row.locator('.ui-direct-preview')).toBeHidden();
     await row.getByLabel('More actions for ' + name).click();
-    await expect(row.locator('.ui-overflow-preview')).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Preview' })).toBeVisible();
     await page.screenshot({ path: 'C:/Users/jacob/Documents/Codex/2026-10-06/referenced-chatgpt-conversation-this-is-an/outputs/forms-list-tablet.png' });
-    await row.getByLabel('More actions for ' + name).click();
+    await page.keyboard.press('Escape');
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(row.locator('.ui-direct-settings')).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await row.getByLabel('More actions for ' + name).click();
-    await expect(row.getByRole('button', { name: 'Duplicate', exact: true })).toBeVisible();
-    await expect(row.getByRole('link', { name: 'Archive settings', exact: true })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Duplicate', exact: true })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Move to Trash', exact: true })).toBeVisible();
     await page.screenshot({ path: 'C:/Users/jacob/Documents/Codex/2026-10-06/referenced-chatgpt-conversation-this-is-an/outputs/forms-list-mobile.png' });
     await page.evaluate(() => localStorage.setItem('arkon.theme', 'dark'));
     await page.reload();

@@ -11,6 +11,7 @@ use App\Arkon\Sites\Permissions;
 use App\Arkon\Sites\SiteContext;
 use App\Arkon\Support\Input;
 use App\Arkon\Support\Json;
+use App\Arkon\Support\Uuid;
 use Illuminate\Support\Facades\DB;
 
 final class FormManagement
@@ -40,7 +41,7 @@ final class FormManagement
         $published = $r->published_version ? ($live[$r->id] ?? null) : null;
 
         return ['id' => $r->id, 'version' => (int) $r->version, 'publishedVersion' => $r->published_version, 'definition' => $d,
-            'status' => $r->archived_at ? 'Archived' : (! $r->published_version ? 'Draft' : ((Json::decode($published)['active'] ?? true) ? 'Active' : 'Inactive')),
+            'status' => $r->archived_at ? 'In Trash' : (! $r->published_version ? 'Draft' : ((Json::decode($published)['active'] ?? true) ? 'Active' : 'Inactive')),
             'hasDraftChanges' => $published === null || Json::encode(Json::decode($r->draft)) !== Json::encode(Json::decode($published)),
             'createdAt' => $r->created_at, 'updatedAt' => $r->updated_at, 'notificationEmail' => Permissions::allows($role, 'form.notifications') ? $r->notification_email : null,
             'entries' => Permissions::allows($role, 'form.entries.view') ? ($entries[$r->id] ?? 0) : null];
@@ -68,17 +69,34 @@ final class FormManagement
         return array_map(fn ($r) => $this->present($role, $r, $live, $entries), $rows);
     }
 
-    public function browse(SiteContext $ctx, string $q, int $page = 1): array
+    /** List tabs. Trash holds forms moved there (archived_at), never forms that were deleted permanently. */
+    public const STATUSES = ['all', 'active', 'draft', 'inactive', 'trash'];
+
+    public function browse(SiteContext $ctx, string $q, int $page = 1, string $status = 'all'): array
     {
         $role = $this->auth->authorize($ctx, 'form.view');
-        $query = DB::table('site_forms')->where('site_id', $ctx->siteId)->whereNull('archived_at');
-        if ($q !== '') {
-            $query->whereRaw('strpos(lower(name),lower(?))>0', [$q]);
-        }$count = (clone $query)->count();
+        $status = in_array($status, self::STATUSES, true) ? $status : 'all';
+        // A published form is active unless its live definition says otherwise.
+        $active = "f.published_version IS NOT NULL AND (v.definition->>'active') IS DISTINCT FROM 'false'";
+        $base = fn () => DB::table('site_forms as f')
+            ->leftJoin('site_form_versions as v', fn ($j) => $j->on('v.form_id', '=', 'f.id')->on('v.site_id', '=', 'f.site_id')->on('v.version', '=', 'f.published_version'))
+            ->where('f.site_id', $ctx->siteId)->whereNull('f.purged_at')
+            ->when($q !== '', fn ($query) => $query->whereRaw('strpos(lower(f.name),lower(?))>0', [$q]));
+        $counts = (array) $base()->selectRaw("count(*) FILTER (WHERE f.archived_at IS NULL) AS \"all\",count(*) FILTER (WHERE f.archived_at IS NULL AND {$active}) AS active, count(*) FILTER (WHERE f.archived_at IS NULL AND f.published_version IS NULL) AS draft, count(*) FILTER (WHERE f.archived_at IS NULL AND f.published_version IS NOT NULL AND NOT ({$active})) AS inactive, count(*) FILTER (WHERE f.archived_at IS NOT NULL) AS trash")->first();
+        $counts = array_map('intval', $counts);
+        $query = $base();
+        match ($status) {
+            'trash' => $query->whereNotNull('f.archived_at'),
+            'active' => $query->whereNull('f.archived_at')->whereRaw($active),
+            'draft' => $query->whereNull('f.archived_at')->whereNull('f.published_version'),
+            'inactive' => $query->whereNull('f.archived_at')->whereNotNull('f.published_version')->whereRaw("NOT ({$active})"),
+            default => $query->whereNull('f.archived_at'),
+        };
+        $count = $counts[$status];
         $page = min(max(1, $page), max(1, (int) ceil($count / 20)));
-        $rows = $query->orderByDesc('updated_at')->orderBy('id')->offset(($page - 1) * 20)->limit(20)->get()->all();
+        $rows = $query->orderByDesc($status === 'trash' ? 'f.archived_at' : 'f.updated_at')->orderBy('f.id')->offset(($page - 1) * 20)->limit(20)->get(['f.*'])->all();
 
-        return ['items' => $this->presentAll($ctx, $role, $rows), 'total' => $count, 'page' => $page, 'pages' => max(1, (int) ceil($count / 20)), 'q' => $q];
+        return ['items' => $this->presentAll($ctx, $role, $rows), 'total' => $count, 'page' => $page, 'pages' => max(1, (int) ceil($count / 20)), 'q' => $q, 'status' => $status, 'counts' => $counts];
     }
 
     public function detail(SiteContext $ctx, string $id): array
@@ -141,15 +159,69 @@ final class FormManagement
             if ($row->archived_at) {
                 return;
             }if ($row->version !== $version) {
-                throw new ConflictException('This form changed. Reload before archiving.');
+                throw new ConflictException("“{$row->name}” changed since the list loaded. Reload and try again.");
             }
             // Serialize with page publishing before checking the actual live inputs.
             app(PageStore::class)->lockNextEpoch($ctx->siteId);
             if ($this->usage($ctx, $id)) {
-                throw new ConflictException('Remove this form from live pages before archiving it.');
+                throw new ConflictException("“{$row->name}” is on a live page. Remove it from live pages before moving it to the Trash.");
             }
             DB::table('site_forms')->where('id', $id)->update(['archived_at' => now(), 'updated_at' => now()]);
             app(AuditLog::class)->forContext($ctx, 'form.archive', 'form', $id, []);
         });
+    }
+
+    /** Brings a form back from the Trash with the same id, fields, entries, notifications and versions. */
+    public function restore(SiteContext $ctx, string $id): void
+    {
+        $this->auth->authorize($ctx, 'form.manage');
+        Input::id($id, 'Form');
+        DB::transaction(function () use ($ctx, $id) {
+            DB::select('SELECT pg_advisory_xact_lock(hashtextextended(?,0))', ['arkon.forms:'.$ctx->siteId]);
+            $row = DB::table('site_forms')->where('site_id', $ctx->siteId)->where('id', $id)->whereNull('purged_at')->lockForUpdate()->first() ?? throw new NotFoundException('Form');
+            if (! $row->archived_at) {
+                return;
+            }
+            DB::table('site_forms')->where('id', $id)->update(['archived_at' => null, 'updated_at' => now()]);
+            app(AuditLog::class)->forContext($ctx, 'form.restore', 'form', $id, []);
+        });
+    }
+
+    /**
+     * Deletes a form in the Trash permanently, with its entries (the visitors' submissions). It
+     * cannot be restored. Published form versions are append-only history and stay, so old
+     * publications still reproduce.
+     *
+     * @return array{entriesDeleted: int}
+     */
+    public function purge(SiteContext $ctx, string $id): array
+    {
+        $this->auth->authorize($ctx, 'form.manage');
+        Input::id($id, 'Form');
+
+        return DB::transaction(function () use ($ctx, $id) {
+            DB::select('SELECT pg_advisory_xact_lock(hashtextextended(?,0))', ['arkon.forms:'.$ctx->siteId]);
+            $row = DB::table('site_forms')->where('site_id', $ctx->siteId)->where('id', $id)->lockForUpdate()->first() ?? throw new NotFoundException('Form');
+            if ($row->purged_at) {
+                return ['entriesDeleted' => 0];
+            }
+            if (! $row->archived_at) {
+                throw new ConflictException("Move “{$row->name}” to the Trash before deleting it permanently.");
+            }
+            $entries = DB::table('form_submissions')->where('site_id', $ctx->siteId)->where('form_id', $id)->delete();
+            DB::table('site_forms')->where('id', $id)->update(['purged_at' => now()]);
+            app(AuditLog::class)->forContext($ctx, 'form.purge', 'form', $id, ['entriesDeleted' => $entries]);
+
+            return ['entriesDeleted' => $entries];
+        });
+    }
+
+    /** Entries kept for each form, for the permanent-delete confirmation. */
+    public function entryCounts(SiteContext $ctx, array $ids): array
+    {
+        $this->auth->authorize($ctx, 'form.manage');
+
+        return DB::table('form_submissions')->where('site_id', $ctx->siteId)->whereIn('form_id', array_values(array_filter($ids, [Uuid::class, 'isValid'])))
+            ->groupBy('form_id')->selectRaw('form_id, count(*) as n')->pluck('n', 'form_id')->map(fn ($n) => (int) $n)->all();
     }
 }

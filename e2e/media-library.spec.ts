@@ -6,7 +6,7 @@ test('media details save metadata, search, preserve canonical URL, and remove sa
     await page.getByLabel('Upload image file').setInputFiles({ name: 'metadata-check.png', mimeType: 'image/png', buffer: PNG_1X1 });
     const tile = page.getByRole('button', { name: 'Open metadata-check.png', exact: true });
     await expect(tile).toHaveCSS('cursor', 'pointer');
-    await expect(tile).toContainText('Original PNG');
+    await expect(tile).toContainText('PNG');
     await expect(page.getByLabel('Search images', { exact: true })).toHaveCSS('cursor', 'text');
     await tile.click();
     const dialog = page.getByRole('dialog', { name: 'Image details' });
@@ -33,10 +33,11 @@ test('media details save metadata, search, preserve canonical URL, and remove sa
     await page.reload();
     await page.getByRole('button', { name: 'Open Team review photograph', exact: true }).click();
     await expect(dialog.getByLabel('Alt text', { exact: true })).toHaveValue('Colleagues discussing a design');
-    await dialog.getByText('Remove image', { exact: true }).click();
-    await dialog.getByRole('button', { name: 'Remove from library', exact: true }).click();
-    await dialog.getByRole('button', { name: 'Confirm removal', exact: true }).click();
+    await dialog.locator('summary', { hasText: 'Move to Trash' }).click();
+    await dialog.getByRole('button', { name: 'Move to Trash…', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Move to Trash', exact: true }).click();
     await expect(dialog).not.toBeVisible();
+    await expect(page.getByTestId('toast')).toContainText('Image moved to Trash.');
     await expect(page.getByText('No matching images', { exact: true })).toBeVisible();
 });
 test('a delayed metadata read cannot overwrite edits and unsaved fields stay in the dialog', async ({ page }) => {

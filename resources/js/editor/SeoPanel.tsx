@@ -1,5 +1,5 @@
 import { seoColor } from '@/lib/seo';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import rules from '../../arkon/rules.json';
 import { api } from '@/lib/api';
 import { Button, PanelSection, Segmented } from '@/Components/ui';
@@ -95,6 +95,13 @@ export function SeoPanel({
         Object.values(unresolved).some((f) => f.prop === 'seoCanonical') ? 'advanced' : 'search',
     );
     const id = useId();
+    // Arriving from the SEO workspace's "Fix with AI": point at the AI action. Never starts a request by itself.
+    const improve = useRef<HTMLButtonElement>(null);
+    useEffect(() => {
+        if (new URLSearchParams(window.location.search).get('ai') !== '1') return;
+        improve.current?.scrollIntoView({ block: 'center' });
+        improve.current?.focus();
+    }, []);
     const seo = document.seo;
     const socialAsset = media.find((m) => m.id === seo.socialImage || (!seo.socialImage && report?.socialImage.includes(`/media/${m.id}.`)));
     const socialPreview = report?.socialPreviewUrl || (socialAsset ? (socialAsset.previewUrl ?? socialAsset.url) : report?.socialImage);
@@ -155,7 +162,7 @@ export function SeoPanel({
                 </p>
                 <p className="text-2xs text-muted">Checks recommended practices. Does not predict rankings or measure performance.</p>
                 {error && <p role="alert">{error}</p>}
-                <Button icon="sparkle" disabled={!canAsk} onClick={() => ask()}>
+                <Button ref={improve} icon="sparkle" disabled={!canAsk} onClick={() => ask()}>
                     Improve SEO with AI
                 </Button>
                 <p className="text-2xs text-muted">Uses your paired Claude Code subscription. Review before applying; nothing is published.</p>

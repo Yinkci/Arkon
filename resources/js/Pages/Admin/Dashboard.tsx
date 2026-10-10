@@ -1,9 +1,9 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import type { ReactNode } from 'react';
 import { AdminLayout } from '@/Components/AdminLayout';
 import { Icon, type IconName } from '@/Components/Icon';
 import { STATUS_LABEL, StatusMark } from '@/Components/PagesTable';
-import { Avatar, ButtonLink, EmptyState, PageShell } from '@/Components/ui';
+import { Avatar, ButtonLink, EmptyState, PageShell, PanelHeading, ProportionBar } from '@/Components/ui';
+import { plural } from '@/lib/mutate';
 import { fullDate, relativeTime } from '@/lib/time';
 import type { PageRow, PageStatus, SharedProps } from '@/types';
 
@@ -24,8 +24,6 @@ interface Overview {
     refreshes: { pending: number; failed: number };
     design: { tokensChanged: boolean; componentsChanged: number };
 }
-
-const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
 /** One sentence on what needs attention, most urgent first. */
 function summary(counts: Record<Filter, number>): string {
@@ -84,7 +82,7 @@ export default function Dashboard({
                       href: '/admin/pages?status=changed',
                       icon: 'dots' as const,
                       tone: 'text-changed',
-                      label: `Review ${counts.changed} pages with unpublished changes`,
+                      label: `Review ${plural(counts.changed, 'page', 'pages')} with unpublished changes`,
                   },
               ]
             : []),
@@ -190,7 +188,14 @@ export default function Dashboard({
                                     <Metric status="changed" count={counts.changed} label="Draft changes" />
                                     <Metric status="draft" count={counts.draft} label="Unpublished" />
                                 </ul>
-                                <StateBar counts={counts} />
+                                <ProportionBar
+                                    className="mt-4"
+                                    parts={[
+                                        { count: counts.published, className: 'bg-live' },
+                                        { count: counts.changed, className: 'bg-changed' },
+                                        { count: counts.draft, className: 'bg-line-strong' },
+                                    ]}
+                                />
                             </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line bg-raised px-6 py-3.5 text-ui">
@@ -456,35 +461,6 @@ export default function Dashboard({
 }
 
 /** A panel's title row: the same height, padding and type in every dashboard panel. */
-function PanelHeading({ id, title, aside }: { id: string; title: string; aside?: ReactNode }) {
-    return (
-        <div className="flex min-h-14 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-line px-6 py-3">
-            <h2 id={id} className="t-section">
-                {title}
-            </h2>
-            {aside}
-        </div>
-    );
-}
-
-/** Live, changed and unpublished as one proportional bar (the metrics above it carry the words). */
-function StateBar({ counts }: { counts: Record<Filter, number> }) {
-    const total = Math.max(1, counts.all);
-    const segments: [number, string][] = [
-        [counts.published, 'bg-live'],
-        [counts.changed, 'bg-changed'],
-        [counts.draft, 'bg-line-strong'],
-    ];
-    return (
-        <div aria-hidden="true" className="mt-4 flex h-2 gap-0.5 overflow-hidden rounded-full bg-sunken">
-            {counts.all > 0 &&
-                segments.map(([count, color], i) =>
-                    count ? <span key={i} className={`${color} h-full`} style={{ width: `${(count / total) * 100}%` }} /> : null,
-                )}
-        </div>
-    );
-}
-
 function Metric({ status, count, label }: { status: PageStatus; count: number; label: string }) {
     return (
         <li>

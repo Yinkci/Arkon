@@ -92,7 +92,7 @@ final class FormService
                 throw new StaleVersionException((int) $v['baseVersion'], (int) ($row?->version ?? 0));
             }
             if ($row?->archived_at) {
-                throw new ConflictException('This form is archived.');
+                throw new ConflictException('This form is in the Trash. Restore it first.');
             }
             $role = $this->auth->authorize($ctx, 'form.edit');
             if (! Permissions::allows($role, 'form.notifications')) {
@@ -135,7 +135,7 @@ final class FormService
                 throw new StaleVersionException((int) $v['expectedVersion'], (int) $row->version);
             }
             if ($row->archived_at) {
-                throw new ConflictException('This form is archived.');
+                throw new ConflictException('This form is in the Trash. Restore it first.');
             }
             $definition = Json::decode($row->draft);
             if (($definition['schemaVersion'] ?? 1) === 2 && ! array_filter($definition['fields'], fn ($f) => ! in_array($f['type'], ['section', 'divider'], true))) {
