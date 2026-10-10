@@ -4,7 +4,7 @@
 // drop is one undo step, and that cancelled or refused drags change nothing and send no
 // save or publish request.
 import { expect, test, type FrameLocator, type Locator, type Page } from '@playwright/test';
-import { E2E_HOST, PORT } from './env';
+import { AUTH_STATE, E2E_HOST, PORT } from './env';
 import { db } from './support';
 
 type Spec = Record<string, unknown>;
@@ -452,7 +452,7 @@ test('the reusable-component editor uses the same dragging', async ({ page }) =>
 });
 
 test('touch: the Move handle drags with a finger', async ({ browser }) => {
-    const context = await browser.newContext({ storageState: 'test-results/.auth/owner.json', hasTouch: true, viewport: { width: 1280, height: 900 } });
+    const context = await browser.newContext({ storageState: AUTH_STATE, hasTouch: true, viewport: { width: 1280, height: 900 } });
     const page = await context.newPage();
     await openPage(page, [text('Tap one'), text('Tap two'), text('Tap three')], { width: 1280, height: 900 });
     await select(page, 'Tap one');

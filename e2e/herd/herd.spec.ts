@@ -26,8 +26,7 @@ test('the admin works through Herd and public pages stay clean', async ({ page, 
     await page.getByLabel('Email').fill(email);
     await page.getByLabel('Password').fill(password);
     await page.getByRole('button', { name: 'Sign in' }).click();
-    await expect(page.getByRole('heading', { name: /^Welcome, / })).toBeVisible();
-    await expect(page.getByTestId('page-row').first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^Good (morning|afternoon|evening), / })).toBeVisible();
 
     // Herd serves plain http on a .test name: an insecure context without crypto.randomUUID.
     expect(await page.evaluate(() => ({ secure: window.isSecureContext, randomUUID: typeof crypto.randomUUID }))).toEqual({
@@ -37,6 +36,8 @@ test('the admin works through Herd and public pages stay clean', async ({ page, 
     // A write request that generates a fresh request key here, refused by the server before anything is
     // written (reserved URL). Before the request-key fix this threw in the browser and never reached the server.
     await page.goto('/admin/pages');
+    await expect(page.getByTestId('page-row').first()).toBeVisible();
+    await page.getByRole('button', { name: 'New page', exact: true }).click();
     const form = page.getByRole('form', { name: 'New page' });
     await form.getByLabel('Title').fill('Herd smoke check');
     await form.getByLabel('URL path').fill('/admin');
@@ -44,7 +45,6 @@ test('the admin works through Herd and public pages stay clean', async ({ page, 
     await form.getByRole('button', { name: 'Create page' }).click();
     expect((await createRequest).postDataJSON().requestKey).toMatch(/^[0-9a-f]{32}$/);
     await expect(form.getByRole('alert')).toContainText('reserved');
-    await page.goto('/admin');
 
     // The editor: sandboxed canvas rendered by the server's renderer, inspector, history.
     await page.getByTestId('page-row').first().getByRole('link', { name: 'Edit' }).click();

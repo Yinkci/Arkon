@@ -1,7 +1,7 @@
 // A screenshot walkthrough of duplicate, column layouts and entrance animations (not a regression
 // test): runs only with FEATURES_DEMO=1 and writes to storage/screenshots/features/ (git-ignored).
 import { expect, test, type Page } from '@playwright/test';
-import { E2E_HOST, PORT } from './env';
+import { AUTH_STATE, E2E_HOST, PORT } from './env';
 import { db } from './support';
 
 test.skip(process.env.FEATURES_DEMO !== '1', 'Set FEATURES_DEMO=1 to record the feature walkthrough');
@@ -66,7 +66,7 @@ async function open(page: Page) {
 
 for (const theme of ['light', 'dark'] as const) {
     test(`feature walkthrough (${theme})`, async ({ browser }) => {
-        const context = await browser.newContext({ storageState: 'test-results/.auth/owner.json', viewport: { width: 1440, height: 900 } });
+        const context = await browser.newContext({ storageState: AUTH_STATE, viewport: { width: 1440, height: 900 } });
         await context.addInitScript((value) => localStorage.setItem('arkon.theme', value), theme);
         const page = await context.newPage();
         await open(page);

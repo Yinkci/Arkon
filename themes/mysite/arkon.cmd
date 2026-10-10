@@ -5,7 +5,9 @@ if /I "%~1"=="install" goto run
 echo Usage: arkon.cmd validate ^| install
 exit /b 1
 :run
-if not defined ARKON_PHP_BINARY set "ARKON_PHP_BINARY=%USERPROFILE%\.config\herd\bin\php84\php.exe"
+rem PHP: ARKON_PHP_BINARY if set, else Laravel Herd's PHP 8.4 if installed, else php on PATH.
+if not defined ARKON_PHP_BINARY if exist "%USERPROFILE%\.config\herd\bin\php84\php.exe" set "ARKON_PHP_BINARY=%USERPROFILE%\.config\herd\bin\php84\php.exe"
+if not defined ARKON_PHP_BINARY set "ARKON_PHP_BINARY=php"
 if not exist "%~dp0..\..\artisan" (
   echo Arkon was not found. Keep this theme under ArkonLaravel\themes\mysite.
   exit /b 1

@@ -69,14 +69,15 @@ resources/arkon         shared rules and component manifests (read by PHP and Ty
 resources/js            Inertia pages, editor (resources/js/editor), TypeScript rule twins (resources/js/arkon)
 themes/mysite           developer theme source (see THEMES.md)
 routes/web.php          admin, editor API, preview, sign-in     routes/public.php   public pages and media
-tests/                  PHPUnit (Unit, Feature, Conformance)    e2e/, e2e-herd/     Playwright
+tests/                  PHPUnit (Unit, Feature, Conformance)    e2e/                Playwright (e2e/herd: Herd smoke test)
 ```
 
 ## Local storage
 
 Everything under `storage/` except committed `.gitignore` files is local: uploads (`storage/app/media`), backups
 (`storage/app/private/backups`), logs, review screenshots (`storage/screenshots`), benchmark reports
-(`storage/perf*`) and test scratch space (`storage/testing`). Screenshots, benchmark reports and test scratch space
+(`storage/perf*`), Playwright output and the signed-in test session (`storage/playwright`), the PHPUnit cache
+(`storage/framework/testing/phpunit`) and test scratch space (`storage/testing`). Screenshots, benchmark reports and test scratch space
 can be deleted at any time and are recreated by the commands that write them. Inertia DevTools recording is off; set
 `INERTIA_DEVTOOLS_ENABLED=true` in `.env` to record requests to `storage/inertia-devtools`.
 

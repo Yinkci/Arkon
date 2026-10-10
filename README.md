@@ -99,6 +99,22 @@ npm run test:e2e   # Playwright browser tests (separate e2e database)
 More in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md): test databases, useful commands, project layout and local
 storage.
 
+## Project structure
+
+Arkon follows Laravel's standard layout. The folders you will work in most:
+
+```text
+app/Arkon/   Arkon's core: pages, components, renderer, media, forms, SEO, AI
+resources/   admin and builder (React/TypeScript), component manifests and shared rules
+routes/      admin and editor routes (web.php), public site and media (public.php)
+themes/      developer theme source (custom components)
+tests/       PHPUnit tests            e2e/   Playwright browser tests
+docs/        user guide, architecture and development notes
+```
+
+`vendor/`, `node_modules/`, `public/build/` and `storage/` (uploads, logs, test output) are installed or generated
+locally and are not committed.
+
 ## Documentation
 
 - [User guide](docs/USER_GUIDE.md): using the admin and the builder

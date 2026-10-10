@@ -4,6 +4,10 @@ import { join, resolve } from 'node:path';
 
 export const PORT = 8100;
 
+/** Playwright output (traces, screenshots of failures) and the signed-in owner's session, kept under storage/. */
+export const OUTPUT_DIR = 'storage/playwright';
+export const AUTH_STATE = `${OUTPUT_DIR}/.auth/owner.json`;
+
 /**
  * The browser opens the app at an insecure origin, like http://arkonlaravel.test under Herd:
  * plain http and not localhost, so Chromium has isSecureContext=false and no crypto.randomUUID.

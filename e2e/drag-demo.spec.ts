@@ -4,7 +4,7 @@
 // between columns, into an empty group, and across a long page by holding at the edge;
 // in the light and dark themes and the desktop, tablet and mobile canvas.
 import { expect, test, type Page } from '@playwright/test';
-import { E2E_HOST, PORT } from './env';
+import { AUTH_STATE, E2E_HOST, PORT } from './env';
 import { db } from './support';
 
 test.skip(process.env.DRAG_DEMO !== '1', 'Set DRAG_DEMO=1 to record the dragging walkthrough');
@@ -98,7 +98,7 @@ for (const theme of ['light', 'dark'] as const) {
     test(`dragging walkthrough (${theme})`, async ({ browser }) => {
         test.setTimeout(240_000);
         const context = await browser.newContext({
-            storageState: 'test-results/.auth/owner.json',
+            storageState: AUTH_STATE,
             viewport: { width: 1440, height: 900 },
             recordVideo: { dir: `${dir}/video-${theme}`, size: { width: 1440, height: 900 } },
         });

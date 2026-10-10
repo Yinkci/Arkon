@@ -10,7 +10,7 @@
         "test:e2e": "playwright test",
         "format": "prettier --write resources/js tests/conformance e2e",
         "check": "npm run typecheck && npm run test",
-        "test:herd": "playwright test -c playwright.herd.config.ts",
+        "test:herd": "playwright test -c e2e/herd/playwright.config.ts",
         "perf": "node scripts/perf.mjs"
     },
     "devDependencies": {

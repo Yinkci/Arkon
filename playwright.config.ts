@@ -1,5 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
-import { APP_ORIGIN, E2E_ENV, E2E_HOST, PHP, PORT, SERVER_URL } from './e2e/env';
+import { APP_ORIGIN, AUTH_STATE, E2E_ENV, E2E_HOST, OUTPUT_DIR, PHP, PORT, SERVER_URL } from './e2e/env';
 
 // The browser tests run against their own database (arkonlaravel_e2e) and media
 // directory, served by PHP's built-in server with the same Laravel app. Dev data is
@@ -7,6 +7,10 @@ import { APP_ORIGIN, E2E_ENV, E2E_HOST, PHP, PORT, SERVER_URL } from './e2e/env'
 // credentials stay in .migrate.env and are read by the setup command only.
 export default defineConfig({
     testDir: './e2e',
+    // The Herd smoke test has its own config (e2e/herd/playwright.config.ts, `npm run test:herd`).
+    // (A regex, not 'herd/**': a glob would also match the C:\Herd\ prefix of every path.)
+    testIgnore: /[\\/]e2e[\\/]herd[\\/]/,
+    outputDir: OUTPUT_DIR,
     fullyParallel: false,
     workers: 1,
     retries: 0,
@@ -25,7 +29,7 @@ export default defineConfig({
         { name: 'setup', testMatch: /auth\.setup\.ts/ },
         {
             name: 'chromium',
-            use: { ...devices['Desktop Chrome'], storageState: 'test-results/.auth/owner.json' },
+            use: { ...devices['Desktop Chrome'], storageState: AUTH_STATE },
             dependencies: ['setup'],
         },
     ],

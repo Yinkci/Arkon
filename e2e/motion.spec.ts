@@ -8,7 +8,7 @@
 // and reduced motion, phones and JavaScript-disabled all show content. Moving an entrance away from
 // protected content never lands on protected blocks.
 import { expect, test, type Browser, type Frame, type Page } from '@playwright/test';
-import { APP_ORIGIN, E2E_HOST, PORT } from './env';
+import { APP_ORIGIN, AUTH_STATE, E2E_HOST, PORT } from './env';
 import { PNG_1X1 } from './fixtures';
 import { db } from './support';
 
@@ -196,7 +196,7 @@ test.describe('editor', () => {
         await expect(page.getByTestId('animation-preview')).toBeDisabled();
 
         const reduced = await browser.newContext({
-            storageState: 'test-results/.auth/owner.json',
+            storageState: AUTH_STATE,
             reducedMotion: 'reduce',
             viewport: { width: 1440, height: 900 },
         });

@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { BASE_URL, createPage, publicationCount, db } from './support';
-const OUTPUT = (process.env.ARKON_UI_OUT ?? 'test-results/seo-ux') + '/';
+import { OUTPUT_DIR } from './env';
+const OUTPUT = (process.env.ARKON_UI_OUT ?? `${OUTPUT_DIR}/seo-ux`) + '/';
 test('SEO is discoverable, updates from draft output and publishes real head metadata', async ({ page }) => {
     const id = await createPage('/seo-workflow', 'Our services');
     await page.goto(`/admin/editor/${id}`);
