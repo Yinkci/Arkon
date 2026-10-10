@@ -248,13 +248,13 @@ final class WebsiteWorkflowTest extends DatabaseTestCase
         $service = app(WebsiteProposalService::class);
         $view = $service->list($f['ctx']);
         $this->assertFalse($view['connection']['ready']);
-        $this->assertStringContainsString('old website code', $view['connection']['message']);
+        $this->assertStringContainsString('needs an update', $view['connection']['providers'][0]['message']);
         $this->assertTrue(app(AiConnections::class)->helperStatus($f['siteId'])['ready']);
         try {
             $service->request($f['ctx'], ['prompt' => 'Homepage', 'requestKey' => self::key()]);
             $this->fail('Old helper must not receive a website job');
         } catch (AiException $e) {
-            $this->assertSame(AiException::HELPER_OFFLINE, $e->code());
+            $this->assertSame('PROVIDER_UNAVAILABLE', $e->code());
         }
         $this->assertSame(0, DB::table('ai_proposals')->count());
         app(AiConnections::class)->heartbeat($helper->id, FakeClaudeRunner::ready());

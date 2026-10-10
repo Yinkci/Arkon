@@ -113,7 +113,7 @@ export default function Navigation(props: Props) {
                             Prepare missing header and footer
                         </button>
                     )}
-                    <span className="t-meta sm:ml-auto">Creates a reviewable proposal locally. Uses no Claude allowance.</span>
+                    <span className="t-meta sm:ml-auto">Creates a reviewable proposal locally. Uses no AI allowance.</span>
                 </section>
                 {notice && (
                     <Notice tone="info">

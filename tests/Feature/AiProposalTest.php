@@ -368,29 +368,17 @@ class AiProposalTest extends DatabaseTestCase
         $this->assertSame(['running', 1], [DB::table('ai_proposals')->value('status'), (int) DB::table('ai_proposals')->value('attempts')]);
     }
 
-    public function test_a_stopped_helper_s_request_is_recovered_once_and_its_late_result_is_refused(): void
+    public function test_a_stopped_helper_fails_once_and_its_late_result_is_refused(): void
     {
         $request = $this->ask();
         $stale = $this->ai()->claimNext($this->helper);
-        // The helper stops; its lease runs out.
         DB::table('ai_proposals')->where('id', $request['id'])->update(['lease_expires_at' => DB::raw("now() - interval '1 second'")]);
-
-        $restarted = $this->pairHelper($this->f['siteId'], $this->f['ctx']->userId);
-        $this->assertSame('proposed', $this->tick(new FakeClaudeRunner([$this->landscaping()]), $restarted));
-        $this->assertSame(2, (int) DB::table('ai_proposals')->value('attempts'));
-
-        // The first helper comes back with an answer: refused, the recovered result stands.
+        $runner = new FakeClaudeRunner([$this->landscaping()]);
+        $this->assertNull($this->tick($runner, $this->pairHelper($this->f['siteId'], $this->f['ctx']->userId)));
+        $this->assertCount(0, $runner->requests);
+        $this->assertSame(1, (int) DB::table('ai_proposals')->value('attempts'));
         $this->assertSame('lost', $this->ai()->execute($stale, new FakeClaudeRunner([['summary' => 'late', 'notes' => [], 'changes' => []]])));
-        $this->assertSame('proposed', $this->requestView($request['id'])['status']);
-
-        // A request whose helper keeps stopping fails after the last attempt.
-        $next = $this->ask('Something else');
-        foreach ([1, 2] as $_) {
-            $this->ai()->claimNext($this->helper);
-            DB::table('ai_proposals')->where('id', $next['id'])->update(['lease_expires_at' => DB::raw("now() - interval '1 second'")]);
-        }
-        $this->ai()->claimNext($this->helper);
-        $view = $this->requestView($next['id']);
+        $view = $this->requestView($request['id']);
         $this->assertSame(['failed', AiException::INTERRUPTED], [$view['status'], $view['error']['code']]);
     }
 
@@ -422,18 +410,19 @@ class AiProposalTest extends DatabaseTestCase
     public function test_revoking_during_a_run_fences_it_and_rejects_the_late_result(): void
     {
         $editor = $this->addMember($this->f['siteId'], 'editor');
+        $this->helper = $this->pairHelper($this->f['siteId'], $editor->userId);
         $request = $this->ask(ctx: $editor);
         $runner = $this->stubborn(fn () => app(AiConnections::class)->revoke($this->helper->id));
         $this->assertSame('lost', $this->tick($runner));
 
         $row = DB::table('ai_proposals')->where('id', $request['id'])->first();
-        $this->assertSame(['queued', null, null, 1], [$row->status, $row->lease_token, $row->summary, (int) $row->attempts], 'fenced: back in the queue, no result');
+        $this->assertSame(['failed', null, null, 1], [$row->status, $row->lease_token, $row->summary, (int) $row->attempts], 'fenced: failed without another execution');
 
-        // Another helper takes it over; the requester stays the owner.
-        $replacement = $this->pairHelper($this->f['siteId'], $this->f['ctx']->userId);
-        $this->assertSame('proposed', $this->tick(new FakeClaudeRunner([$this->landscaping()]), $replacement));
+        // Re-pairing cannot restart an already interrupted request.
+        $replacement = $this->pairHelper($this->f['siteId'], $editor->userId);
+        $this->assertNull($this->tick(new FakeClaudeRunner([$this->landscaping()]), $replacement));
         $row = DB::table('ai_proposals')->where('id', $request['id'])->first();
-        $this->assertSame([$editor->userId, $replacement->id, 2], [$row->created_by, $row->connection_id, (int) $row->attempts]);
+        $this->assertSame([$editor->userId, $this->helper->id, 1], [$row->created_by, $row->connection_id, (int) $row->attempts]);
     }
 
     public function test_losing_the_right_to_edit_during_a_run_rejects_the_result(): void
@@ -445,10 +434,10 @@ class AiProposalTest extends DatabaseTestCase
         $this->assertSame([null, 'running'], [DB::table('ai_proposals')->where('id', $request['id'])->value('summary'), DB::table('ai_proposals')->where('id', $request['id'])->value('status')]);
         $this->assertNull($this->ai()->claimNext($this->helper), 'nor can it claim more work');
 
-        // The requester is downgraded while Claude works (helper paired by another owner).
+        // Another requester is downgraded while their own helper works.
         $owner = $this->addMember($this->f['siteId'], 'owner');
-        $helper = $this->pairHelper($this->f['siteId'], $owner->userId);
         $editor = $this->addMember($this->f['siteId'], 'editor');
+        $helper = $this->pairHelper($this->f['siteId'], $editor->userId);
         $other = $this->addPage($this->f['siteId'], '/other', 'Other');
         $mine = $this->ai()->request($editor, $other, ['prompt' => 'Build a page', 'baseVersion' => 1, 'requestKey' => self::key()]);
         DB::table('ai_proposals')->where('id', $request['id'])->update(['status' => 'cancelled']); // out of the way
@@ -475,15 +464,10 @@ class AiProposalTest extends DatabaseTestCase
         $this->assertFalse($ledger->failRun($old->id, $old->lease_token, AiException::CLAUDE_FAILED, 'late'));
         $this->assertSame(['running', null], [DB::table('ai_proposals')->value('status'), DB::table('ai_proposals')->value('summary')]);
 
-        // Recovery hands it to a new execution with a fresh token; the old token stays dead.
-        $new = $this->ai()->claimNext($this->pairHelper($this->f['siteId'], $this->f['ctx']->userId));
-        $this->assertSame($old->id, $new->id);
-        $this->assertNotSame($old->lease_token, $new->lease_token);
-        $this->assertSame(2, (int) $new->attempts);
+        $this->assertNull($this->ai()->claimNext($this->pairHelper($this->f['siteId'], $this->f['ctx']->userId)));
+        $this->assertSame('failed', DB::table('ai_proposals')->value('status'));
         $this->assertFalse($ledger->renew($old->id, $old->lease_token));
         $this->assertFalse($ledger->finish($old->id, $old->lease_token, $compiled));
-        $this->assertTrue($ledger->renew($new->id, $new->lease_token));
-        $this->assertTrue($ledger->finish($new->id, $new->lease_token, $compiled));
     }
 
     public function test_a_lease_expires_exactly_at_its_expiry_time(): void
@@ -495,6 +479,7 @@ class AiProposalTest extends DatabaseTestCase
         $this->assertFalse($ledger->renew($claim->id, $claim->lease_token), 'at the expiry instant the lease is gone (database clock)');
         $this->assertSame(1, $ledger->recover($this->f['siteId']), 'and recovery takes it from that same instant');
 
+        $this->ask('A new task');
         $claim = $this->ai()->claimNext($this->helper);
         DB::table('ai_proposals')->where('id', $claim->id)->update(['lease_expires_at' => DB::raw("now() + interval '3 seconds'")]);
         $this->assertTrue($ledger->renew($claim->id, $claim->lease_token), 'just before it, renewal works');
@@ -596,11 +581,11 @@ class AiProposalTest extends DatabaseTestCase
     public function test_requests_need_a_connected_ready_helper(): void
     {
         DB::table('ai_connections')->update(['last_seen_at' => DB::raw("now() - interval '5 minutes'")]);
-        $this->assertAiError(AiException::HELPER_OFFLINE, fn () => $this->ask(), 'php artisan arkon:ai-helper');
+        $this->assertAiError('PROVIDER_UNAVAILABLE', fn () => $this->ask(), 'Connect an AI');
         $this->assertSame(0, DB::table('ai_proposals')->count());
 
         app(AiConnections::class)->heartbeat($this->helper->id, new RunnerStatus(false, AiException::CLAUDE_BILLING_MODE, 'Claude Code is signed in with "api_key" (API or Console billing).'));
-        $this->assertAiError(AiException::HELPER_OFFLINE, fn () => $this->ask(), 'api_key');
+        $this->assertAiError('PROVIDER_UNAVAILABLE', fn () => $this->ask(), 'Connect an AI');
         $info = $this->ai()->editorInfo($this->f['ctx'], true);
         $this->assertFalse($info['connection']['ready']);
 
@@ -644,6 +629,7 @@ class AiProposalTest extends DatabaseTestCase
 
         config(['arkon.ai.per_user_per_minute' => 50, 'arkon.ai.max_active_per_site' => 1]);
         $editor = $this->addMember($this->f['siteId'], 'editor');
+        $this->pairHelper($this->f['siteId'], $editor->userId);
         $this->assertAiError(AiException::LIMIT_REACHED, fn () => $this->ask('mine', ctx: $editor), 'already waiting or running');
 
         config(['arkon.ai.max_active_per_site' => 5, 'arkon.ai.per_site_per_day' => 2]);
@@ -666,9 +652,10 @@ class AiProposalTest extends DatabaseTestCase
         // Another site's helper never sees this site's requests.
         $otherHelper = $this->pairHelper($outsider['siteId'], $outsider['ctx']->userId);
         $editor = $this->addMember($this->f['siteId'], 'editor');
+        $editorHelper = $this->pairHelper($this->f['siteId'], $editor->userId);
         $request = $this->ask(ctx: $editor);
         $this->assertNull($this->ai()->claimNext($otherHelper));
-        $this->tick(new FakeClaudeRunner([$this->landscaping()]));
+        $this->tick(new FakeClaudeRunner([$this->landscaping()]), $editorHelper);
 
         // Only the editor who asked can see, apply or discard it.
         $this->assertThrows(fn () => $this->requestView($request['id']), NotFoundException::class);

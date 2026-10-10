@@ -34,7 +34,7 @@ use Illuminate\Support\Facades\Log;
  *   submitting   submit()    Claude Code in VS Code submits a proposal through MCP
  *   reviewing    list() / status() / cancel() / discard(); applying is a normal save
  *
- * Whatever Claude returns is untrusted: every proposal goes through ProposalCompiler (registered
+ * Whatever the provider returns is untrusted: every proposal goes through ProposalCompiler (registered
  * components, props, nesting, link policy, media on the page) against the draft version it is
  * based on. Nothing here changes a draft or publishes.
  */
@@ -60,7 +60,7 @@ final class ProposalService
             'available' => $canEdit,
             'reason' => $canEdit ? null : 'Only members who can edit this page can use AI.',
             'promptMax' => (int) config('arkon.ai.prompt_max_chars'),
-            'connection' => $this->connections->helperStatus($ctx->siteId),
+            'connection' => $canEdit ? $this->connections->forContext($ctx) : ['selectionState' => 'unavailable', 'ready' => false, 'provider' => null, 'providerName' => null, 'message' => 'Only members who can edit this page can use AI.', 'providers' => []],
         ];
     }
 
@@ -70,25 +70,24 @@ final class ProposalService
     {
         $pageId = Input::id($pageId);
         [$prompt, $baseVersion, $key] = $this->validInput($input);
-        $fingerprint = ProposalLedger::requestFingerprint(['source' => 'panel', 'pageId' => $pageId, 'prompt' => $prompt, 'baseVersion' => $baseVersion]);
+        $providerInput = isset($input['provider']) ? ProviderRegistry::validate((string) $input['provider']) : null;
+        $fingerprint = ProposalLedger::requestFingerprint(['source' => 'panel', 'pageId' => $pageId, 'prompt' => $prompt, 'baseVersion' => $baseVersion, ...(isset($input['provider']) ? ['provider' => $providerInput] : []), ...(isset($input['selectionMode']) ? ['selectionMode' => $input['selectionMode']] : [])]);
 
-        $id = $this->transactions->run(function () use ($ctx, $pageId, $prompt, $baseVersion, $key, $fingerprint) {
+        $id = $this->transactions->run(function () use ($ctx, $pageId, $prompt, $baseVersion, $key, $fingerprint, $input) {
             $this->authorizer->authorize($ctx, 'page.edit');
             $this->store->loadPage($ctx->siteId, $pageId);
             $this->ledger->lockSite($ctx->siteId);
             if ($existing = $this->ledger->existing($ctx, $key, $pageId, $fingerprint)) {
                 return $existing->id; // a retried request: the same record, never a second run
             }
+            $provider = $this->connections->selectForRequest($ctx, $input, 'page_proposal');
             $this->assertCurrentDraft($ctx, $pageId, $baseVersion);
-            if (! $this->connections->helperStatus($ctx->siteId)['ready']) {
-                throw new AiException(AiException::HELPER_OFFLINE, $this->connections->helperStatus($ctx->siteId)['message']);
-            }
             $this->ledger->supersede($ctx, $pageId);
             $this->ledger->checkLimits($ctx, startsRun: true);
             $id = $this->ledger->insert([
                 'site_id' => $ctx->siteId, 'page_id' => $pageId, 'created_by' => $ctx->userId, 'source' => 'panel',
                 'request_key' => $key, 'request_fingerprint' => $fingerprint, 'prompt' => $prompt, 'base_version' => $baseVersion,
-                'status' => 'queued', 'provider' => 'claude-code', 'model' => (string) (config('arkon.ai.model') ?: 'default'),
+                'status' => 'queued', 'provider' => $provider, 'model' => (string) (config('arkon.ai.model') ?: 'default'),
             ]);
             $this->audit->forContext($ctx, 'page.ai.request', 'page', $pageId, ['request' => $id]);
 
@@ -154,7 +153,7 @@ final class ProposalService
             $id = $this->ledger->insert([
                 'site_id' => $ctx->siteId, 'page_id' => $pageId, 'created_by' => $ctx->userId, 'source' => 'mcp', 'connection_id' => $connectionId,
                 'request_key' => $key, 'request_fingerprint' => $fingerprint, 'prompt' => $prompt, 'base_version' => $baseVersion,
-                'provider' => 'claude-code', 'model' => 'vscode', ...$this->ledger->proposalColumns($compiled, $ctx->siteId),
+                'provider' => $this->connections->providerForConnection($connectionId), 'model' => 'mcp', ...$this->ledger->proposalColumns($compiled, $ctx->siteId),
             ]);
             $this->audit->forContext($ctx, 'page.ai.propose', 'page', $pageId, ['proposal' => $id, 'via' => 'mcp', 'operations' => count($compiled['operations'])]);
 
@@ -177,10 +176,10 @@ final class ProposalService
     }
 
     /**
-     * Runs Claude Code for a leased request: the current draft at the request's base version,
+     * Runs the selected provider for a leased request: the current draft at the request's base version,
      * one repair run when the output does not compile, then the result, only while the lease holds.
      */
-    public function execute(object $claim, ClaudeRunner $runner, ?callable $alive = null): string
+    public function execute(object $claim, AiRunner $runner, ?callable $alive = null): string
     {
         if (($claim->scope ?? 'page') === 'website') {
             return app(WebsiteProposalService::class)->execute($claim, $runner, $alive);
@@ -262,7 +261,7 @@ final class ProposalService
 
             return [
                 'requests' => array_map(fn ($row) => $this->view($row), $this->ledger->reviewable($ctx, $pageId)),
-                'connection' => $this->connections->helperStatus($ctx->siteId),
+                'connection' => $this->connections->forContext($ctx),
             ];
         }, isolation: 'REPEATABLE READ', readOnly: true);
     }
@@ -448,6 +447,7 @@ final class ProposalService
             'id' => $row->id,
             'pageId' => $row->page_id,
             'source' => $row->source,
+            'provider' => $row->provider,
             'status' => $row->status,
             'prompt' => $row->prompt,
             'baseVersion' => (int) $row->base_version,

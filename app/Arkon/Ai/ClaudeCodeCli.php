@@ -22,16 +22,8 @@ namespace App\Arkon\Ai;
  * stored login is never read here; `claude auth status` reports the mode, and anything other
  * than a claude.ai (subscription) login is refused.
  */
-final class ClaudeCodeCli implements ClaudeRunner
+final class ClaudeCodeCli implements AiProvider, ClaudeRunner
 {
-    /** Variables the CLI needs to find its executable, home, settings and temp folders. Nothing else is passed. */
-    private const ENV_ALLOW = [
-        'PATH', 'PATHEXT', 'SYSTEMROOT', 'SYSTEMDRIVE', 'WINDIR', 'COMSPEC', 'USERPROFILE', 'HOMEDRIVE', 'HOMEPATH', 'HOME',
-        'APPDATA', 'LOCALAPPDATA', 'TEMP', 'TMP', 'TMPDIR', 'USERNAME', 'USERDOMAIN', 'COMPUTERNAME', 'PROGRAMDATA',
-        'PROGRAMFILES', 'PROGRAMFILES(X86)', 'PROGRAMW6432', 'COMMONPROGRAMFILES', 'COMMONPROGRAMFILES(X86)',
-        'NUMBER_OF_PROCESSORS', 'PROCESSOR_ARCHITECTURE', 'OS', 'LANG', 'LC_ALL', 'TZ', 'CLAUDE_CONFIG_DIR',
-    ];
-
     /** @param list<string>|null $command the CLI as an argument list; null when Claude Code was not found */
     public function __construct(
         private readonly ?array $command,
@@ -139,9 +131,17 @@ final class ClaudeCodeCli implements ClaudeRunner
             if (strlen(implode(' ', [...$this->command, ...$args])) * 1.1 > 32000) {
                 throw new AiException(AiException::CLAUDE_FAILED, 'This page is too large to send to Claude Code in one request.');
             }
+            if ($request->onEvent) {
+                ($request->onEvent)(['provider' => $this->id(), 'type' => 'started']);
+            }
             $result = $this->execute($args, $dir, $request->prompt, $this->timeoutSeconds, $keepGoing);
 
-            return $this->completion($result['code'], $result['out'], $result['err']);
+            $completion = $this->completion($result['code'], $result['out'], $result['err']);
+            if ($request->onEvent) {
+                ($request->onEvent)(['provider' => $this->id(), 'type' => 'completed']);
+            }
+
+            return $completion;
         } finally {
             self::removeDir($dir);
         }
@@ -158,55 +158,7 @@ final class ClaudeCodeCli implements ClaudeRunner
      */
     private function execute(array $args, ?string $cwd, string $input, int $timeout, ?callable $keepGoing = null): array
     {
-        $io = self::tempDir();
-        try {
-            file_put_contents($in = $io.DIRECTORY_SEPARATOR.'stdin', $input);
-            $descriptors = [0 => ['file', $in, 'r'], 1 => ['file', $out = $io.DIRECTORY_SEPARATOR.'stdout', 'w'], 2 => ['file', $err = $io.DIRECTORY_SEPARATOR.'stderr', 'w']];
-            $process = @proc_open([...$this->command, ...$args], $descriptors, $pipes, $cwd ?? $io, self::environment(), ['bypass_shell' => true, 'suppress_errors' => true]);
-            if (! is_resource($process)) {
-                throw new AiException(AiException::CLAUDE_MISSING, 'Claude Code could not be started.');
-            }
-            $started = microtime(true);
-            $lastCheck = $started;
-            while (true) {
-                $status = proc_get_status($process);
-                if (! $status['running']) {
-                    $code = (int) $status['exitcode'];
-                    proc_close($process);
-                    break;
-                }
-                if (microtime(true) - $started > $timeout) {
-                    self::stop($process, $status['pid']);
-                    throw new AiException(AiException::CLAUDE_TIMEOUT, "Claude Code did not finish within {$timeout} seconds. Try a smaller request.");
-                }
-                if ($keepGoing !== null && microtime(true) - $lastCheck >= 2) {
-                    $lastCheck = microtime(true);
-                    if (! $keepGoing()) {
-                        self::stop($process, $status['pid']);
-                        throw new AiException(AiException::CANCELLED, 'The request was cancelled.');
-                    }
-                }
-                usleep(100_000);
-            }
-
-            return ['code' => $code, 'out' => (string) @file_get_contents($out), 'err' => (string) @file_get_contents($err)];
-        } finally {
-            self::removeDir($io);
-        }
-    }
-
-    /** Ends the CLI and anything it started. */
-    private static function stop($process, int $pid): void
-    {
-        if (PHP_OS_FAMILY === 'Windows') {
-            $kill = @proc_open(['taskkill', '/PID', (string) $pid, '/T', '/F'], [1 => ['file', 'NUL', 'w'], 2 => ['file', 'NUL', 'w']], $pipes, null, null, ['bypass_shell' => true]);
-            if (is_resource($kill)) {
-                proc_close($kill);
-            }
-        } else {
-            proc_terminate($process, 9);
-        }
-        proc_close($process);
+        return (new CliProcess($this->command))->execute($args, $cwd, $input, $timeout, $keepGoing);
     }
 
     private function completion(int $exitCode, string $stdout, string $stderr): AiCompletion
@@ -228,7 +180,14 @@ final class ClaudeCodeCli implements ClaudeRunner
             throw new AiException(AiException::INVALID_OUTPUT, 'Claude Code returned no structured proposal.');
         }
 
-        return new AiCompletion($output, json_encode($output, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        $usage = [];
+        foreach (['input_tokens', 'output_tokens', 'cache_read_input_tokens'] as $key) {
+            if (is_int($result['usage'][$key] ?? null)) {
+                $usage[$key] = $result['usage'][$key];
+            }
+        }
+
+        return new AiCompletion($output, json_encode($output, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), $this->id(), $usage);
     }
 
     /** Maps Claude Code's own failure text to an understandable code (never echoes more than an excerpt). */
@@ -251,29 +210,21 @@ final class ClaudeCodeCli implements ClaudeRunner
      */
     public static function environment(): array
     {
-        $env = [];
-        foreach (getenv() as $key => $value) {
-            if (in_array(strtoupper((string) $key), self::ENV_ALLOW, true)) {
-                $env[$key] = $value;
-            }
-        }
-
-        return $env;
+        return CliProcess::environment();
     }
 
     private static function tempDir(): string
     {
-        $dir = sys_get_temp_dir().DIRECTORY_SEPARATOR.'arkon-claude-'.bin2hex(random_bytes(8));
-        mkdir($dir, 0700, true);
-
-        return $dir;
+        return CliProcess::tempDir();
     }
 
     private static function removeDir(string $dir): void
     {
-        foreach (glob($dir.DIRECTORY_SEPARATOR.'*') ?: [] as $file) {
-            @unlink($file);
-        }
-        @rmdir($dir);
+        CliProcess::removeDir($dir);
+    }
+
+    public function id(): string
+    {
+        return 'claude-code';
     }
 }

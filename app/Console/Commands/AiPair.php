@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Arkon\Ai\AiConnections;
+use App\Arkon\Ai\ProviderRegistry;
 use App\Arkon\Sites\Membership;
 use App\Arkon\Sites\Permissions;
 use Illuminate\Console\Command;
@@ -21,19 +22,21 @@ class AiPair extends Command
     protected $signature = 'arkon:ai-pair
         {email : Your Arkon account (the proposals are yours; you must be able to edit pages)}
         {--helper : Pair the local helper used by the editor\'s AI panel}
-        {--mcp : Pair Claude Code in VS Code (MCP server)}
+        {--mcp : Pair a coding assistant (MCP server)}
         {--site= : Site id (required when the account belongs to several sites)}
+        {--provider=claude-code : Claude Code or Codex provider id}
         {--name= : A name for this connection}';
 
-    protected $description = 'Pair a local Claude Code connection (helper or MCP) with an Arkon user and site';
+    protected $description = 'Pair a local AI provider connection (helper or MCP) with an Arkon user and site';
 
     public function handle(AiConnections $connections, Membership $membership): int
     {
         if ($this->option('helper') === $this->option('mcp')) {
-            $this->error('Choose one: --helper (AI panel) or --mcp (Claude Code in VS Code).');
+            $this->error('Choose one: --helper (AI panel) or --mcp (coding assistant).');
 
             return self::FAILURE;
         }
+        $provider = ProviderRegistry::validate((string) $this->option('provider'));
         $kind = $this->option('helper') ? 'helper' : 'mcp';
         $user = DB::table('users')->whereRaw('lower(email) = ?', [mb_strtolower((string) $this->argument('email'))])->first(['id', 'email']);
         if (! $user) {
@@ -55,27 +58,34 @@ class AiPair extends Command
             return self::FAILURE;
         }
 
-        $name = (string) ($this->option('name') ?: ($kind === 'helper' ? 'AI panel helper on '.gethostname() : 'Claude Code in VS Code'));
+        $name = (string) ($this->option('name') ?: ($kind === 'helper' ? 'AI panel helper on '.gethostname() : ProviderRegistry::definitions()[$provider]['name'].' MCP'));
         if ($kind === 'helper') {
             // The previous helper of this user and site is revoked (and its runs fenced).
-            DB::table('ai_connections')->where('site_id', $site->id)->where('user_id', $user->id)->where('kind', 'helper')->whereNull('revoked_at')
+            DB::table('ai_connections')->where('site_id', $site->id)->where('user_id', $user->id)->where('kind', 'helper')->where('provider', $provider)->whereNull('revoked_at')
                 ->pluck('id')->each(fn ($id) => $connections->revoke($id));
         }
-        $created = $connections->create($site->id, $user->id, $kind, $name);
+        $created = $connections->create($site->id, $user->id, $kind, $name, $provider);
         $this->info("Paired \"{$name}\" ({$created['id']}) for {$user->email} on {$site->name}.");
 
         if ($kind === 'helper') {
-            $file = (string) config('arkon.ai.helper_token_file');
+            $file = ProviderRegistry::tokenFile($provider);
             if (! is_dir(dirname($file))) {
                 mkdir(dirname($file), 0700, true);
             }
             file_put_contents($file, $created['token']);
             $this->line("The helper's token is saved in {$file} (git-ignored). Start the helper with:");
-            $this->line('  php artisan arkon:ai-helper');
+            $this->line('  php artisan arkon:ai-helper --provider='.$provider);
 
             return self::SUCCESS;
         }
 
+        if ($provider === 'codex') {
+            $this->line('Register Arkon in Codex (the token is shown only now):');
+            $this->line('  codex mcp add arkon --env ARKON_MCP_TOKEN='.$created['token'].' -- "'.PHP_BINARY.'" "'.base_path('artisan').'" arkon:mcp');
+            $this->line('Restart Codex, then use the Arkon tools. Revoke with: php artisan arkon:ai-revoke '.$created['id']);
+
+            return self::SUCCESS;
+        }
         $php = PHP_BINARY;
         $artisan = base_path('artisan');
         $this->line('Register Arkon in Claude Code (run once in a terminal; the token is shown only now):');

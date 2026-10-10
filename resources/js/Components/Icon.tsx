@@ -64,6 +64,9 @@ const PATHS = {
     list: 'M5.5 4h8M5.5 8h8M5.5 12h8M2.5 4h.01M2.5 8h.01M2.5 12h.01',
     play: 'M5 3v10l8-5z',
     motion: 'M2 11.5h3M3.5 8.5h3M2 5.5h3M9.5 3.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9z',
+    post: 'M2.5 2.5h6M2.5 5.5h4M2.5 13.5l.8-3 6.7-6.7 2.2 2.2-6.7 6.7zM9.5 4.3l2.2 2.2',
+    tag: 'M2.5 2.5h5l6 6-5 5-6-6zM5.25 5.25h.01',
+    key: 'M5.5 10.5a3 3 0 1 1 2.9-3.8l5.1 5.1v1.7h-1.7V12H10.3v-1.5H9L8.3 9.8a3 3 0 0 1-2.8.7zM4.75 7.5h.01',
 } as const;
 
 export type IconName = keyof typeof PATHS;

@@ -91,33 +91,53 @@ final class FormService
             if ((int) ($row?->version ?? 0) !== (int) $v['baseVersion']) {
                 throw new StaleVersionException((int) $v['baseVersion'], (int) ($row?->version ?? 0));
             }
-            if ($row?->archived_at) {
-                throw new ConflictException('This form is in the Trash. Restore it first.');
-            }
-            $role = $this->auth->authorize($ctx, 'form.edit');
-            if (! Permissions::allows($role, 'form.notifications')) {
-                if (! empty($definition['notifications'])) {
-                    throw new ForbiddenException('Only owners and administrators can configure notifications.');
-                }
-                if (($definition['schemaVersion'] ?? null) === 2) {
-                    $definition['notifications'] = Json::decode($row?->draft ?? '{}')['notifications'] ?? [];
-                }
-            }
-            if (($definition['schemaVersion'] ?? null) === 2) {
-                $definition = FormDefinition::validate($definition);
-            }
-            $version = (int) $v['baseVersion'] + 1;
-            $values = ['name' => $definition['name'], 'draft' => Json::encode($definition), 'version' => $version, 'updated_at' => now()];
-            if ($row) {
-                DB::table('site_forms')->where('id', $id)->update($values);
-            } else {
-                DB::table('site_forms')->insert(['id' => $id, 'site_id' => $ctx->siteId, ...$values]);
-            }
-
-            app(AuditLog::class)->forContext($ctx, 'form.draft.save', 'form', $id, ['version' => $version]);
+            $version = $this->writeDraftLocked($ctx, $row, $id, $definition);
 
             return $this->record($ctx, $v['requestKey'], $fingerprint, ['id' => $id, 'version' => $version, 'replayed' => false]);
         });
+    }
+
+    /**
+     * Stores a validated definition as the form's next draft version. The caller runs inside a
+     * transaction, holds the site's form lock and the row lock (or the form is new) and has checked
+     * the version. Every writer uses this (the Forms screen, the AI website application), so the
+     * same rules apply: form.edit, nothing in the Trash, notifications only for owners and admins.
+     *
+     * @return int the new draft version
+     */
+    public function writeDraftLocked(SiteContext $ctx, ?object $row, string $id, array $definition): int
+    {
+        $role = $this->auth->authorize($ctx, 'form.edit');
+        if ($row?->archived_at) {
+            throw new ConflictException('This form is in the Trash. Restore it first.');
+        }
+        if (! Permissions::allows($role, 'form.notifications')) {
+            if (! empty($definition['notifications'])) {
+                throw new ForbiddenException('Only owners and administrators can configure notifications.');
+            }
+            if (($definition['schemaVersion'] ?? null) === 2) {
+                $definition['notifications'] = Json::decode($row?->draft ?? '{}')['notifications'] ?? [];
+            }
+        }
+        if (($definition['schemaVersion'] ?? null) === 2) {
+            $definition = FormDefinition::validate($definition);
+        }
+        $version = (int) ($row?->version ?? 0) + 1;
+        $values = ['name' => $definition['name'], 'draft' => Json::encode($definition), 'version' => $version, 'updated_at' => now()];
+        if ($row) {
+            DB::table('site_forms')->where('id', $id)->update($values);
+        } else {
+            DB::table('site_forms')->insert(['id' => $id, 'site_id' => $ctx->siteId, ...$values]);
+        }
+        app(AuditLog::class)->forContext($ctx, 'form.draft.save', 'form', $id, ['version' => $version]);
+
+        return $version;
+    }
+
+    /** Takes the site's form lock (every form writer, before any form row lock). */
+    public static function lockSite(string $siteId): void
+    {
+        DB::select('SELECT pg_advisory_xact_lock(hashtextextended(?,0))', ['arkon.forms:'.$siteId]);
     }
 
     public function publish(SiteContext $ctx, string $id, array $input): array

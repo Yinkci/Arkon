@@ -1,3 +1,5 @@
+import { AiProviderPicker } from '@/Components/AiProviderPicker';
+import { selectedProvider } from '@/lib/aiProvider';
 import { SeoPanel, useSeoAnalysis } from './SeoPanel';
 import { uploadMedia } from '@/lib/mediaUpload';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -37,6 +39,7 @@ import { Inspector } from './Inspector';
 import { LayersPanel } from './LayersPanel';
 import { StructureBar } from './StructureBar';
 import { PageSettings } from './PageSettings';
+import { PostDetails } from './PostDetails';
 import { RecoveryPanel } from './RecoveryPanel';
 import { applyOperations as applySeoOperations } from '@/arkon/schema/operations';
 import { AiPanel } from './AiPanel';
@@ -148,12 +151,13 @@ export function Editor({ init }: { init: EditorInit }) {
     // Requests run in the local helper; the panel polls them (no long web request).
     const [aiRequests, setAiRequests] = useState<AiRequestView[]>([]);
     const [aiConnection, setAiConnection] = useState<AiConnection>(init.ai.connection);
+    const [aiProvider, setAiProvider] = useState<string | undefined>(undefined);
     const [tracked, setTracked] = useState<AiRequestView | null>(null);
     const trackedRef = useRef<AiRequestView | null>(null);
     const polling = useRef(false);
     const autoOpened = useRef(new Set<string>());
     // Same prompt on the same version after an uncertain response → same key (never a second run).
-    const askAttempt = useRef<{ key: string; prompt: string; version: number } | null>(null);
+    const askAttempt = useRef<{ key: string; prompt: string; version: number; provider: string; selectionMode: 'automatic' | 'explicit' } | null>(null);
 
     const { edit: canEdit, publish: canPublish, upload: canUpload } = init.permissions;
     const unsaved = hasUnsavedChanges(doc);
@@ -601,24 +605,49 @@ export function Editor({ init }: { init: EditorInit }) {
 
     /** Saves pending edits, then queues a request based on that saved version for the local helper. */
     const askAi = useCallback(
-        async (prompt: string) => {
+        async (prompt: string, provider?: string) => {
             if (sending || proposalRef.current || recoveryRef.current || conflictRef.current) return;
             if (blockedByUnresolved('asking the AI')) return;
             setAiError(null);
             setSending(true);
             try {
-                const version = await saver.saveAll();
-                if (version === null) {
-                    setAiError({ message: 'Your changes could not be saved, so the AI was not asked. Save, then try again.' });
+                let attempt = askAttempt.current;
+                if (attempt && attempt.prompt !== prompt) {
+                    setAiError({ message: 'Confirm the previous request by sending its original prompt again before starting another task.' });
                     return;
                 }
-                if (blockedByUnresolved('asking the AI')) return;
-                const previous = askAttempt.current;
-                const attempt = previous && previous.prompt === prompt && previous.version === version ? previous : { key: newRequestKey(), prompt, version };
-                askAttempt.current = attempt;
+                if (!attempt) {
+                    const status = await api<{ requests: AiRequestView[]; connection: AiConnection }>(`/pages/${pageId}/ai/requests`);
+                    if (!status.ok) {
+                        setAiError({ message: status.message });
+                        return;
+                    }
+                    setAiConnection(status.data.connection);
+                    const selected = selectedProvider(status.data.connection, provider);
+                    if (!selected.ready || !selected.provider) {
+                        setAiError({ message: selected.message });
+                        return;
+                    }
+                    const version = await saver.saveAll();
+                    if (version === null) {
+                        setAiError({ message: 'Your changes could not be saved, so the AI was not asked. Save, then try again.' });
+                        return;
+                    }
+                    if (blockedByUnresolved('asking the AI')) return;
+                    attempt = { key: newRequestKey(), prompt, version, provider: selected.provider, selectionMode: provider ? 'explicit' : 'automatic' };
+                    askAttempt.current = attempt;
+                }
                 let result: ApiResult<AiRequestView>;
                 try {
-                    result = await api<AiRequestView>(`/pages/${pageId}/ai/requests`, { body: { prompt, baseVersion: version, requestKey: attempt.key } });
+                    result = await api<AiRequestView>(`/pages/${pageId}/ai/requests`, {
+                        body: {
+                            prompt: attempt.prompt,
+                            baseVersion: attempt.version,
+                            requestKey: attempt.key,
+                            provider: attempt.provider,
+                            selectionMode: attempt.selectionMode,
+                        },
+                    });
                 } catch {
                     setAiError({ message: "Couldn't confirm the request (network problem). Send it again: the same request is never run twice." });
                     return;
@@ -634,9 +663,12 @@ export function Editor({ init }: { init: EditorInit }) {
                     return;
                 }
                 askAttempt.current = null;
+                setAiProvider(undefined);
                 chooseTab('ai');
                 track(result.data);
                 void refreshAi();
+            } catch {
+                setAiError({ message: 'Could not confirm AI availability. Try again; an existing request keeps its identity.' });
             } finally {
                 setSending(false);
             }
@@ -1100,12 +1132,28 @@ export function Editor({ init }: { init: EditorInit }) {
                                 document={doc.document}
                                 {...seoAnalysis}
                                 canEdit={canEdit && !locked}
-                                canAsk={canEdit && !locked && init.ai.available && aiConnection.ready && !sending}
+                                canAsk={
+                                    canEdit &&
+                                    !locked &&
+                                    init.ai.available &&
+                                    !(tracked && isActive(tracked)) &&
+                                    (!!askAttempt.current || selectedProvider(aiConnection, aiProvider).ready) &&
+                                    !sending
+                                }
                                 onChange={(ops, key) => apply(ops, { coalesceKey: key })}
                                 onAsk={(prompt) => {
                                     chooseTab('ai');
-                                    void askAi(prompt);
+                                    void askAi(prompt, aiProvider);
                                 }}
+                                providerName={selectedProvider(aiConnection, aiProvider).providerName ?? 'AI provider'}
+                                providerPicker={
+                                    <AiProviderPicker
+                                        connection={aiConnection}
+                                        value={aiProvider}
+                                        onChange={setAiProvider}
+                                        disabled={sending || !!askAttempt.current || (!!tracked && isActive(tracked))}
+                                    />
+                                }
                                 media={media}
                                 unresolved={unresolved}
                                 onUnresolved={setUnresolved}
@@ -1158,21 +1206,33 @@ export function Editor({ init }: { init: EditorInit }) {
                                     )
                                 }
                                 pageSettings={
-                                    <PageSettings
-                                        key={`${pageMeta.title}|${pageMeta.path}`}
-                                        title={pageMeta.title}
-                                        path={pageMeta.path}
-                                        live={live && { title: live.title, path: live.path }}
-                                        canEdit={canEdit && !locked}
-                                        blockedReason={
-                                            unsaved
-                                                ? 'Save your changes first, then update the title and URL.'
-                                                : busy
-                                                  ? 'Wait for the current action to finish.'
-                                                  : null
-                                        }
-                                        onApply={applySettings}
-                                    />
+                                    <>
+                                        <PageSettings
+                                            key={`${pageMeta.title}|${pageMeta.path}`}
+                                            title={pageMeta.title}
+                                            path={pageMeta.path}
+                                            live={live && { title: live.title, path: live.path }}
+                                            canEdit={canEdit && !locked}
+                                            blockedReason={
+                                                unsaved
+                                                    ? 'Save your changes first, then update the title and URL.'
+                                                    : busy
+                                                      ? 'Wait for the current action to finish.'
+                                                      : null
+                                            }
+                                            onApply={applySettings}
+                                        />
+                                        {(init.content.details || init.content.taxonomies.length > 0) && (
+                                            <PostDetails
+                                                pageId={init.page.id}
+                                                content={init.content}
+                                                media={media}
+                                                canEdit={canEdit && !locked}
+                                                canUpload={canUpload}
+                                                onUpload={upload}
+                                            />
+                                        )}
+                                    </>
                                 }
                             />
                         ) : panel === 'history' ? (
@@ -1188,6 +1248,10 @@ export function Editor({ init }: { init: EditorInit }) {
                                 unavailableReason={conflict ? 'Reload the page to continue.' : init.ai.reason}
                                 promptMax={init.ai.promptMax}
                                 connection={aiConnection}
+                                provider={aiProvider}
+                                selectionLocked={!!askAttempt.current}
+                                retryPrompt={askAttempt.current?.prompt}
+                                onProviderChange={setAiProvider}
                                 requests={aiRequests}
                                 tracked={tracked}
                                 sending={sending}
@@ -1197,7 +1261,7 @@ export function Editor({ init }: { init: EditorInit }) {
                                 applyBlocker={proposal ? proposalBlocker(doc, proposal, unresolvedCount) : null}
                                 error={aiError}
                                 history={aiHistory}
-                                onAsk={(prompt) => void askAi(prompt)}
+                                onAsk={(prompt, provider) => void askAi(prompt, provider)}
                                 onApply={applyProposal}
                                 onDiscard={discardProposal}
                                 onApplyTokens={() => void applyProposalTokens()}

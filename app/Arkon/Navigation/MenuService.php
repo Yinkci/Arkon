@@ -216,18 +216,39 @@ final class MenuService
                 throw new StaleVersionException((int) $v['baseVersion'], (int) ($row?->version ?? 0));
             }
             self::assertPages($ctx->siteId, $definition);
-            $version = (int) $v['baseVersion'] + 1;
-            $values = ['name' => $definition['name'], 'draft' => Json::encode($definition), 'version' => $version];
-            if ($row) {
-                DB::table('site_menus')->where('id', $id)->update($values);
-            } else {
-                DB::table('site_menus')->insert(['id' => $id, 'site_id' => $ctx->siteId, ...$values]);
-            }
-
-            app(AuditLog::class)->forContext($ctx, 'menu.draft.save', 'menu', $id, ['version' => $version]);
+            $version = $this->writeDraftLocked($ctx, $row, $id, $definition);
 
             return $this->record($ctx, $v['requestKey'], $fingerprint, ['id' => $id, 'version' => $version, 'replayed' => false]);
         });
+    }
+
+    /**
+     * Stores a validated definition as the menu's next draft version. The caller runs inside a
+     * transaction, holds the site's menu lock and the row lock (or the menu is new), has checked the
+     * version, and checks the target pages (assertPages): the AI website application does that after
+     * creating the pages the menu points to. Shared by the Navigation screen and the AI application.
+     *
+     * @return int the new draft version
+     */
+    public function writeDraftLocked(SiteContext $ctx, ?object $row, string $id, array $definition): int
+    {
+        $this->auth->authorize($ctx, 'page.edit');
+        $version = (int) ($row?->version ?? 0) + 1;
+        $values = ['name' => $definition['name'], 'draft' => Json::encode($definition), 'version' => $version];
+        if ($row) {
+            DB::table('site_menus')->where('id', $id)->update($values);
+        } else {
+            DB::table('site_menus')->insert(['id' => $id, 'site_id' => $ctx->siteId, ...$values]);
+        }
+        app(AuditLog::class)->forContext($ctx, 'menu.draft.save', 'menu', $id, ['version' => $version]);
+
+        return $version;
+    }
+
+    /** Takes the site's menu lock (every menu writer, before any menu row lock). */
+    public static function lockSite(string $siteId): void
+    {
+        DB::select('SELECT pg_advisory_xact_lock(hashtextextended(?,0))', ['arkon.menus:'.$siteId]);
     }
 
     public function publish(SiteContext $ctx, string $id, array $input): array

@@ -9,5 +9,6 @@ final class AiRequest
         public readonly string $instructions,
         public readonly string $prompt,
         public readonly array $schema,
+        public readonly ?\Closure $onEvent = null,
     ) {}
 }

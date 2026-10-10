@@ -24,6 +24,21 @@ return [
     */
     'media_root' => env('ARKON_MEDIA_ROOT', 'storage/app/media'),
 
+    /*
+    | Public developer API (/api/v1, docs/api.md). Requests per minute: per IP before
+    | authentication, anonymous reads per IP, token requests per token, writes per token
+    | (or IP), form submissions per IP (the forms service adds its own per-form limits).
+    */
+    'api' => [
+        'limits' => [
+            'ip' => (int) env('ARKON_API_LIMIT_IP', 600),
+            'anonymous' => (int) env('ARKON_API_LIMIT_ANONYMOUS', 120),
+            'token' => (int) env('ARKON_API_LIMIT_TOKEN', 600),
+            'write' => (int) env('ARKON_API_LIMIT_WRITE', 60),
+            'submissions' => (int) env('ARKON_API_LIMIT_SUBMISSIONS', 10),
+        ],
+    ],
+
     // Installed developer components are application-wide in this first milestone.
     'theme_source' => base_path('themes'),
     'theme_store' => env('ARKON_THEME_STORE', env('APP_ENV') === 'testing' ? storage_path('framework/testing/theme-components') : storage_path('app/theme-components')),
@@ -47,6 +62,8 @@ return [
         // The Claude Code CLI for the helper: a path, or a JSON array (e.g. ["node","fake.mjs"]).
         // Empty: claude.exe on PATH, then ~/.local/bin, then the newest VS Code extension binary.
         'claude_command' => env('ARKON_CLAUDE_COMMAND'),
+        'codex_command' => env('ARKON_CODEX_COMMAND'),
+        'codex_helper_token_file' => env('ARKON_CODEX_HELPER_TOKEN_FILE') ?: storage_path('app/private/ai-helper-codex.token'),
         // Optional model alias for the helper's runs (sonnet, opus, ...); empty uses Claude Code's default.
         'model' => env('ARKON_AI_MODEL'),
         'min_claude_version' => '2.1.259',
@@ -54,8 +71,7 @@ return [
         'run_timeout_seconds' => (int) env('ARKON_AI_RUN_TIMEOUT', 240),
         // A running request is leased to one helper; the lease is renewed while Claude works.
         'lease_seconds' => 45,
-        // Runs per request when a helper stops mid-run (helper restart recovery), and repair runs.
-        'max_attempts' => 2,
+        // Interrupted runs fail; a new model attempt requires a new user request.
         'repair_attempts' => 1,
         // A queued request nobody picks up fails after this long.
         'queue_timeout_seconds' => 300,

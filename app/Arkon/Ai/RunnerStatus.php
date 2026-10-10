@@ -14,13 +14,14 @@ final class RunnerStatus
         public readonly ?string $subscriptionType = null,
     ) {}
 
-    public function toArray(): array
+    public function toArray(string $provider = 'claude-code'): array
     {
         return [
             'ready' => $this->ready,
             'code' => $this->code,
             'message' => $this->message,
-            'claudeVersion' => $this->version,
+            'version' => $this->version,
+            'claudeVersion' => $provider === 'claude-code' ? $this->version : null,
             'authMethod' => $this->authMethod,
             'subscriptionType' => $this->subscriptionType,
         ];

@@ -195,6 +195,7 @@ test('panel: cancelling stops a running request, edits made meanwhile are never 
 
     // Edit while the request runs: the proposal arrives but cannot replace the edit.
     await ask(page, 'MOCK-SLOW landscaping again', { wait: false });
+    await expect(page.locator('[data-testid="ai-request"][data-status="running"]')).toBeVisible({ timeout: 15_000 });
     await page.getByRole('tab', { name: 'Properties' }).click();
     await page.getByRole('textbox', { name: 'Heading' }).fill('My own heading');
     await expect(status(page)).toHaveText('Unsaved changes');
@@ -270,7 +271,7 @@ test('VS Code (MCP): a submitted proposal waits in the editor for visual review 
     await page.goto(`/admin/editor/${id}`);
     await page.getByRole('tab', { name: 'AI' }).click();
     const waiting = page.getByTestId('ai-waiting');
-    await expect(waiting).toContainText('From Claude Code in VS Code');
+    await expect(waiting).toContainText('From your coding assistant');
     await expect(waiting).toContainText('Make the hero about garden design');
     await waiting.getByRole('button', { name: 'Review' }).click();
     await expect(canvas(page).locator('h1')).toHaveText('Garden design that lasts');
@@ -288,16 +289,38 @@ test.describe('as an editor', () => {
 
     test('can ask and apply, but publishing stays with publishers', async ({ page }) => {
         const id = await createPage('/ai-editor', 'Welcome');
-        await page.goto('/login');
-        await page.getByLabel('Email').fill(E2E_EDITOR.email);
-        await page.getByLabel('Password').fill(E2E_EDITOR.password);
-        await page.getByRole('button', { name: 'Sign in' }).click();
-        await expect(page.getByRole('heading', { name: greeting(E2E_EDITOR.name) })).toBeVisible();
-        await page.goto(`/admin/editor/${id}`);
-        await ask(page, LANDSCAPING);
-        await proposal(page).getByRole('button', { name: 'Apply to draft' }).click();
-        await expect(status(page)).toHaveText('Draft saved');
-        await expect(page.getByRole('button', { name: 'Publish' })).toBeDisabled();
-        expect(await publicationCount(id)).toBe(0);
+        const env = { ...process.env, ...E2E_ENV, ARKON_HELPER_TOKEN_FILE: 'storage/e2e/editor-helper.token' };
+        const paired = spawn(PHP, ['artisan', 'arkon:ai-pair', E2E_EDITOR.email, '--helper', '--provider=claude-code'], { env, stdio: 'ignore' });
+        expect(await new Promise((done) => paired.once('exit', done))).toBe(0);
+        const helper = spawn(PHP, ['artisan', 'arkon:ai-helper', '--provider=claude-code'], { env, stdio: 'ignore' });
+        try {
+            await page.goto('/login');
+            await page.getByLabel('Email').fill(E2E_EDITOR.email);
+            await page.getByLabel('Password').fill(E2E_EDITOR.password);
+            await page.getByRole('button', { name: 'Sign in' }).click();
+            await expect(page.getByRole('heading', { name: greeting(E2E_EDITOR.name) })).toBeVisible();
+            await page.goto(`/admin/editor/${id}`);
+            await page.getByRole('tab', { name: 'AI', exact: true }).click();
+            await expect(page.getByTestId('ai-connection')).toContainText('Using Claude Code', { timeout: 15000 });
+            await ask(page, LANDSCAPING);
+            await proposal(page).getByRole('button', { name: 'Apply to draft' }).click();
+            await expect(status(page)).toHaveText('Draft saved');
+            await expect(page.getByRole('button', { name: 'Publish' })).toBeDisabled();
+            expect(await publicationCount(id)).toBe(0);
+        } finally {
+            const rows = await db.query(
+                "SELECT id FROM ai_connections WHERE user_id=(SELECT id FROM users WHERE email=$1) AND kind='helper' AND revoked_at IS NULL",
+                [E2E_EDITOR.email],
+            );
+            for (const row of rows.rows) {
+                const revoke = spawn(PHP, ['artisan', 'arkon:ai-revoke', row.id], { env, stdio: 'ignore' });
+                await new Promise((done) => revoke.once('exit', done));
+            }
+            helper.kill();
+            await new Promise((done) => {
+                if (helper.exitCode !== null) done(null);
+                else helper.once('exit', done);
+            });
+        }
     });
 });

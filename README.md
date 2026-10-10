@@ -1,7 +1,7 @@
 # Arkon
 
 A content management system and visual website builder for fast, clean websites. Pages are structured documents
-edited in a visual builder and published as plain HTML, with optional AI help through Claude Code.
+edited in a visual builder and published as plain HTML, with optional AI help through Claude Code or Codex.
 
 ## What is Arkon?
 
@@ -10,13 +10,15 @@ Editors work on drafts in a sandboxed visual canvas; nothing changes on the publ
 Published pages are stored as finished HTML and served without a JavaScript framework, sessions or cookies, so
 visitors get small, fast pages.
 
-AI assistance is optional. It runs through Claude Code on your own Claude subscription, and its output is always a
+AI assistance is optional. It runs through Claude Code with your Claude subscription or Codex with your ChatGPT account. Its output is always a
 proposal you review: AI never publishes.
 
 ## Features
 
 - **Visual page builder**: sections, columns, groups, heroes, text, images, buttons, sliders, forms and navigation,
   with drag and drop, undo/redo, per-screen design settings and entrance animations.
+- **Posts, categories and tags**: a blog with excerpts, featured images and taxonomies, built with the same
+  builder, drafts and publishing as pages.
 - **Drafts and publishing**: draft, preview and publish steps; full revision history with restore; redirects
   when a page URL changes.
 - **Design system**: site-wide design tokens and reusable components, published once and applied to every page.
@@ -26,7 +28,10 @@ proposal you review: AI never publishes.
   and CSV export.
 - **SEO**: per-page metadata with an explainable score, social metadata, canonical URLs, sitemap and robots.txt.
 - **Navigation**: menus with dropdowns and a shared header and footer.
-- **AI (optional)**: page and whole-website proposals from a brief, and SEO suggestions, all reviewed before use.
+- **AI (optional)**: page and whole-website proposals from a brief, draft blog posts, and SEO suggestions, all
+  reviewed before anything is published.
+- **Developer API**: a versioned REST API (`/api/v1`) for headless sites and integrations, with personal access
+  tokens, scopes and an OpenAPI document.
 - **Users and roles**: owner, admin, editor and viewer.
 - **Developer themes**: custom components in a separate theme folder.
 
@@ -36,7 +41,7 @@ proposal you review: AI never publishes.
 - Composer 2
 - PostgreSQL 16+, with superuser access once to create Arkon's roles and databases
 - Node.js 22+ and npm, to build the admin assets and run browser tests
-- Optional: [Claude Code](https://claude.com/claude-code) signed in with a Claude subscription, for AI features
+- Optional: Claude Code signed in with a Claude subscription, or Codex CLI signed in with ChatGPT, for AI features. See [AI Connections](docs/AI_CONNECTIONS.md) for setup.
 
 Development uses [Laravel Herd](https://herd.laravel.com) on Windows, which serves the project at
 `http://arkonlaravel.test`. The commands below are PowerShell.
@@ -119,6 +124,8 @@ locally and are not committed.
 
 - [User guide](docs/USER_GUIDE.md): using the admin and the builder
 - [AI setup](docs/AI_SETUP.md): Claude Code helper and MCP server
+- [Developer API](docs/api.md): `/api/v1` endpoints, authentication, errors and examples
+- [Admin, API and AI architecture](docs/ai-architecture.md) and [Extending Arkon](docs/extension-development.md)
 - [Architecture](docs/ARCHITECTURE.md): design, data model and security
 - [Website workflow](docs/WEBSITE_WORKFLOW.md), [Themes](docs/THEMES.md), [Performance](docs/PERFORMANCE.md)
 - [Release package](docs/RELEASE.md)
@@ -126,3 +133,7 @@ locally and are not committed.
 ## License
 
 MIT, as declared in `composer.json`.
+
+## AI providers
+
+Open Settings → AI Connections to manage Claude Code and Codex. Both use your native CLI login, with separate paired helpers and no API key required. See [AI Connections setup and architecture](docs/AI_CONNECTIONS.md). Restart older helpers after this upgrade. One ready helper is used automatically; several require a choice for each new task. Helpers are scoped to your account and site. Existing requests keep their provider and retry identity; interrupted runs do not automatically restart.

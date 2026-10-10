@@ -261,6 +261,32 @@ class ComponentService
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
+    /**
+     * Stores a whole fragment document as the component's next draft version (creating the
+     * component when $row is null). The caller runs inside a transaction, holds the row lock and
+     * has checked the version. Used by the AI website application for the shared header and
+     * footer, with the same rules as the component editor: page.edit, the site's theme
+     * availability and draft validation (blocks, images, forms, menus).
+     *
+     * @return int the new draft version
+     */
+    public function writeDraftLocked(SiteContext $ctx, ?object $row, string $id, string $name, mixed $doc): int
+    {
+        $this->authorizer->authorize($ctx, 'page.edit');
+        ThemeService::assertAdditions($ctx->siteId, $row ? $this->registry->migrateDocument(Json::decode($row->draft)) : null, $doc);
+        $this->validateForSave($ctx->siteId, $doc);
+        $version = (int) ($row?->version ?? 0) + 1;
+        $values = ['name' => $this->name($name), 'draft' => Json::encode($doc), 'version' => $version, 'updated_by' => $ctx->userId, 'updated_at' => DB::raw('now()')];
+        if ($row) {
+            DB::table('reusable_components')->where('id', $id)->update($values);
+        } else {
+            DB::table('reusable_components')->insert(['id' => $id, 'site_id' => $ctx->siteId, 'created_by' => $ctx->userId, ...$values]);
+        }
+        $this->audit->forContext($ctx, $row ? 'component.draft.save' : 'component.create', 'component', $id, ['version' => $version]);
+
+        return $version;
+    }
+
     private function load(string $siteId, string $id, bool $lock = false): object
     {
         $query = DB::table('reusable_components')->where('site_id', $siteId)->where('id', Input::id($id, 'Reusable component'));

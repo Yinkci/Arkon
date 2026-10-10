@@ -5,6 +5,7 @@ namespace App\Arkon\Pages;
 use App\Arkon\Ai\ProposalLedger;
 use App\Arkon\Audit\AuditLog;
 use App\Arkon\Components\DocumentValidator;
+use App\Arkon\Content\ContentDetails;
 use App\Arkon\Database\Transactions;
 use App\Arkon\Design\DesignResources;
 use App\Arkon\Design\PageRefreshes;
@@ -63,14 +64,15 @@ class PageService
         return $matchesCheckpoint && $draft->checkpoint_revision_id === $liveRevisionId ? 'published' : 'changed';
     }
 
-    public function listPages(SiteContext $ctx): array
+    /** Every item of one content type (pages by default) that is not in the Trash. */
+    public function listPages(SiteContext $ctx, string $kind = 'page'): array
     {
         $this->authorizer->authorize($ctx, 'page.view');
         $rows = DB::table('pages as p')
             ->join('page_drafts as d', 'd.page_id', '=', 'p.id')
             ->leftJoin('live_pages as l', 'l.page_id', '=', 'p.id')
             ->leftJoin('publications as pub', 'pub.id', '=', 'l.publication_id')
-            ->where('p.site_id', $ctx->siteId)
+            ->where('p.site_id', $ctx->siteId)->where('p.kind', $kind)
             ->whereNull('p.deleted_at')
             ->orderBy('p.path')
             ->get([
@@ -544,13 +546,16 @@ class PageService
 
             // Rendered while holding the epoch lock: what it reads is the published state at `epoch`.
             $rendered = MenuService::withPaths($ctx->siteId, [$pageId => $meta->path], fn () => $this->store->renderForSite($ctx->siteId, $meta->title, $meta->path, $doc, true));
+            // The draft's details (excerpt, featured image, terms) go live with it.
+            $details = ContentDetails::snapshot($ctx->siteId, $pageId);
             $publicationId = Uuid::v7();
             $created = DB::selectOne(
-                'INSERT INTO publications (id, site_id, page_id, revision_id, path, html, epoch, idempotency_key, request_fingerprint, render_inputs, published_by)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?) RETURNING created_at',
-                [$publicationId, $ctx->siteId, $pageId, $revisionId, $meta->path, $rendered['html'], $epoch, $key, $fingerprint, Json::encode($rendered['inputs']), $ctx->userId],
+                'INSERT INTO publications (id, site_id, page_id, revision_id, path, html, epoch, idempotency_key, request_fingerprint, render_inputs, published_by, content_meta)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?::jsonb) RETURNING created_at',
+                [$publicationId, $ctx->siteId, $pageId, $revisionId, $meta->path, $rendered['html'], $epoch, $key, $fingerprint, Json::encode($rendered['inputs']), $ctx->userId, Json::encode($details)],
             );
-            $this->store->recordPublicationMedia($ctx->siteId, $publicationId, $rendered['mediaIds']);
+            $this->store->recordPublicationMedia($ctx->siteId, $publicationId, self::withFeatured($rendered['mediaIds'], $details));
+            DB::table('pages')->where('id', $pageId)->whereNull('first_published_at')->update(['first_published_at' => $created->created_at]);
             $this->store->recordDependencies($ctx->siteId, $pageId, $publicationId, $rendered['inputs']);
 
             DB::statement(
@@ -585,6 +590,12 @@ class PageService
         }
 
         return $result;
+    }
+
+    /** Rendered images plus the featured image: everything the publication makes public. */
+    private static function withFeatured(array $mediaIds, array $details): array
+    {
+        return $details['featuredMediaId'] === null ? $mediaIds : array_values(array_unique([...$mediaIds, $details['featuredMediaId']]));
     }
 
     // ── Reproduction (internal: audits and tooling) ─────────────────────────────
@@ -693,10 +704,13 @@ class PageService
             // change must not silently upgrade content. Only the site's data is current.
             $doc = Json::decode($revision->document);
             $rendered = $this->store->renderForSite($siteId, $revision->title, $live->path, $doc, false, pinned: true);
+            // The live details stay exactly as published (never the draft's).
+            $contentMeta = DB::table('publications')->where('id', $live->publication_id)->value('content_meta');
 
             return [
                 'siteId' => $siteId, 'pageId' => $pageId, 'revisionId' => $live->revision_id, 'path' => $live->path,
-                'html' => $rendered['html'], 'inputs' => $rendered['inputs'], 'mediaIds' => $rendered['mediaIds'],
+                'html' => $rendered['html'], 'inputs' => $rendered['inputs'], 'contentMeta' => $contentMeta,
+                'mediaIds' => $contentMeta === null ? $rendered['mediaIds'] : self::withFeatured($rendered['mediaIds'], ContentDetails::fromPublication($contentMeta)),
                 'epoch' => (int) $epoch,
             ];
         }, isolation: 'REPEATABLE READ', readOnly: true);
@@ -715,12 +729,12 @@ class PageService
             $publicationId = Uuid::v7();
             $key = "rerender-{$prepared['pageId']}-{$prepared['epoch']}";
             $inserted = DB::select(
-                'INSERT INTO publications (id, site_id, page_id, revision_id, path, html, epoch, idempotency_key, request_fingerprint, render_inputs, published_by)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, NULL) ON CONFLICT DO NOTHING RETURNING id',
+                'INSERT INTO publications (id, site_id, page_id, revision_id, path, html, epoch, idempotency_key, request_fingerprint, render_inputs, published_by, content_meta)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, NULL, ?::jsonb) ON CONFLICT DO NOTHING RETURNING id',
                 [
                     $publicationId, $prepared['siteId'], $prepared['pageId'], $prepared['revisionId'], $prepared['path'], $prepared['html'],
                     $prepared['epoch'], $key, Fingerprint::of(['kind' => 'rerender', 'pageId' => $prepared['pageId'], 'epoch' => $prepared['epoch']]),
-                    Json::encode($prepared['inputs']),
+                    Json::encode($prepared['inputs']), $prepared['contentMeta'] ?? null,
                 ],
             );
             if ($inserted === []) {

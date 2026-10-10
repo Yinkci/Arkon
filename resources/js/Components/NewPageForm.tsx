@@ -2,12 +2,18 @@ import { router } from '@inertiajs/react';
 import { useId, useRef, useState } from 'react';
 import { slugify } from '@/arkon/schema/paths';
 import { api, newRequestKey } from '@/lib/api';
+import type { ContentTypeInfo } from '@/types';
 import { Icon } from './Icon';
 import { Button } from './ui';
 
-export function NewPageForm() {
+const PAGE: ContentTypeInfo = { kind: 'page', label: 'Page', plural: 'Pages', pathPrefix: '', taxonomies: [] };
+
+/** A new page, post or other item: title and URL (the type's prefix plus a slug of the title). */
+export function NewPageForm({ type = PAGE }: { type?: ContentTypeInfo }) {
+    const noun = type.label.toLowerCase();
+    const fromTitle = (value: string) => (type.pathPrefix ? type.pathPrefix + slugify(value) : slugify(value));
     const [title, setTitle] = useState('');
-    const [path, setPath] = useState('');
+    const [path, setPath] = useState(type.pathPrefix ? type.pathPrefix + '/' : '');
     const [pathEdited, setPathEdited] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [pending, setPending] = useState(false);
@@ -22,7 +28,7 @@ export function NewPageForm() {
         setPending(true);
         setError(null);
         try {
-            const result = await api<{ pageId: string; replayed: boolean }>('/pages', { body: { title, path, requestKey: intent.key } });
+            const result = await api<{ pageId: string; replayed: boolean }>('/pages', { body: { title, path, kind: type.kind, requestKey: intent.key } });
             if (!result.ok) {
                 // INTERNAL may have been applied: keep the key so a retry returns the same page.
                 if (result.code !== 'INTERNAL') attempt.current = null;
@@ -31,16 +37,16 @@ export function NewPageForm() {
             }
             router.visit(`/admin/editor/${result.data.pageId}`);
         } catch {
-            setError("Couldn't confirm the page was created (network problem). Click Create page again: it will not create a duplicate.");
+            setError(`Couldn't confirm the ${noun} was created (network problem). Click Create ${noun} again: it will not create a duplicate.`);
         } finally {
             setPending(false);
         }
     }
 
     return (
-        <form onSubmit={onSubmit} className="rounded-lg border border-line bg-surface shadow-hairline" aria-label="New page">
+        <form onSubmit={onSubmit} className="rounded-lg border border-line bg-surface shadow-hairline" aria-label={`New ${noun}`}>
             <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5">
-                <h2 className="t-title">New page</h2>
+                <h2 className="t-title">New {noun}</h2>
                 <p className="text-xs text-muted">Starts as an unpublished draft and opens in the builder.</p>
             </div>
             <div className="grid gap-3 px-4 py-4 sm:grid-cols-2">
@@ -54,11 +60,11 @@ export function NewPageForm() {
                         maxLength={120}
                         value={title}
                         className="ui-input h-9 text-sm"
-                        placeholder="About us"
+                        placeholder={type.kind === 'page' ? 'About us' : 'What we learned this year'}
                         aria-describedby={error ? ids.error : undefined}
                         onChange={(e) => {
                             setTitle(e.target.value);
-                            if (!pathEdited) setPath(slugify(e.target.value));
+                            if (!pathEdited) setPath(fromTitle(e.target.value));
                         }}
                     />
                 </div>
@@ -71,7 +77,7 @@ export function NewPageForm() {
                         required
                         maxLength={200}
                         value={path}
-                        placeholder="/about"
+                        placeholder={type.kind === 'page' ? '/about' : `${type.pathPrefix}/what-we-learned`}
                         className="ui-input h-9 font-mono text-sm"
                         aria-describedby={error ? ids.error : undefined}
                         onChange={(e) => {
@@ -91,7 +97,7 @@ export function NewPageForm() {
                     <p className="text-xs text-muted">The path is filled in from the title; you can change it.</p>
                 )}
                 <Button type="submit" variant="primary" icon="plus" busy={pending} disabled={pending}>
-                    {pending ? 'Creating…' : 'Create page'}
+                    {pending ? 'Creating…' : `Create ${noun}`}
                 </Button>
             </div>
         </form>

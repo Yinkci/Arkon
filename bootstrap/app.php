@@ -1,6 +1,7 @@
 <?php
 
 use App\Arkon\Errors\ArkonException;
+use App\Http\Api\ApiError;
 use App\Http\Middleware\AdminSecurityHeaders;
 use App\Http\Middleware\EnsureSafeRuntime;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -10,19 +11,26 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Exceptions\PostTooLargeException;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
+use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /** JSON endpoints used by the editor and the admin pages. */
 $isApi = fn (Request $request) => $request->is('admin/api/*');
+/** The public developer API (/api/v1): its own error shape, {"error": {code, message, fields?}}. */
+$isPublicApi = fn (Request $request) => $request->is('api', 'api/*');
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
+        api: __DIR__.'/../routes/api.php',
+        apiPrefix: 'api/v1',
         commands: __DIR__.'/../routes/console.php',
         // Public site and media: outside the `web` group, so no session, cookies,
         // CSRF or Inertia. Registered last: the page route is a catch-all.
@@ -35,9 +43,29 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectGuestsTo(fn (Request $request) => '/login?next='.urlencode($request->getRequestUri()));
         $middleware->redirectUsersTo('/admin');
     })
-    ->withExceptions(function (Exceptions $exceptions) use ($isApi): void {
-        $exceptions->shouldRenderJsonWhen(fn (Request $request) => $isApi($request) || $request->expectsJson());
-        $exceptions->dontReport([ArkonException::class]);
+    ->withExceptions(function (Exceptions $exceptions) use ($isApi, $isPublicApi): void {
+        $exceptions->shouldRenderJsonWhen(fn (Request $request) => $isApi($request) || $isPublicApi($request) || $request->expectsJson());
+        $exceptions->dontReport([ArkonException::class, ApiError::class]);
+
+        // Public API: every error in one shape with a stable code (docs/api.md, "Errors").
+        $exceptions->render(function (Throwable $error, Request $request) use ($isPublicApi) {
+            if (! $isPublicApi($request)) {
+                return null;
+            }
+            $api = match (true) {
+                $error instanceof ApiError => $error,
+                $error instanceof ArkonException => ApiError::fromDomain($error),
+                $error instanceof ValidationException => new ApiError(422, 'validation_error', 'The request could not be processed.', $error->errors()),
+                $error instanceof ThrottleRequestsException => new ApiError(429, 'rate_limited', 'Too many requests. Wait and retry.', headers: array_intersect_key($error->getHeaders(), array_flip(['Retry-After', 'X-RateLimit-Limit', 'X-RateLimit-Remaining']))),
+                $error instanceof PostTooLargeException => new ApiError(413, 'payload_too_large', 'The request body is larger than this server accepts.'),
+                $error instanceof MethodNotAllowedHttpException => new ApiError(405, 'method_not_allowed', 'This endpoint does not support '.$request->method().'.', headers: $error->getHeaders()),
+                $error instanceof NotFoundHttpException => new ApiError(404, 'not_found', 'No API endpoint or resource matches this URL.'),
+                $error instanceof HttpExceptionInterface && $error->getStatusCode() < 500 => new ApiError($error->getStatusCode(), 'bad_request', $error->getMessage() ?: 'Bad request.'),
+                default => new ApiError(500, 'internal_error', 'Something went wrong. Try again later.'),
+            };
+
+            return $api->render();
+        });
 
         // One error envelope for the editor: { ok: false, code, message, issues?, currentVersion? }.
         $exceptions->render(function (ArkonException $error, Request $request) use ($isApi) {

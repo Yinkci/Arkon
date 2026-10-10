@@ -1,3 +1,5 @@
+import { AiProviderPicker } from '@/Components/AiProviderPicker';
+import { selectedProvider } from '@/lib/aiProvider';
 import { useEffect, useId, useState } from 'react';
 import type { Issue } from '@/arkon/rules';
 import { isActive, isReviewable, type AiConnection, type AiProposal, type AiRequestView } from '@/arkon/editor/proposals';
@@ -20,7 +22,11 @@ export interface AiPanelProps {
     applyBlocker: string | null;
     error: { message: string; issues?: Issue[] } | null;
     history: { prompt: string; outcome: 'applied' | 'discarded' }[];
-    onAsk(prompt: string): void;
+    provider?: string;
+    selectionLocked?: boolean;
+    retryPrompt?: string;
+    onProviderChange(provider: string | undefined): void;
+    onAsk(prompt: string, provider?: string): void;
     onCancel(id: string): void;
     onReview(id: string): void;
     onApply(): void;
@@ -30,17 +36,20 @@ export interface AiPanelProps {
     tokensBusy?: boolean;
 }
 
-const SOURCE: Record<string, string> = { mcp: 'From Claude Code in VS Code', panel: 'From this panel', api: 'Earlier request' };
+const SOURCE: Record<string, string> = { mcp: 'From your coding assistant', panel: 'From this panel', api: 'Earlier request' };
 
 /**
- * Prompt → queued → Claude Code (local helper) → proposal → Apply or Discard. Proposals sent
- * from Claude Code in VS Code wait here too. Applying adds the proposal to the draft as one
+ * Prompt → queued → selected local AI helper → proposal → Apply or Discard. Proposals sent
+ * from the paired coding assistant wait here too. Applying adds the proposal to the draft as one
  * undoable edit; publishing stays the Publish button.
  */
 export function AiPanel(props: AiPanelProps) {
     const [prompt, setPrompt] = useState('');
+    const { provider, onProviderChange } = props;
     const ids = { prompt: useId(), hint: useId(), proposal: useId() };
-    const { proposal, connection, tracked } = props;
+    const { proposal, tracked } = props;
+    const connection = selectedProvider(props.connection, tracked && isActive(tracked) ? tracked.provider : provider);
+    const providerReady = connection.ready;
     const tooLong = prompt.length > props.promptMax;
     const running = tracked !== null && isActive(tracked);
     const waiting = props.requests.filter((r) => isReviewable(r) && r.id !== proposal?.id);
@@ -76,9 +85,20 @@ export function AiPanel(props: AiPanelProps) {
                     className="space-y-2 px-4 py-4"
                     onSubmit={(event) => {
                         event.preventDefault();
-                        if (prompt.trim() && !tooLong && !props.sending && !running) props.onAsk(prompt.trim());
+                        if (prompt.trim() && !tooLong && !props.sending && !running) props.onAsk(prompt.trim(), provider);
                     }}
                 >
+                    <AiProviderPicker
+                        connection={props.connection}
+                        value={running ? tracked?.provider : provider}
+                        onChange={onProviderChange}
+                        disabled={props.sending || props.selectionLocked || running}
+                    />
+                    {props.retryPrompt && (
+                        <Button disabled={props.sending} onClick={() => props.onAsk(props.retryPrompt!, provider)}>
+                            Confirm previous request
+                        </Button>
+                    )}
                     <label htmlFor={ids.prompt} className="block text-ui font-semibold">
                         Ask AI to change this page
                     </label>
@@ -86,7 +106,7 @@ export function AiPanel(props: AiPanelProps) {
                         id={ids.prompt}
                         rows={5}
                         value={prompt}
-                        disabled={props.sending || running}
+                        disabled={props.sending || running || props.selectionLocked}
                         aria-describedby={ids.hint}
                         aria-invalid={tooLong}
                         placeholder="Put the hero image on the right, 500px tall with cover cropping, and stack it below the text on mobile."
@@ -96,7 +116,7 @@ export function AiPanel(props: AiPanelProps) {
                     <p id={ids.hint} className={`text-2xs leading-snug ${tooLong ? 'text-danger' : 'text-muted'}`}>
                         {tooLong
                             ? `Too long: ${prompt.length} of ${props.promptMax} characters.`
-                            : 'Claude Code (your subscription) prepares a proposal on this computer. You preview it first; nothing changes until you apply it, and nothing goes live until you publish.'}
+                            : 'Your selected AI provider prepares a proposal on this computer. You preview it first; nothing changes until you apply it, and nothing goes live until you publish.'}
                     </p>
                     <Button
                         type="submit"
@@ -104,7 +124,7 @@ export function AiPanel(props: AiPanelProps) {
                         icon="sparkle"
                         busy={props.sending}
                         className="w-full"
-                        disabled={props.sending || running || !prompt.trim() || tooLong || !connection.ready}
+                        disabled={props.sending || running || !prompt.trim() || tooLong || (!providerReady && !props.selectionLocked)}
                     >
                         {props.sending ? 'Sending…' : 'Generate proposal'}
                     </Button>
@@ -322,7 +342,7 @@ export function AiPanel(props: AiPanelProps) {
 
 const STATE_TEXT: Record<string, string> = {
     queued: 'Queued: waiting for the local helper to pick it up…',
-    running: 'Claude Code is working on it…',
+    running: 'Your selected AI provider is working on it…',
     cancelled: 'Cancelled.',
 };
 
@@ -354,6 +374,11 @@ function RequestState({ request, onCancel }: { request: AiRequestView; onCancel(
                 {active ? <Spinner className="size-3.5 text-ai" /> : <Icon name="close" className="size-3.5 text-muted" />}
                 <span>
                     {request.status === 'cancelled' && request.error?.code === 'AI_SUPERSEDED' ? 'Replaced by a newer request.' : STATE_TEXT[request.status]}
+                    {request.provider && (
+                        <span className="ml-1 text-muted">
+                            · {request.provider === 'codex' ? 'Codex' : request.provider === 'local' ? 'Local preparation' : 'Claude Code'}
+                        </span>
+                    )}
                     {active && <span className="ml-1 text-muted tabular-nums">{seconds}s</span>}
                 </span>
             </span>

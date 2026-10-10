@@ -25,7 +25,7 @@ use Illuminate\Support\Facades\DB;
  */
 final class ProposalLedger
 {
-    private const COLUMNS = ['id', 'site_id', 'page_id', 'created_by', 'source', 'prompt', 'base_version', 'status', 'summary', 'details',
+    private const COLUMNS = ['id', 'site_id', 'page_id', 'created_by', 'provider', 'source', 'prompt', 'base_version', 'status', 'summary', 'details',
         'operations', 'error_code', 'error_message', 'attempts', 'lease_token', 'lease_expires_at', 'started_at', 'created_at', 'resolved_at', 'connection_id'];
 
     /** The fingerprint of parsed operations, compared when a save claims to apply a proposal. */
@@ -123,8 +123,8 @@ final class ProposalLedger
     // ── Execution (local helper) ────────────────────────────────────────────
 
     /**
-     * Expired waits fail; runs whose lease expired (helper stopped, or fenced) are queued again
-     * while attempts remain, or fail after the last one. A lease is expired from the moment
+     * Expired waits fail; runs whose lease expired (helper stopped, or fenced) are failed
+     * without starting another model attempt. A lease is expired from the moment
      * lease_expires_at <= now() (database clock), exactly when renew/finish stop accepting it.
      */
     public function recover(string $siteId): int
@@ -133,11 +133,11 @@ final class ProposalLedger
         $expired = DB::update(
             "UPDATE ai_proposals SET status = 'failed', error_code = ?, error_message = ?, resolved_at = now()
              WHERE site_id = ? AND status = 'queued' AND greatest(created_at, coalesce(started_at, created_at)) < now() - make_interval(secs => ?)",
-            [AiException::EXPIRED, 'No helper picked this request up in time. Start the helper (php artisan arkon:ai-helper) and ask again.', $siteId, $ai['queue_timeout_seconds']],
+            [AiException::EXPIRED, 'No helper picked this request up in time. Check AI Connections before starting another request.', $siteId, $ai['queue_timeout_seconds']],
         );
         $interrupted = DB::update(
-            'UPDATE ai_proposals SET '.self::REQUEUE." WHERE site_id = ? AND status = 'running' AND lease_expires_at <= now()",
-            [...self::requeueBindings('The helper stopped while working on this request. Ask again.'), $siteId],
+            'UPDATE ai_proposals SET '.self::FAIL_INTERRUPTED." WHERE site_id = ? AND status = 'running' AND lease_expires_at <= now()",
+            [...self::interruptedBindings('The helper stopped while working on this request. Ask again.'), $siteId],
         );
 
         return $expired + $interrupted;
@@ -145,13 +145,13 @@ final class ProposalLedger
 
     /**
      * Revoking a connection fences its active runs in the same transaction: they lose their lease
-     * (so nothing the old helper sends is admitted) and are queued again while attempts remain.
+     * (so nothing the old helper sends is admitted) and fail without another model attempt.
      */
     public function fenceConnection(string $connectionId): int
     {
         return DB::update(
-            'UPDATE ai_proposals SET '.self::REQUEUE." WHERE connection_id = ? AND status = 'running'",
-            [...self::requeueBindings('The helper working on this request was disconnected. Ask again.'), $connectionId],
+            'UPDATE ai_proposals SET '.self::FAIL_INTERRUPTED." WHERE connection_id = ? AND status = 'running'",
+            [...self::interruptedBindings('The helper working on this request was disconnected. Ask again.'), $connectionId],
         );
     }
 
@@ -162,11 +162,11 @@ final class ProposalLedger
         $rows = DB::select(
             "UPDATE ai_proposals SET status = 'running', lease_token = ?, lease_expires_at = now() + make_interval(secs => ?),
                 attempts = attempts + 1, started_at = now(), connection_id = ?, activity = 'generating', heartbeat_at = now(), validation_issues = NULL, website_candidate = NULL
-             WHERE id = (SELECT id FROM ai_proposals WHERE site_id = ? AND status = 'queued' AND source = 'panel'
+             WHERE id = (SELECT id FROM ai_proposals WHERE site_id = ? AND status = 'queued' AND source = 'panel' AND provider = (SELECT provider FROM ai_connections WHERE id = ?)
                          ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1)
                AND ".self::connectionEligible('?').'
-             RETURNING id, site_id, page_id, created_by, prompt, base_version, attempts, lease_token, scope, website_snapshot',
-            [$lease, (int) config('arkon.ai.lease_seconds'), $connectionId, $siteId, $connectionId],
+             RETURNING id, site_id, page_id, created_by, prompt, base_version, attempts, lease_token, scope, website_snapshot, provider',
+            [$lease, (int) config('arkon.ai.lease_seconds'), $connectionId, $siteId, $connectionId, $connectionId],
         );
 
         return $rows[0] ?? null;
@@ -225,18 +225,12 @@ final class ProposalLedger
             ->update(['status' => 'failed', 'error_code' => $code, 'error_message' => $message, 'lease_token' => null, 'lease_expires_at' => null, 'resolved_at' => DB::raw('now()')]) === 1;
     }
 
-    /** Back to the queue while attempts remain (a later claim gets a fresh lease token), otherwise failed. */
-    private const REQUEUE = "status = CASE WHEN scope = 'page' AND attempts < ? THEN 'queued' ELSE 'failed' END,
-                error_code = CASE WHEN scope = 'page' AND attempts < ? THEN NULL ELSE ? END,
-                error_message = CASE WHEN scope = 'page' AND attempts < ? THEN NULL ELSE ? END,
-                resolved_at = CASE WHEN scope = 'page' AND attempts < ? THEN NULL ELSE now() END,
-                lease_token = NULL, lease_expires_at = NULL";
+    /** Interrupted runs are terminal; another model attempt requires a new user request. */
+    private const FAIL_INTERRUPTED = "status = 'failed', error_code = ?, error_message = ?, resolved_at = now(), lease_token = NULL, lease_expires_at = NULL";
 
-    private static function requeueBindings(string $message): array
+    private static function interruptedBindings(string $message): array
     {
-        $max = (int) config('arkon.ai.max_attempts');
-
-        return [$max, $max, AiException::INTERRUPTED, $max, $message, $max];
+        return [AiException::INTERRUPTED, $message];
     }
 
     /**
@@ -246,7 +240,7 @@ final class ProposalLedger
      */
     private const HOLDS_LEASE = "lease_token = ? AND status = 'running' AND lease_expires_at > now()
         AND EXISTS (SELECT 1 FROM ai_connections c JOIN site_members cm ON cm.site_id = c.site_id AND cm.user_id = c.user_id
-                    WHERE c.id = ai_proposals.connection_id AND c.site_id = ai_proposals.site_id AND c.revoked_at IS NULL
+                    WHERE c.id = ai_proposals.connection_id AND c.site_id = ai_proposals.site_id AND c.provider = ai_proposals.provider AND c.user_id = ai_proposals.created_by AND c.revoked_at IS NULL
                       AND cm.role IN ('owner', 'admin', 'editor'))
         AND EXISTS (SELECT 1 FROM site_members m WHERE m.site_id = ai_proposals.site_id AND m.user_id = ai_proposals.created_by
                       AND m.role IN ('owner', 'admin', 'editor'))";
@@ -255,7 +249,7 @@ final class ProposalLedger
     private static function connectionEligible(string $placeholder): string
     {
         return "EXISTS (SELECT 1 FROM ai_connections c JOIN site_members cm ON cm.site_id = c.site_id AND cm.user_id = c.user_id
-                        WHERE c.id = {$placeholder} AND c.revoked_at IS NULL AND c.kind = 'helper' AND cm.role IN ('owner', 'admin', 'editor'))";
+                        WHERE c.id = {$placeholder} AND c.site_id = ai_proposals.site_id AND c.provider = ai_proposals.provider AND c.user_id = ai_proposals.created_by AND c.revoked_at IS NULL AND c.kind = 'helper' AND cm.role IN ('owner', 'admin', 'editor'))";
     }
 
     /** Columns for a validated proposal (from a run or an MCP submission). */

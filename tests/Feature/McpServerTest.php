@@ -104,7 +104,10 @@ class McpServerTest extends DatabaseTestCase
         $this->assertSame(-32700, json_decode($server->handleLine('{not json'), true)['error']['code']);
 
         $names = array_column($server->handle(['jsonrpc' => '2.0', 'id' => 3, 'method' => 'tools/list'])['result']['tools'], 'name');
-        $this->assertSame(['arkon_get_website_context', 'arkon_submit_website_proposal', 'arkon_get_website_proposal_status', 'arkon_list_pages', 'arkon_get_page', 'arkon_get_proposal_format', 'arkon_submit_proposal', 'arkon_get_proposal_status'], $names);
+        $this->assertSame([
+            'arkon_get_capabilities', 'arkon_list_content', 'arkon_list_terms', 'arkon_search_media', 'arkon_analyze_seo', 'arkon_create_post', 'arkon_create_page',
+            'arkon_get_website_context', 'arkon_submit_website_proposal', 'arkon_get_website_proposal_status', 'arkon_list_pages', 'arkon_get_page', 'arkon_get_proposal_format', 'arkon_submit_proposal', 'arkon_get_proposal_status',
+        ], $names);
         foreach ($names as $name) {
             $this->assertDoesNotMatchRegularExpression('/publish|apply|sql|shell|exec|file|delete/i', $name);
         }
@@ -125,10 +128,12 @@ class McpServerTest extends DatabaseTestCase
         $this->assertStringContainsString('- columns (Columns, version 3)', $format['data']['instructions']);
         $this->assertSame(['summary', 'notes', 'tokenChanges', 'changes'], $format['data']['schema']['required']);
 
-        // Another site's page is "not found", whatever ids are passed; there is no way to name a site or user.
-        $cross = $this->tool('arkon_get_page', ['pageId' => $other['pageId'], 'siteId' => $other['siteId']]);
+        // Another site's page is "not found"; there is no way to name a site or user (unknown arguments are refused).
+        $cross = $this->tool('arkon_get_page', ['pageId' => $other['pageId']]);
         $this->assertTrue($cross['error']);
         $this->assertSame('NOT_FOUND', $cross['data']['code']);
+        $named = $this->tool('arkon_get_page', ['pageId' => $other['pageId'], 'siteId' => $other['siteId']]);
+        $this->assertSame(['VALIDATION', 'arguments: unknown argument siteId'], [$named['data']['code'], $named['data']['message']]);
         $this->assertTrue($this->submit(['pageId' => $other['pageId']])['error']);
     }
 

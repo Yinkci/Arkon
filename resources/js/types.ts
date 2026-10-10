@@ -87,6 +87,46 @@ export interface EditorInit {
     components: ReusableComponentInfo[];
     /** Whether the AI panel can be used (never provider credentials). */
     ai: { available: boolean; reason: string | null; promptMax: number; connection: import('@/arkon/editor/proposals').AiConnection };
+    /** What kind of item this is (page, post, …) and the draft's details for kinds that have them. */
+    content: EditorContent;
+}
+
+/** A content type as list screens show it (pages, posts, …: one model). */
+export interface ContentTypeInfo {
+    kind: string;
+    label: string;
+    plural: string;
+    pathPrefix: string;
+    taxonomies: string[];
+}
+
+export interface ContentDetailsValues {
+    excerpt: string;
+    featuredMediaId: string | null;
+    /** Term ids by taxonomy (category, tag, …). */
+    terms: Record<string, string[]>;
+}
+
+export interface EditorContent {
+    kind: string;
+    label: string;
+    plural: string;
+    /** Whether the type has an excerpt and a featured image (posts). */
+    details: boolean;
+    listUrl: string;
+    values: ContentDetailsValues;
+    taxonomies: { name: string; label: string; plural: string; terms: { id: string; name: string }[] }[];
+}
+
+export interface Term {
+    id: string;
+    taxonomy: string;
+    name: string;
+    slug: string;
+    description: string;
+    parentId: string | null;
+    count: number;
+    draftCount?: number;
 }
 
 export interface SharedProps {

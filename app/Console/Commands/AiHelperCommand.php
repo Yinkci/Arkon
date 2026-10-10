@@ -4,15 +4,15 @@ namespace App\Console\Commands;
 
 use App\Arkon\Ai\AiConnections;
 use App\Arkon\Ai\AiHelper;
-use App\Arkon\Ai\ClaudeRunner;
 use App\Arkon\Ai\ProposalService;
+use App\Arkon\Ai\ProviderRegistry;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
 /**
  * The local helper for the editor's AI panel. Run it in a terminal under your own Windows
- * account; it runs the Claude Code CLI with your normal subscription login for requests
+ * account; it runs the selected native CLI with your normal account login for requests
  * queued in the panel, and reports its readiness so the panel can show it.
  *
  *   php artisan arkon:ai-helper
@@ -23,12 +23,14 @@ use Throwable;
  */
 class AiHelperCommand extends Command
 {
-    protected $signature = 'arkon:ai-helper {--once : Handle at most one request, then exit (for checks)}';
+    protected $signature = 'arkon:ai-helper {--provider=claude-code : AI provider id} {--once : Handle at most one request, then exit (for checks)}';
 
-    protected $description = 'Run the local Claude Code helper for the editor\'s AI panel';
+    protected $description = 'Run the selected local AI helper for the editor\'s AI panel';
 
-    public function handle(AiConnections $connections, ProposalService $proposals, ClaudeRunner $runner): int
+    public function handle(AiConnections $connections, ProposalService $proposals, ProviderRegistry $providers): int
     {
+        $provider = ProviderRegistry::validate((string) $this->option('provider'));
+        $runner = $providers->runner($provider);
         $helper = new AiHelper($proposals, $connections, $runner);
         $say = fn (string $line) => $this->line('['.date('H:i:s')."] {$line}");
         $say('Arkon AI helper starting. Leave this window open while you use the AI panel; Ctrl+C stops it.');
@@ -41,8 +43,8 @@ class AiHelperCommand extends Command
         while (true) {
             try {
                 $connection = $connections->resolve($this->token(), 'helper');
-                if ($connection === null) {
-                    $this->wait($say, $waiting, 'Not paired yet (or the token was revoked). Pair it in another terminal: php artisan arkon:ai-pair you@example.com --helper');
+                if ($connection === null || $connection->provider !== $provider) {
+                    $this->wait($say, $waiting, 'Not paired yet (or the token was revoked). Pair it in another terminal: php artisan arkon:ai-pair you@example.com --helper --provider='.$provider);
                     if ($this->option('once')) {
                         return self::FAILURE;
                     }
@@ -81,7 +83,7 @@ class AiHelperCommand extends Command
         if (is_string($env) && $env !== '') {
             return $env;
         }
-        $file = (string) config('arkon.ai.helper_token_file');
+        $file = ProviderRegistry::tokenFile((string) $this->option('provider'));
 
         return is_file($file) ? trim((string) file_get_contents($file)) : null;
     }

@@ -79,6 +79,22 @@ and reduced motion, optionally on hover), the interval (1–60 s), transitions (
 Without JavaScript the first slide stays readable. **Play slideshow** in the inspector previews playback on the
 canvas.
 
+## Posts, categories and tags
+
+Open **Content → Posts** and choose **New post**. A post is edited in the same builder as a page; its URL starts
+with `/blog/`. With nothing selected, **Properties** shows **Post details**: an excerpt (for lists, feeds and the API),
+a featured image, categories and tags. Choose **Save post details**; like the title, they go live when you publish.
+
+Manage categories (which can be nested) and tags under **Content → Categories & tags**. Editors can add them;
+owners and admins rename and delete them, which changes published posts at once (deleting removes a term from
+posts, it never deletes posts).
+
+## Developer API
+
+**Site management → Developer API** shows the API address and lets you create personal access tokens for apps and
+headless sites. Give each token a name and only the scopes it needs. Copy it when it is shown: Arkon shows it only
+once. Revoke a token you no longer use. Reading published content needs no token. See [api.md](api.md).
+
 ## Media
 
 `/admin/media` shows 48 images per page as a compact grid or a list (name, type, dimensions, size, optimization,

@@ -15,7 +15,10 @@ class PageApiController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        return EditorApiController::ok($this->management->create(AdminContext::of($request)->ctx(), EditorApiController::body($request)));
+        // Title, URL and type only: a new item starts with its type's starter content.
+        $input = array_intersect_key(EditorApiController::body($request), array_flip(['title', 'path', 'requestKey', 'kind']));
+
+        return EditorApiController::ok($this->management->create(AdminContext::of($request)->ctx(), $input));
     }
 
     public function unpublish(Request $request, string $page): JsonResponse

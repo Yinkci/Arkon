@@ -4,6 +4,7 @@ namespace App\Arkon\Pages;
 
 use App\Arkon\Audit\AuditLog;
 use App\Arkon\Components\Factories;
+use App\Arkon\Content\ContentTypes;
 use App\Arkon\Database\Transactions;
 use App\Arkon\Design\PageRefreshes;
 use App\Arkon\Errors\ConflictException;
@@ -16,6 +17,8 @@ use App\Arkon\Support\Input;
 use App\Arkon\Support\Json;
 use App\Arkon\Support\Time;
 use App\Arkon\Support\Uuid;
+use App\Arkon\Themes\ThemeService;
+use Closure;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -39,15 +42,20 @@ class PageManagement
      *
      * @return array{pageId: string, replayed: bool}
      */
-    public function create(SiteContext $ctx, array $input): array
+    public function create(SiteContext $ctx, array $input, ?Closure $then = null): array
     {
         $title = Input::title($input['title'] ?? null);
         $path = Input::path($input['path'] ?? null);
+        $kind = $input['kind'] ?? 'page';
+        ContentTypes::get($kind);
         $requestKey = Input::validate($input, ['requestKey' => Input::requestKeyRule()])['requestKey'];
-        $fingerprint = self::createFingerprint($title, $path);
+        // `intent`: everything else a caller creates with the page (content, details), so a retry
+        // with the same key but other content is a conflict rather than a silent replay.
+        $fingerprint = self::createFingerprint($title, $path, $kind, $input['intent'] ?? null);
+        $given = $input['document'] ?? null;
 
         try {
-            return $this->transactions->run(function () use ($ctx, $title, $path, $requestKey, $fingerprint) {
+            return $this->transactions->run(function () use ($ctx, $title, $path, $kind, $requestKey, $fingerprint, $then, $given) {
                 $this->authorizer->authorize($ctx, 'page.create');
                 if ($replay = $this->replayCreate($ctx, $requestKey, $fingerprint)) {
                     return $replay;
@@ -62,17 +70,26 @@ class PageManagement
                 $this->store->assertPathAvailable($ctx->siteId, $path);
 
                 $pageId = Uuid::v7();
-                $document = Factories::pageDocument([Factories::heroNode(['heading' => $title])]);
+                // A caller may create the page with its content (API, AI): validated like any save.
+                $document = $given ?? self::starterDocument($kind, $title);
+                if ($given !== null) {
+                    $this->store->validateForSave($ctx->siteId, $document);
+                    ThemeService::assertAdditions($ctx->siteId, null, $document);
+                }
                 DB::table('pages')->insert([
-                    'id' => $pageId, 'site_id' => $ctx->siteId, 'path' => $path, 'title' => $title,
+                    'id' => $pageId, 'site_id' => $ctx->siteId, 'kind' => $kind, 'path' => $path, 'title' => $title,
                     'request_key' => $requestKey, 'request_fingerprint' => $fingerprint, 'created_by' => $ctx->userId,
                 ]);
-                $revision = $this->store->insertRevision($ctx, $pageId, $document, $title, $path, 'Created page');
+                $revision = $this->store->insertRevision($ctx, $pageId, $document, $title, $path, $kind === 'page' ? 'Created page' : 'Created '.strtolower(ContentTypes::get($kind)['label']));
                 DB::table('page_drafts')->insert([
                     'page_id' => $pageId, 'site_id' => $ctx->siteId, 'document' => Json::encode($document), 'version' => 1,
                     'checkpoint_revision_id' => $revision['id'], 'checkpoint_version' => 1, 'updated_by' => $ctx->userId,
                 ]);
-                $this->audit->forContext($ctx, 'page.create', 'page', $pageId, ['title' => $title, 'path' => $path]);
+                $this->audit->forContext($ctx, 'page.create', 'page', $pageId, ['title' => $title, 'path' => $path, ...($kind === 'page' ? [] : ['kind' => $kind])]);
+                // Runs in the same transaction: a failure creates nothing, and a replay never runs it again.
+                if ($then !== null) {
+                    $then($pageId);
+                }
 
                 return ['pageId' => $pageId, 'replayed' => false];
             });
@@ -81,10 +98,89 @@ class PageManagement
         }
     }
 
-    /** What a create request asked for (normalised inputs). Stored once; never follows later renames. */
-    public static function createFingerprint(string $title, string $path): string
+    /**
+     * Stores a whole document (plus title and URL) as a page's next draft, creating the page when
+     * $baseVersion is 0. The caller runs inside a transaction, holds the page's write lock
+     * (lockForWrite) when it exists, holds the path-claim lock and has checked the version. Used
+     * where a validated document replaces the draft in one step (the AI website application), with
+     * the same rules as the editor: page.create or page.edit, a free URL, draft validation, theme
+     * availability, a revision (source "ai" for AI contexts) and an audit entry.
+     *
+     * @return int the new draft version
+     */
+    public function writeDocumentLocked(SiteContext $ctx, string $pageId, string $title, string $path, mixed $document, int $baseVersion, string $message, ?array $previous = null): int
     {
-        return Fingerprint::of(['kind' => 'create', 'title' => $title, 'path' => $path]);
+        $create = $baseVersion === 0;
+        $this->authorizer->authorize($ctx, $create ? 'page.create' : 'page.edit');
+        $this->store->assertPathAvailable($ctx->siteId, $path, $create ? null : $pageId);
+        $this->store->validateForSave($ctx->siteId, $document);
+        ThemeService::assertAdditions($ctx->siteId, $previous, $document);
+        if ($create) {
+            DB::table('pages')->insert(['id' => $pageId, 'site_id' => $ctx->siteId, 'title' => $title, 'path' => $path, 'created_by' => $ctx->userId]);
+        } else {
+            DB::table('pages')->where('id', $pageId)->update(['title' => $title, 'path' => $path, 'updated_at' => DB::raw('now()')]);
+        }
+        $revision = $this->store->insertRevision($ctx, $pageId, $document, $title, $path, $message);
+        $version = $baseVersion + 1;
+        $values = ['document' => Json::encode($document), 'version' => $version, 'checkpoint_revision_id' => $revision['id'], 'checkpoint_version' => $version, 'last_save_key' => null, 'last_save_fingerprint' => null, 'updated_by' => $ctx->userId, 'updated_at' => DB::raw('now()')];
+        if ($create) {
+            DB::table('page_drafts')->insert(['page_id' => $pageId, 'site_id' => $ctx->siteId, ...$values]);
+        } else {
+            DB::table('page_drafts')->where('page_id', $pageId)->update($values);
+        }
+        $this->audit->forContext($ctx, $create ? 'page.create' : 'page.draft.replace', 'page', $pageId, ['title' => $title, 'path' => $path, 'version' => $version]);
+
+        return $version;
+    }
+
+    /**
+     * Saves a whole new document as the next draft version (the editor saves operations; API and
+     * AI content writes replace the content in one step). Version-checked against the draft the
+     * caller saw, idempotent per save key like an editor save, validated like any save, and
+     * recorded as a revision. Nothing changes on the live site until the page is published.
+     *
+     * @param  array{pageId: mixed, expectedVersion: mixed, document: mixed, saveKey: mixed, message?: string}  $input
+     * @return array{version: int, replayed: bool}
+     */
+    public function replaceDocument(SiteContext $ctx, array $input): array
+    {
+        $pageId = Input::id($input['pageId'] ?? null);
+        $valid = Input::validate($input, ['expectedVersion' => ['required', 'integer', 'min:1'], 'saveKey' => Input::requestKeyRule()]);
+        $expected = (int) $valid['expectedVersion'];
+        $document = $input['document'] ?? null;
+        $fingerprint = Fingerprint::of(['kind' => 'replace', 'pageId' => $pageId, 'baseVersion' => $expected, 'document' => $document]);
+
+        return $this->transactions->run(function () use ($ctx, $pageId, $expected, $document, $valid, $fingerprint, $input) {
+            $this->authorizer->authorize($ctx, 'page.edit');
+            [$page, $draft] = $this->store->lockForWrite($ctx->siteId, $pageId);
+            if ($draft->last_save_key === $valid['saveKey']) {
+                if ($draft->last_save_fingerprint !== $fingerprint) {
+                    throw new ConflictException('This save key was already used for a different save');
+                }
+
+                return ['version' => (int) $draft->version, 'replayed' => true];
+            }
+            $this->store->assertVersion($draft, $expected);
+            $version = $this->writeDocumentLocked($ctx, $pageId, $page->title, $page->path, $document, $expected, (string) ($input['message'] ?? 'Replaced content'), $this->store->document($draft->document));
+            DB::table('page_drafts')->where('page_id', $pageId)->update(['last_save_key' => $valid['saveKey'], 'last_save_fingerprint' => $fingerprint]);
+
+            return ['version' => $version, 'replayed' => false];
+        });
+    }
+
+    /** What a create request asked for (normalised inputs). Stored once; never follows later renames. */
+    public static function createFingerprint(string $title, string $path, string $kind = 'page', mixed $intent = null): string
+    {
+        // Plain page creates keep the fingerprint they always had, so older keyed creates still replay.
+        return Fingerprint::of(['kind' => 'create', 'title' => $title, 'path' => $path, ...($kind === 'page' ? [] : ['type' => $kind]), ...($intent === null ? [] : ['intent' => $intent])]);
+    }
+
+    /** What a new item starts with: a hero for pages, the title as the main heading for other kinds. */
+    public static function starterDocument(string $kind, string $title): array
+    {
+        return $kind === 'page'
+            ? Factories::pageDocument([Factories::heroNode(['heading' => $title])])
+            : Factories::pageDocument([Factories::node('text', ['text' => $title, 'element' => 'h1'])]);
     }
 
     /**
@@ -271,12 +367,12 @@ class PageManagement
      *
      * @return list<array{id: string, title: string, path: string, version: int, deletedAt: string|null}>
      */
-    public function trash(SiteContext $ctx): array
+    public function trash(SiteContext $ctx, string $kind = 'page'): array
     {
         $this->authorizer->authorize($ctx, 'page.view');
 
         return DB::table('pages as p')->join('page_drafts as d', 'd.page_id', '=', 'p.id')
-            ->where('p.site_id', $ctx->siteId)->whereNotNull('p.deleted_at')->whereNull('p.purged_at')
+            ->where('p.site_id', $ctx->siteId)->where('p.kind', $kind)->whereNotNull('p.deleted_at')->whereNull('p.purged_at')
             ->orderByDesc('p.deleted_at')->orderBy('p.id')->get(['p.id', 'p.title', 'p.path', 'p.deleted_at', 'd.version'])
             ->map(fn ($r) => ['id' => $r->id, 'title' => $r->title, 'path' => $r->path, 'version' => (int) $r->version, 'deletedAt' => Time::iso($r->deleted_at)])->all();
     }

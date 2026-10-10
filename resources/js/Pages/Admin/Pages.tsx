@@ -10,7 +10,7 @@ import { toast } from '@/Components/Toast';
 import { Button, ButtonLink } from '@/Components/ui';
 import { api } from '@/lib/api';
 import { bulk, plural, reloadProps, type BulkAction, type BulkResult } from '@/lib/mutate';
-import type { PageRow, SharedProps } from '@/types';
+import type { ContentTypeInfo, PageRow, SharedProps } from '@/types';
 
 type Tab = 'all' | 'published' | 'draft' | 'changed' | 'trash';
 type Confirm =
@@ -18,9 +18,10 @@ type Confirm =
     | { kind: 'unpublish'; page: PageRow }
     | null;
 
-const NOUN: [string, string] = ['page', 'pages'];
-
-export default function Pages({ pages, trash }: { pages: PageRow[]; trash: TrashedPage[] }) {
+/** Pages, posts and future content types share this screen (they are one model). */
+export default function Pages({ type, pages, trash }: { type: ContentTypeInfo; pages: PageRow[]; trash: TrashedPage[] }) {
+    const NOUN: [string, string] = [type.label.toLowerCase(), type.plural.toLowerCase()];
+    const isPage = type.kind === 'page';
     const page = usePage<SharedProps>();
     const { can } = page.props;
     const canDelete = !!can['page.delete'];
@@ -45,7 +46,7 @@ export default function Pages({ pages, trash }: { pages: PageRow[]; trash: Trash
         const done = result.done.length;
         if (done === 0) return result.failed[0]?.message ?? 'Nothing changed.';
         const verb = { trash: 'moved to Trash', restore: 'restored', purge: 'deleted permanently' }[action];
-        toast(done === 1 ? `Page ${verb}.` : `${plural(done, ...NOUN)} ${verb}.`);
+        toast(done === 1 ? `${type.label} ${verb}.` : `${plural(done, ...NOUN)} ${verb}.`);
         if (result.failed.length) toast(`${plural(result.failed.length, ...NOUN)} not changed: ${result.failed[0]!.message}`, 'error');
         selection.clear();
         return null;
@@ -67,14 +68,18 @@ export default function Pages({ pages, trash }: { pages: PageRow[]; trash: Trash
 
     return (
         <AdminLayout>
-            <Head title="Pages" />
+            <Head title={type.plural} />
             <div className="ak-page space-y-6">
                 <AdminPageHeader
-                    title="Pages"
-                    description="Manage page drafts and live versions. Open any page in the builder to edit content, layout and SEO."
+                    title={type.plural}
+                    description={
+                        isPage
+                            ? 'Manage page drafts and live versions. Open any page in the builder to edit content, layout and SEO.'
+                            : `Write and manage ${NOUN[1]}. Each opens in the builder; its excerpt, featured image and categories are under Properties.`
+                    }
                     actions={
                         <>
-                            {can['page.edit'] && (
+                            {isPage && can['page.edit'] && (
                                 <ButtonLink href="/admin/website" icon="sparkle">
                                     Generate with AI
                                 </ButtonLink>
@@ -87,7 +92,7 @@ export default function Pages({ pages, trash }: { pages: PageRow[]; trash: Trash
                                     aria-controls="new-page-panel"
                                     onClick={() => setCreating((value) => !value)}
                                 >
-                                    {creating ? 'Close new page' : 'New page'}
+                                    {creating ? `Close new ${NOUN[0]}` : `New ${NOUN[0]}`}
                                 </Button>
                             )}
                         </>
@@ -95,12 +100,12 @@ export default function Pages({ pages, trash }: { pages: PageRow[]; trash: Trash
                 />
                 {can['page.create'] && creating && (
                     <div id="new-page-panel">
-                        <NewPageForm />
+                        <NewPageForm type={type} />
                     </div>
                 )}
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <StatusTabs<Tab>
-                        label="Filter pages"
+                        label={`Filter ${NOUN[1]}`}
                         value={tab}
                         onChange={(value) => {
                             setTab(value);
@@ -115,7 +120,7 @@ export default function Pages({ pages, trash }: { pages: PageRow[]; trash: Trash
                         ]}
                     />
                     <label className="sr-only" htmlFor="pages-search">
-                        Search pages
+                        Search {NOUN[1]}
                     </label>
                     <input
                         id="pages-search"
@@ -144,14 +149,14 @@ export default function Pages({ pages, trash }: { pages: PageRow[]; trash: Trash
                     )}
                 </BulkBar>
 
-                <section aria-label={inTrash ? 'Pages in the Trash' : 'All pages'}>
-                    <h2 className="sr-only">{inTrash ? 'Pages in the Trash' : 'All pages'}</h2>
+                <section aria-label={inTrash ? `${type.plural} in the Trash` : `All ${NOUN[1]}`}>
+                    <h2 className="sr-only">{inTrash ? `${type.plural} in the Trash` : `All ${NOUN[1]}`}</h2>
                     {inTrash ? (
                         shownTrash.length === 0 ? (
-                            <ListEmpty icon="trash" title={trash.length ? 'No matching pages in the Trash' : 'Trash is empty'}>
+                            <ListEmpty icon="trash" title={trash.length ? `No matching ${NOUN[1]} in the Trash` : 'Trash is empty'}>
                                 {trash.length
-                                    ? 'Change the search to find a page.'
-                                    : 'Pages you move to the Trash appear here until you restore or delete them.'}
+                                    ? `Change the search to find a ${NOUN[0]}.`
+                                    : `${type.plural} you move to the Trash appear here until you restore or delete them.`}
                             </ListEmpty>
                         ) : (
                             <div className="rounded-lg border border-line bg-surface px-5 shadow-hairline">
@@ -164,12 +169,14 @@ export default function Pages({ pages, trash }: { pages: PageRow[]; trash: Trash
                             </div>
                         )
                     ) : shown.length === 0 ? (
-                        <ListEmpty icon="pages" title={pages.length ? 'No matching pages' : 'Create your first page'}>
+                        <ListEmpty icon={isPage ? 'pages' : 'post'} title={pages.length ? `No matching ${NOUN[1]}` : `Create your first ${NOUN[0]}`}>
                             {pages.length
-                                ? 'Change the search or filter to find a page.'
+                                ? `Change the search or filter to find a ${NOUN[0]}.`
                                 : can['page.create']
-                                  ? 'Choose New page or generate editable drafts with AI.'
-                                  : 'Pages created by your team appear here.'}
+                                  ? isPage
+                                      ? 'Choose New page or generate editable drafts with AI.'
+                                      : `Choose New ${NOUN[0]}. AI assistants connected to Arkon can also write drafts for you to review.`
+                                  : `${type.plural} created by your team appear here.`}
                         </ListEmpty>
                     ) : (
                         <div className="rounded-lg border border-line bg-surface px-5 shadow-hairline">
@@ -209,7 +216,7 @@ export default function Pages({ pages, trash }: { pages: PageRow[]; trash: Trash
                         : Promise.resolve(null)
                 }
             >
-                {confirm?.kind === 'trash' && <TrashNote pages={confirm.pages} />}
+                {confirm?.kind === 'trash' && <TrashNote pages={confirm.pages} noun={NOUN} />}
             </ConfirmDialog>
 
             <ConfirmDialog
@@ -251,7 +258,7 @@ export default function Pages({ pages, trash }: { pages: PageRow[]; trash: Trash
                     const result = await api(`/pages/${confirm.page.id}/unpublish`, { body: { expectedPublicationId: confirm.page.livePublicationId } });
                     if (!result.ok) return result.message;
                     await reloadProps(['pages', 'trash']);
-                    toast('Page unpublished.');
+                    toast(`${type.label} unpublished.`);
                     return null;
                 }}
             >
@@ -269,7 +276,7 @@ export default function Pages({ pages, trash }: { pages: PageRow[]; trash: Trash
     );
 }
 
-function TrashNote({ pages }: { pages: { livePath?: string | null }[] }) {
+function TrashNote({ pages, noun }: { pages: { livePath?: string | null }[]; noun: [string, string] }) {
     const live = pages.filter((p) => p.livePath);
     return (
         <>
@@ -281,14 +288,14 @@ function TrashNote({ pages }: { pages: { livePath?: string | null }[] }) {
                         </>
                     ) : (
                         <>
-                            <strong>{plural(live.length, ...NOUN)}</strong> {live.length === 1 ? 'is' : 'are'} live and go offline now.
+                            <strong>{plural(live.length, ...noun)}</strong> {live.length === 1 ? 'is' : 'are'} live and go offline now.
                         </>
                     )}
                 </p>
             )}
             <p>
-                {pages.length === 1 ? 'Its URL becomes' : 'Their URLs become'} free for other pages. You can restore {pages.length === 1 ? 'it' : 'them'} from
-                the Trash.
+                {pages.length === 1 ? 'Its URL becomes' : 'Their URLs become'} free for other {noun[1]}. You can restore {pages.length === 1 ? 'it' : 'them'}{' '}
+                from the Trash.
             </p>
         </>
     );

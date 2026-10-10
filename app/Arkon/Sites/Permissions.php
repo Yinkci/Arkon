@@ -14,6 +14,8 @@ final class Permissions
         'media.view',
         'media.upload',
         'form.view', 'form.edit', 'form.publish', 'form.manage', 'form.notifications', 'form.entries.view', 'form.entries.manage', 'form.entries.export',
+        // Categories, tags and other terms: editors may add terms; renaming or deleting one changes live content.
+        'term.create', 'term.manage',
     ];
 
     public const ROLES = ['owner', 'admin', 'editor', 'viewer'];
@@ -22,7 +24,7 @@ final class Permissions
         'owner' => self::ALL,
         'admin' => self::ALL,
         // Editors draft (including new pages, titles and URLs) but cannot change what is live.
-        'editor' => ['form.view', 'form.edit', 'page.view', 'page.create', 'page.edit', 'media.view', 'media.upload'],
+        'editor' => ['form.view', 'form.edit', 'page.view', 'page.create', 'page.edit', 'media.view', 'media.upload', 'term.create'],
         'viewer' => ['form.view', 'page.view', 'media.view'],
     ];
 

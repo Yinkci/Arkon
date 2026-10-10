@@ -1,5 +1,8 @@
 <?php
 
+use App\Arkon\Content\Taxonomies;
+use App\Http\Controllers\Admin\AiConnectionsController;
+use App\Http\Controllers\Admin\ContentAdminController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DesignController;
 use App\Http\Controllers\Admin\EditorController;
@@ -30,10 +33,15 @@ Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
 Route::middleware(['auth', 'admin.site'])->group(function () {
     Route::get('/admin', DashboardController::class)->name('admin');
     Route::get('/admin/pages', [PagesController::class, 'index']);
+    Route::get('/admin/posts', [PagesController::class, 'index'])->defaults('kind', 'post');
+    Route::get('/admin/posts/categories', [ContentAdminController::class, 'terms'])->defaults('taxonomy', 'category');
+    Route::get('/admin/posts/tags', [ContentAdminController::class, 'terms'])->defaults('taxonomy', 'tag');
     Route::get('/admin/media', [SiteOverviewController::class, 'media']);
     Route::get('/admin/seo/defaults', [SeoController::class, 'defaults']);
     Route::get('/admin/seo', [SiteOverviewController::class, 'seo']);
+    Route::get('/admin/settings/ai-connections', [AiConnectionsController::class, 'index']);
     Route::get('/admin/settings', [SiteOverviewController::class, 'settings']);
+    Route::get('/admin/settings/developer', [ContentAdminController::class, 'developer']);
     Route::get('/admin/design/components', [DesignController::class, 'show']);
     Route::get('/admin/performance', [DesignController::class, 'show']);
     Route::get('/admin/editor/{page}', [EditorController::class, 'show']);
@@ -52,6 +60,8 @@ Route::middleware(['auth', 'admin.site'])->group(function () {
     Route::get('/admin/components/{component}', [DesignController::class, 'component']);
 
     Route::prefix('admin/api')->group(function () {
+        Route::get('/ai-connections', [AiConnectionsController::class, 'state']);
+        Route::post('/ai-connections/{connection}/{action}', [AiConnectionsController::class, 'action'])->whereUuid('connection')->whereIn('action', ['check', 'test', 'disconnect'])->middleware('throttle:10,1');
         Route::post('/seo/defaults/save', [SeoController::class, 'save']);
         Route::post('/seo/defaults/publish', [SeoController::class, 'publish']);
         Route::get('/themes', [ThemesController::class, 'state']);
@@ -65,6 +75,13 @@ Route::middleware(['auth', 'admin.site'])->group(function () {
         Route::post('/media/usage', [BulkController::class, 'mediaUsage']);
         Route::post('/pages', [PageApiController::class, 'store']);
         Route::post('/pages/{page}/unpublish', [PageApiController::class, 'unpublish']);
+        Route::post('/pages/{page}/details', [ContentAdminController::class, 'details']);
+        Route::post('/terms/{taxonomy}', [ContentAdminController::class, 'createTerm'])->whereIn('taxonomy', array_keys(Taxonomies::all()));
+        Route::post('/terms/{taxonomy}/{term}', [ContentAdminController::class, 'updateTerm'])->whereIn('taxonomy', array_keys(Taxonomies::all()))->whereUuid('term');
+        Route::post('/terms/{taxonomy}/{term}/delete', [ContentAdminController::class, 'deleteTerm'])->whereIn('taxonomy', array_keys(Taxonomies::all()))->whereUuid('term');
+        // The member's own API tokens (Settings → Developer).
+        Route::post('/tokens', [ContentAdminController::class, 'createToken'])->middleware('throttle:20,1');
+        Route::post('/tokens/{token}/revoke', [ContentAdminController::class, 'revokeToken'])->whereUuid('token');
         Route::post('/pages/{page}/delete', [PageApiController::class, 'destroy']);
 
         Route::post('/pages/{page}/seo-analysis', [SeoController::class, 'analyze'])->middleware('throttle:120,1');

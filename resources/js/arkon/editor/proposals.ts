@@ -1,3 +1,4 @@
+import type { ProviderConnection } from '@/lib/aiProvider';
 // AI proposals in the editor: a proposal is a list of the editor's own operations based on a
 // specific saved draft version. These checks decide whether it may still be applied without
 // replacing anything the user did since (the server checks the same again on save).
@@ -39,6 +40,7 @@ export function proposalBlocker(state: EditorDocState, proposal: AiProposal, unr
 export interface AiRequestView {
     id: string;
     pageId: string;
+    provider?: string;
     source: 'panel' | 'mcp' | 'api';
     status: 'queued' | 'running' | 'proposed' | 'empty' | 'failed' | 'cancelled' | 'applied' | 'discarded' | 'pending';
     prompt: string;
@@ -49,10 +51,8 @@ export interface AiRequestView {
     proposal: AiProposal | null;
 }
 
-/** Readiness of the local Claude Code helper, as last reported to the server. */
-export interface AiConnection {
-    ready: boolean;
-    message: string;
+/** Readiness of the selected local AI helper, as last reported to the server. */
+export interface AiConnection extends ProviderConnection {
     claudeVersion: string | null;
     lastSeenAt: string | null;
 }

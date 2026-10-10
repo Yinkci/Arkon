@@ -13,12 +13,20 @@
             <directory>tests/Feature</directory>
         </testsuite>
     </testsuites>
+    <!-- Load tests (10,000 posts) run on request, with the "performance" group option. -->
+    <groups>
+        <exclude>
+            <group>performance</group>
+        </exclude>
+    </groups>
     <source>
         <include>
             <directory>app</directory>
         </include>
     </source>
     <php>
+        <!-- One process runs every test; image optimization checks memory headroom against this limit. -->
+        <ini name="memory_limit" value="512M"/>
         <env name="APP_ENV" value="testing" force="true"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>

@@ -9,7 +9,7 @@ class AiRevoke extends Command
 {
     protected $signature = 'arkon:ai-revoke {id : Connection id (see arkon:ai-connections)}';
 
-    protected $description = 'Revoke a paired Claude Code connection; its token stops working immediately';
+    protected $description = 'Revoke a paired AI connection; its token stops working immediately';
 
     public function handle(AiConnections $connections): int
     {

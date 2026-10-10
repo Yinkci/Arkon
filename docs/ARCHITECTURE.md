@@ -625,13 +625,13 @@ paid API path and no Anthropic SDK; Arkon never reads, stores or exports Claude'
   still edit. So a cancelled, superseded, expired (even before `recover()` has run), taken-over, revoked or
   de-authorised run can neither revive its lease nor land a late result, even if the runner ignores the request to
   stop; the runner itself stops at its next check (every 2 s) because the renewal fails. Revoking a connection
-  fences its running requests in the same transaction (lease cleared, back in the queue). An expired lease
-  (`lease_expires_at <= now()`) is recovered: back in the queue while attempts remain (the next claim gets a new
-  token), failing after 2 (`AI_INTERRUPTED`). Requests nobody picks up within 5 minutes fail (`AI_EXPIRED`). A newer
+  fences its running requests in the same transaction (lease cleared, request failed). An expired lease
+  (`lease_expires_at <= now()`) fails with `AI_INTERRUPTED`. Neither case automatically starts another model run;
+  the user must start a new request. Requests nobody picks up within 5 minutes fail (`AI_EXPIRED`). A newer
   panel request for the same page supersedes the user's waiting one. Cancel stops the running CLI process. The
   requester always stays the proposal's owner.
 - **Limits.** Requests per user per minute, per site per day, and queued+running per site; a run timeout (240 s); one
-  repair run; two attempts. These bound what Arkon starts. Claude Code enforces the subscription's own usage limits;
+  opt-in repair run. These bound what Arkon starts. The selected provider enforces the subscription's own usage limits;
   Arkon does not know the remaining allowance and makes no monetary claims. (The token budget of the removed API
   path is gone; `input_tokens`/`output_tokens` columns stay for the old rows.)
 - **The helper and the CLI** (`AiHelper`, `ClaudeCodeCli`). Started by the user (`php artisan arkon:ai-helper`) under
@@ -890,7 +890,7 @@ The website scope captures page, shared-component, token, form and settings vers
 
 ### Website generation activity and failure diagnostics
 
-Website workers record generation/validation/optional repair stages and heartbeats under the same valid lease as completion. The admin shows indeterminate activity, elapsed time, stale-heartbeat and failed-poll warnings, without inventing a percentage. Website requests opt out of automatic model repairs by default; the requester may explicitly allow one. Expired or disconnected website runs fail rather than requeue another model run, while page requests keep their bounded recovery. Future invalid website outputs retain up to 2 MiB of structured output privately plus bounded validation issues; status endpoints expose issues, never raw candidates or lease tokens. Old deleted outputs cannot be reconstructed. Website instructions include the shared block/design guidance and the actual nested update envelope, and opt-in repairs receive exact rule errors. Published rendering is unchanged.
+Website workers record generation/validation/optional repair stages and heartbeats under the same valid lease as completion. The admin shows indeterminate activity, elapsed time, stale-heartbeat and failed-poll warnings, without inventing a percentage. Website requests opt out of automatic model repairs by default; the requester may explicitly allow one. Expired or disconnected website runs fail rather than requeue another model run, and page requests now follow the same no-restart policy. Future invalid website outputs retain up to 2 MiB of structured output privately plus bounded validation issues; status endpoints expose issues, never raw candidates or lease tokens. Old deleted outputs cannot be reconstructed. Website instructions include the shared block/design guidance and the actual nested update envelope, and opt-in repairs receive exact rule errors. Published rendering is unchanged.
 
 ### Navigation and shared website layout
 
@@ -1035,3 +1035,32 @@ Page and component editors share the Forms pointer controller and preview-offset
 Page SEO remains inside the document and ordinary reversible operations. `SeoAnalysis` performs deterministic local HTML checks; the editor exposes a dedicated SEO tab and score. `SeoDashboard` keeps cached published analyses separate from current draft analyses. Global `site_seo_sets` drafts and immutable `site_seo_versions` snapshots publish through the per-site epoch and existing live-revision refresh queue. Renderer 8 records defaults and identity in render inputs; versions 1–7 stay unchanged. New heads include bounded escaped inert JSON-LD, explicit robots, social overrides and canonical overrides. Sitemap inclusion follows stored published robots/canonical values. Public visitors do not load SEO editor code or trigger analysis.
 
 SEO AI text and selected-image alt actions are compiled to the existing operations and checked against their declared scope on the server. Consecutive SEO changes are coalesced to match the editor’s exact save batch. No automatic publishing, indexing changes, slug changes or design/content rewriting. See [SEO_REVIEW.md](SEO_REVIEW.md) for weights, walkthrough, tests and remaining limits.
+
+
+## Content types, public API and AI actions
+
+See [ai-architecture.md](ai-architecture.md) for the full picture and the audit, and [api.md](api.md) for the API.
+
+- **One model.** Posts are pages of kind `post` (`pages.kind`, migration `2026_10_20_000001`); `ContentTypes` and
+  `Taxonomies` are code registries, so new kinds and taxonomies need no schema change. Excerpt, featured image and
+  terms (`page_terms`) are draft state; publishing records them in `publications.content_meta` with the featured
+  image as publication media (public with the post). `first_published_at` is the stable publish date. Pages lists,
+  the Dashboard, the Trash and AI website snapshots show `kind = 'page'` only.
+- **Shared write paths.** `PageManagement::writeDocumentLocked`, `FormService`, `MenuService` and `ComponentService`
+  `writeDraftLocked` are used by both the admin and the AI website application (which previously wrote these tables
+  itself and skipped `form.edit` and the notifications rule). `FormSubmissions` and `PageSeo` moved rules out of
+  controllers. `ContentItems` composes the services for one-request creates and updates (API and AI).
+- **Public API** (`routes/api.php`, `App\Http\Api`, `App\Http\Controllers\Api\V1`): stateless, site from the host,
+  personal access tokens (`api_tokens`, SHA-256 hashes, scopes ∩ role), one error envelope, ETags for anonymous reads,
+  named rate limiters. Routes and the OpenAPI document (`App\Http\Api\OpenApi`, `php artisan arkon:openapi`) come
+  from the registries; `ApiContractTest` keeps document, routes and responses in agreement.
+- **AI actions.** `ActionRegistry` (`CoreActions`) is the MCP tool allowlist; `Capabilities` is the capability map.
+- **Tests.** `ContentTest`, `PublicApiTest`, `ApiResourcesTest`, `ApiContractTest`, `HeadlessBlogReferenceTest`,
+  `AiActionsTest`, `AdminContentTest`, `e2e/posts.spec.ts`; the 10,000-post load test is opt-in
+  (`vendor/bin/phpunit --group performance`).
+
+## Multi-provider AI Connections
+
+Claude Code and Codex now use a shared provider registry, process transport and proposal workflow. User-owned ready connections, automatic single-provider selection, explicit choices when several are ready, provider-bound leases, native-login detection, status checks and scoped disconnect are described in [AI_CONNECTIONS.md](AI_CONNECTIONS.md). Existing Claude-specific details above describe its adapter and compatibility behavior, rather than a restriction to Claude only.
+
+AI routing ignores the retained ai_preferences table. Shared availability is workflow-aware and scoped to the current user/site. Automatic selections carry a provider hint and are checked again under the request site lock. Exact-key retries precede new selection checks and retain legacy fingerprints. Claims and outcomes require the helper user to own the request; interrupted page/website executions fail without another model attempt. Native authentication is rechecked at execution.

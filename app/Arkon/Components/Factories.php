@@ -22,6 +22,20 @@ final class Factories
         ];
     }
 
+    /** A new block of any registered type at its current version, with its defaults. */
+    public static function node(string $type, array $props = []): array
+    {
+        $definition = app(ComponentRegistry::class)->current($type);
+
+        return [
+            'id' => Operations::newNodeId(),
+            'type' => $definition->type,
+            'version' => $definition->version,
+            'props' => [...$definition->defaultProps, ...$props],
+            ...($definition->children === false ? [] : ['children' => []]),
+        ];
+    }
+
     /** @param list<array> $sections */
     public static function pageDocument(array $sections = []): array
     {

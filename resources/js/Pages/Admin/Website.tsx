@@ -1,3 +1,5 @@
+import { AiProviderPicker } from '@/Components/AiProviderPicker';
+import { selectedProvider, type ProviderConnection } from '@/lib/aiProvider';
 import { Head, Link } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { AdminPageHeader } from '@/Components/AdminPageHeader';
@@ -9,6 +11,7 @@ type ProposedPage = { id: string; title: string; path: string; existing: boolean
 type Proposal = {
     id: string;
     prompt: string;
+    provider: string;
     status: string;
     summary: string | null;
     error: string | null;
@@ -30,7 +33,7 @@ type Proposal = {
     } | null;
     applied: { pages: { id: string; title: string; path: string; version: number }[] } | null;
 };
-type Connection = { ready: boolean; message: string };
+type Connection = ProviderConnection;
 type Readiness = {
     ready: boolean;
     issues: string[];
@@ -41,6 +44,7 @@ export default function Website(props: { requests: Proposal[]; connection: Conne
     const [requests, setRequests] = useState(props.requests),
         [connection, setConnection] = useState(props.connection),
         [prompt, setPrompt] = useState(''),
+        [provider, setProvider] = useState<string | undefined>(undefined),
         [selected, setSelected] = useState<string | null>(props.requests[0]?.id ?? null),
         [index, setIndex] = useState(0),
         [screen, setScreen] = useState(1100),
@@ -51,7 +55,14 @@ export default function Website(props: { requests: Proposal[]; connection: Conne
         [pollError, setPollError] = useState(false),
         [now, setNow] = useState(Date.now()),
         [check, setCheck] = useState<Readiness | null>(null);
-    const requestAttempt = useRef<{ prompt: string; allowRepair: boolean; includeLayout: boolean; key: string } | null>(null),
+    const requestAttempt = useRef<{
+            prompt: string;
+            allowRepair: boolean;
+            includeLayout: boolean;
+            provider: string;
+            selectionMode: 'automatic' | 'explicit';
+            key: string;
+        } | null>(null),
         publishAttempt = useRef<{ id: string; key: string } | null>(null);
     const proposal = requests.find((r) => r.id === selected);
     const pending = requests.some((r) => r.status === 'queued' || r.status === 'running');
@@ -85,22 +96,52 @@ export default function Website(props: { requests: Proposal[]; connection: Conne
     const request = async () => {
         if (busy || pending || !prompt.trim()) return;
         setBusy(true);
-        const a =
-            requestAttempt.current?.prompt === prompt &&
-            requestAttempt.current.allowRepair === allowRepair &&
-            requestAttempt.current.includeLayout === includeLayout
-                ? requestAttempt.current
-                : { prompt, allowRepair, includeLayout, key: newRequestKey() };
-        requestAttempt.current = a;
         try {
+            let a = requestAttempt.current;
+            if (a && (a.prompt !== prompt || a.allowRepair !== allowRepair || a.includeLayout !== includeLayout)) {
+                setNotice('Confirm the previous request with its original brief and options before starting another task.');
+                return;
+            }
+            if (!a) {
+                const status = await api<{ requests: Proposal[]; connection: Connection }>('/website/requests');
+                if (!status.ok) {
+                    setNotice(status.message);
+                    return;
+                }
+                setConnection(status.data.connection);
+                const selected = selectedProvider(status.data.connection, provider);
+                if (!selected.ready || !selected.provider) {
+                    setNotice(selected.message);
+                    return;
+                }
+                a = {
+                    prompt,
+                    allowRepair,
+                    includeLayout,
+                    provider: selected.provider,
+                    selectionMode: provider ? 'explicit' : 'automatic',
+                    key: newRequestKey(),
+                };
+                requestAttempt.current = a;
+            }
             const r = await api<Proposal>('/website/requests', {
-                body: { prompt: a.prompt, allowRepair: a.allowRepair, includeLayout: a.includeLayout, requestKey: a.key },
+                body: {
+                    prompt: a.prompt,
+                    allowRepair: a.allowRepair,
+                    includeLayout: a.includeLayout,
+                    requestKey: a.key,
+                    provider: a.provider,
+                    selectionMode: a.selectionMode,
+                },
             });
             if (!r.ok) {
+                if (r.code !== 'INTERNAL') requestAttempt.current = null;
                 setNotice(r.message);
+                await refresh();
                 return;
             }
             requestAttempt.current = null;
+            setProvider(undefined);
             setSelected(r.data.id);
             setIndex(0);
             setCheck(null);
@@ -158,6 +199,7 @@ export default function Website(props: { requests: Proposal[]; connection: Conne
             setBusy(false);
         }
     };
+    const effectiveConnection = selectedProvider(connection, provider);
     return (
         <AdminLayout>
             <Head title="Build a website" />
@@ -167,8 +209,8 @@ export default function Website(props: { requests: Proposal[]; connection: Conne
                     description="Describe the site once. Review every page, apply editable drafts, then publish when ready."
                 />
                 <p className="flex items-center gap-2 text-xs text-muted">
-                    <span aria-hidden="true" className={`size-2 rounded-full ${connection.ready ? 'bg-live' : 'bg-draft'}`} />
-                    <span className={connection.ready ? 'text-fg' : ''}>{connection.message}</span>
+                    <span aria-hidden="true" className={`size-2 rounded-full ${effectiveConnection.ready ? 'bg-live' : 'bg-draft'}`} />
+                    <span className={effectiveConnection.ready ? 'text-fg' : ''}>{effectiveConnection.message}</span>
                 </p>
                 {notice && (
                     <Notice tone="info">
@@ -181,7 +223,14 @@ export default function Website(props: { requests: Proposal[]; connection: Conne
                             <Icon name="sparkle" className="size-4 text-ai" />
                             Website brief
                         </label>
+                        <AiProviderPicker
+                            connection={connection}
+                            value={provider}
+                            onChange={setProvider}
+                            disabled={busy || pending || !!requestAttempt.current}
+                        />
                         <textarea
+                            disabled={busy || pending || !!requestAttempt.current}
                             id="website-brief"
                             className="ui-input min-h-28 text-ui"
                             rows={4}
@@ -192,21 +241,31 @@ export default function Website(props: { requests: Proposal[]; connection: Conne
                         />
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                             <button
-                                disabled={busy || pending || !connection.ready || !prompt.trim()}
+                                disabled={busy || pending || (!effectiveConnection.ready && !requestAttempt.current) || !prompt.trim()}
                                 className={buttonClass('primary')}
                                 onClick={() => void request()}
                             >
                                 Prepare website proposal
                             </button>
-                            <span className="t-meta">Uses your Claude Code allowance. Creates no live changes.</span>
+                            <span className="t-meta">Uses your selected provider’s allowance. Creates no live changes.</span>
                         </div>
                         <label className="ui-check">
-                            <input type="checkbox" checked={includeLayout} disabled={busy || pending} onChange={(e) => setIncludeLayout(e.target.checked)} />
+                            <input
+                                type="checkbox"
+                                disabled={busy || pending || !!requestAttempt.current}
+                                checked={includeLayout}
+                                onChange={(e) => setIncludeLayout(e.target.checked)}
+                            />
                             Include shared header, navigation and footer
                         </label>
                         <label className="ui-check text-muted">
-                            <input type="checkbox" checked={allowRepair} disabled={busy || pending} onChange={(e) => setAllowRepair(e.target.checked)} />
-                            Allow one automatic repair if validation fails (uses additional Claude allowance).
+                            <input
+                                type="checkbox"
+                                disabled={busy || pending || !!requestAttempt.current}
+                                checked={allowRepair}
+                                onChange={(e) => setAllowRepair(e.target.checked)}
+                            />
+                            Allow one automatic repair if validation fails (uses additional provider allowance).
                         </label>
                     </section>
                 )}
@@ -226,7 +285,9 @@ export default function Website(props: { requests: Proposal[]; connection: Conne
                                 }}
                             >
                                 <span className="block line-clamp-2">{r.summary || r.prompt}</span>
-                                <span className="mt-1 block text-xs text-muted capitalize">{r.status}</span>
+                                <span className="mt-1 block text-xs text-muted capitalize">
+                                    {r.status} · {r.provider === 'codex' ? 'Codex' : r.provider === 'local' ? 'Local preparation' : 'Claude Code'}
+                                </span>
                             </button>
                         ))}
                     </aside>
@@ -275,15 +336,15 @@ export default function Website(props: { requests: Proposal[]; connection: Conne
                                                 : proposal.activity === 'checking'
                                                   ? 'Checking the generated pages against builder rules…'
                                                   : proposal.activity === 'repairing'
-                                                    ? 'Claude Code is correcting the validation issues…'
-                                                    : 'Claude Code is generating the website…'}
+                                                    ? 'The provider is correcting the validation issues…'
+                                                    : 'The provider is generating the website…'}
                                         </p>
                                         <div role="progressbar" aria-label="Website preparation progress" className="ui-activity" />
                                         <p className="text-xs text-muted t-num">
                                             Elapsed: {Math.floor(Math.max(0, now - Date.parse(proposal.startedAt || proposal.createdAt)) / 60000)}m{' '}
                                             {Math.floor(Math.max(0, now - Date.parse(proposal.startedAt || proposal.createdAt)) / 1000) % 60}s ·{' '}
                                             {proposal.status === 'queued'
-                                                ? connection.ready
+                                                ? selectedProvider(connection, proposal.provider).ready
                                                     ? 'Helper connected; waiting to start'
                                                     : 'Helper unavailable'
                                                 : proposal.heartbeatAt
@@ -294,7 +355,7 @@ export default function Website(props: { requests: Proposal[]; connection: Conne
                                         </p>
                                         <p className="t-meta">
                                             Generation → validation → review. This activity bar is not a completion percentage. A responding helper confirms the
-                                            process is running, not that Claude has finished.
+                                            process is running, not that generation has finished.
                                         </p>
                                     </div>
                                 )}

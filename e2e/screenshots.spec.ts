@@ -439,3 +439,30 @@ test('review screenshots (smaller screens)', async ({ page }) => {
         for (const action of ['Preview', 'Save draft', 'Publish']) await expect(page.getByRole('button', { name: action, exact: true })).toBeInViewport();
     }
 });
+
+test('review screenshots (posts, categories and the developer API)', async ({ page }) => {
+    test.setTimeout(180_000);
+    for (const theme of ['light', 'dark'] as const) {
+        const suffix = theme === 'dark' ? '-dark' : '';
+        await page.addInitScript((value) => localStorage.setItem('arkon.theme', value), theme);
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await page.goto('/admin/posts');
+        await page.getByRole('button', { name: 'New post', exact: true }).click();
+        await shot(page, `posts-list${suffix}`);
+        const form = page.getByRole('form', { name: 'New post' });
+        await form.getByLabel('Title').fill(`Seasonal planting guide ${theme}`);
+        await form.getByRole('button', { name: 'Create post' }).click();
+        await expect(page).toHaveURL(/\/admin\/editor\//);
+        await page.getByRole('button', { name: 'Page settings' }).click();
+        await expect(page.getByTestId('post-details')).toBeVisible();
+        await page.getByTestId('post-details').scrollIntoViewIfNeeded();
+        await shot(page, `post-details${suffix}`);
+        await page.goto('/admin/posts/categories');
+        await shot(page, `categories${suffix}`);
+        await page.goto('/admin/settings/developer');
+        await shot(page, `developer${suffix}`);
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.goto('/admin/settings/developer');
+        await shot(page, `developer-mobile${suffix}`);
+    }
+});

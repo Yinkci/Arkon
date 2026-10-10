@@ -13,7 +13,7 @@ class McpCommand extends Command
 {
     protected $signature = 'arkon:mcp';
 
-    protected $description = 'Arkon MCP server for Claude Code (stdio); authenticated by ARKON_MCP_TOKEN';
+    protected $description = 'Arkon MCP server for coding assistants (stdio); authenticated by ARKON_MCP_TOKEN';
 
     public function handle(): int
     {

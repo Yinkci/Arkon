@@ -44,6 +44,7 @@ test('one brief produces four editable pages with shared navigation and a workin
 
 test('website generation displays elapsed time and heartbeat, blocks duplicates, and shows exact failures', async ({ page }) => {
     let stage = 'generating';
+    let accepted = false;
     let offline = false;
     const proposal = () => ({
         id: '01a00000-0000-7000-8000-000000000001',
@@ -64,13 +65,30 @@ test('website generation displays elapsed time and heartbeat, blocks duplicates,
     await page.route('**/website/requests', async (route) => {
         if (route.request().method() === 'POST') {
             expect(route.request().postDataJSON().allowRepair).toBe(false);
+            expect(route.request().postDataJSON().provider).toBe('claude-code');
+            accepted = true;
             await route.fulfill({ json: { ok: true, data: proposal() } });
         } else {
             if (offline) {
                 await route.abort();
                 return;
             }
-            await route.fulfill({ json: { ok: true, data: { requests: [proposal()], connection: { ready: true, message: 'Helper connected' } } } });
+            await route.fulfill({
+                json: {
+                    ok: true,
+                    data: {
+                        requests: accepted ? [proposal()] : [],
+                        connection: {
+                            ready: true,
+                            selectionState: 'automatic',
+                            provider: 'claude-code',
+                            providerName: 'Claude Code',
+                            providers: [{ id: 'claude-code', name: 'Claude Code', ready: true }],
+                            message: 'Helper connected',
+                        },
+                    },
+                },
+            });
         }
     });
     await page.goto('/admin/website');

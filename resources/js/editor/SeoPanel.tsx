@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { seoColor } from '@/lib/seo';
 import { useEffect, useId, useRef, useState } from 'react';
 import rules from '../../arkon/rules.json';
@@ -73,6 +74,8 @@ export function SeoPanel({
     error,
     canEdit,
     canAsk,
+    providerName,
+    providerPicker,
     onChange,
     onAsk,
     media,
@@ -85,6 +88,8 @@ export function SeoPanel({
     error: string | null;
     canEdit: boolean;
     canAsk: boolean;
+    providerName: string;
+    providerPicker: ReactNode;
     onChange(ops: PageOperation[], key?: string): void;
     onAsk(prompt: string): void;
     media: MediaInfo[];
@@ -162,10 +167,11 @@ export function SeoPanel({
                 </p>
                 <p className="text-2xs text-muted">Checks recommended practices. Does not predict rankings or measure performance.</p>
                 {error && <p role="alert">{error}</p>}
+                {providerPicker}
                 <Button ref={improve} icon="sparkle" disabled={!canAsk} onClick={() => ask()}>
                     Improve SEO with AI
                 </Button>
-                <p className="text-2xs text-muted">Uses your paired Claude Code subscription. Review before applying; nothing is published.</p>
+                <p className="text-2xs text-muted">Uses {providerName}. Review before applying; nothing is published.</p>
             </PanelSection>
             <div className="px-4 py-3">
                 <Segmented<'search' | 'social' | 'advanced'>

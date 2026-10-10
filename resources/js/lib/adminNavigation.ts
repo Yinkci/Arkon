@@ -11,6 +11,8 @@ export interface AdminDestination {
 export const adminDestinations: AdminDestination[] = [
     { href: '/admin', label: 'Dashboard', group: 'Overview', icon: 'home', permission: 'page.view' },
     { href: '/admin/pages', label: 'Pages', group: 'Content', icon: 'pages', permission: 'page.view', matches: ['/admin/editor/'] },
+    { href: '/admin/posts', label: 'Posts', group: 'Content', icon: 'post', permission: 'page.view' },
+    { href: '/admin/posts/categories', label: 'Categories & tags', group: 'Content', icon: 'tag', permission: 'page.view', matches: ['/admin/posts/tags'] },
     { href: '/admin/media', label: 'Media library', group: 'Content', icon: 'image', permission: 'media.view' },
     { href: '/admin/forms', label: 'Forms', group: 'Content', icon: 'form', permission: 'page.view' },
     { href: '/admin/design', label: 'Global styles', group: 'Design', icon: 'palette', permission: 'page.view' },
@@ -27,7 +29,9 @@ export const adminDestinations: AdminDestination[] = [
     { href: '/admin/website', label: 'Build a website', group: 'AI', icon: 'sparkle', permission: 'page.edit' },
     { href: '/admin/seo', label: 'SEO overview', group: 'Site management', icon: 'globe', permission: 'page.view' },
     { href: '/admin/performance', label: 'Performance & updates', group: 'Site management', icon: 'cloud', permission: 'page.view' },
+    { href: '/admin/settings/ai-connections', label: 'AI Connections', group: 'Settings', icon: 'sparkle', permission: 'page.edit' },
     { href: '/admin/settings', label: 'Site settings', group: 'Site management', icon: 'sliders', permission: 'page.publish' },
+    { href: '/admin/settings/developer', label: 'Developer API', group: 'Site management', icon: 'key', permission: 'page.view' },
 ];
 export const visibleDestinations = (can: Record<string, boolean>) => adminDestinations.filter((item) => can[item.permission]);
 export function currentDestination(url: string) {

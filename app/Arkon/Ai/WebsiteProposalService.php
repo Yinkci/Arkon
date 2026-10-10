@@ -7,6 +7,7 @@ use App\Arkon\Components\ComponentRegistry;
 use App\Arkon\Components\DocumentValidator;
 use App\Arkon\Components\Factories;
 use App\Arkon\Database\Transactions;
+use App\Arkon\Design\ComponentService;
 use App\Arkon\Design\DesignResources;
 use App\Arkon\Design\TokenService;
 use App\Arkon\Errors\ArkonException;
@@ -18,6 +19,7 @@ use App\Arkon\Forms\FormService;
 use App\Arkon\Media\MediaService;
 use App\Arkon\Media\MediaSigner;
 use App\Arkon\Navigation\MenuService;
+use App\Arkon\Pages\PageManagement;
 use App\Arkon\Pages\PageStore;
 use App\Arkon\Renderer\PageRenderer;
 use App\Arkon\Schema\Operations;
@@ -37,22 +39,16 @@ final class WebsiteProposalService
 {
     public function __construct(private readonly Authorizer $auth, private readonly Transactions $tx, private readonly ProposalLedger $ledger, private readonly AiConnections $connections, private readonly ProposalCompiler $compiler, private readonly ProposalSchema $schema, private readonly ProposalPrompt $prompts, private readonly PageStore $store, private readonly ComponentRegistry $registry, private readonly DocumentValidator $validator, private readonly AuditLog $audit) {}
 
-    private function helperStatus(string $siteId): array
+    private function helperStatus(SiteContext $ctx): array
     {
-        $status = $this->connections->helperStatus($siteId);
-        if ($status['ready'] && $status['websiteProtocol'] < 3) {
-            $status['ready'] = false;
-            $status['message'] = 'The helper has old website code loaded. Stop it with Ctrl+C, then restart php artisan arkon:ai-helper before sending another website request.';
-        }
-
-        return $status;
+        return $this->connections->forContext($ctx, 'website_proposal');
     }
 
     public function snapshot(SiteContext $ctx, bool $localLayout = false): array
     {
         $this->auth->authorize($ctx, 'page.edit');
         $pages = [];
-        foreach (DB::table('pages as p')->join('page_drafts as d', 'd.page_id', '=', 'p.id')->where('p.site_id', $ctx->siteId)->whereNull('p.deleted_at')->orderBy('p.id')->get(['p.id', 'p.title', 'p.path', 'd.version', 'd.document']) as $p) {
+        foreach (DB::table('pages as p')->join('page_drafts as d', 'd.page_id', '=', 'p.id')->where('p.site_id', $ctx->siteId)->where('p.kind', 'page')->whereNull('p.deleted_at')->orderBy('p.id')->get(['p.id', 'p.title', 'p.path', 'd.version', 'd.document']) as $p) {
             if (! $localLayout && count($pages) >= 30) {
                 throw new ValidationException('Website requests support sites with up to 30 pages. Use the page editor for larger sites.');
             }
@@ -171,8 +167,8 @@ final class WebsiteProposalService
 
     public function request(SiteContext $ctx, array $input): array
     {
-        $v = Input::validate($input, ['prompt' => ['required', 'string', 'max:6000'], 'requestKey' => Input::requestKeyRule(), 'allowRepair' => ['sometimes', 'boolean'], 'includeLayout' => ['sometimes', 'boolean']]);
-        $fp = Fingerprint::of(['kind' => 'website.request', 'prompt' => $v['prompt'], ...(! empty($v['allowRepair']) ? ['allowRepair' => true] : []), ...(isset($v['includeLayout']) && ! $v['includeLayout'] ? ['includeLayout' => false] : [])]);
+        $v = Input::validate($input, ['prompt' => ['required', 'string', 'max:6000'], 'requestKey' => Input::requestKeyRule(), 'allowRepair' => ['sometimes', 'boolean'], 'includeLayout' => ['sometimes', 'boolean'], 'provider' => ['sometimes', 'string', 'in:claude-code,codex'], 'selectionMode' => ['sometimes', 'string', 'in:automatic,explicit']]);
+        $fp = Fingerprint::of(['kind' => 'website.request', ...(isset($v['provider']) ? ['provider' => $v['provider']] : []), ...(isset($v['selectionMode']) ? ['selectionMode' => $v['selectionMode']] : []), 'prompt' => $v['prompt'], ...(! empty($v['allowRepair']) ? ['allowRepair' => true] : []), ...(isset($v['includeLayout']) && ! $v['includeLayout'] ? ['includeLayout' => false] : [])]);
 
         return $this->tx->run(function () use ($ctx, $v, $fp) {
             $this->auth->authorize($ctx, 'page.edit');
@@ -188,22 +184,19 @@ final class WebsiteProposalService
             if (DB::table('ai_proposals')->where('site_id', $ctx->siteId)->where('created_by', $ctx->userId)->where('scope', 'website')->whereIn('status', ['queued', 'running'])->exists()) {
                 throw new ConflictException('A website request is already in progress. Wait or cancel it before starting another.');
             }
-            $ready = $this->helperStatus($ctx->siteId);
-            if (! $ready['ready']) {
-                throw new AiException(AiException::HELPER_OFFLINE, $ready['message']);
-            }
+            $provider = $this->connections->selectForRequest($ctx, $v, 'website_proposal');
             $this->ledger->checkLimits($ctx, true);
             $snapshot = $this->snapshot($ctx);
             $snapshot['allowRepair'] = (bool) ($v['allowRepair'] ?? false);
             $snapshot['includeLayout'] = (bool) ($v['includeLayout'] ?? true);
-            $id = $this->ledger->insert(['scope' => 'website', 'website_snapshot' => Json::encode($snapshot), 'site_id' => $ctx->siteId, 'created_by' => $ctx->userId, 'source' => 'panel', 'page_id' => array_key_first($snapshot['pages']), 'base_version' => 1, 'request_key' => $v['requestKey'], 'request_fingerprint' => $fp, 'prompt' => $v['prompt'], 'status' => 'queued', 'provider' => 'claude-code', 'model' => (string) (config('arkon.ai.model') ?: 'default')]);
+            $id = $this->ledger->insert(['scope' => 'website', 'website_snapshot' => Json::encode($snapshot), 'site_id' => $ctx->siteId, 'created_by' => $ctx->userId, 'source' => 'panel', 'page_id' => array_key_first($snapshot['pages']), 'base_version' => 1, 'request_key' => $v['requestKey'], 'request_fingerprint' => $fp, 'prompt' => $v['prompt'], 'status' => 'queued', 'provider' => $provider, 'model' => (string) (config('arkon.ai.model') ?: 'default')]);
             $this->audit->forContext($ctx, 'website.ai.request', 'site', $ctx->siteId, ['request' => $id]);
 
             return $this->view($this->row($ctx, $id));
         }, isolation: 'REPEATABLE READ');
     }
 
-    public function execute(object $claim, ClaudeRunner $runner, ?callable $alive = null): string
+    public function execute(object $claim, AiRunner $runner, ?callable $alive = null): string
     {
         $ctx = new SiteContext($claim->site_id, $claim->created_by, 'ai');
         try {
@@ -238,7 +231,7 @@ final class WebsiteProposalService
                 }
                 try {
                     if (! is_array($completion->output)) {
-                        throw new ValidationException('Claude returned no website object.');
+                        throw new ValidationException('The provider returned no website object.');
                     }
                     $result = $this->compile($snapshot, $completion->output);
                     break;
@@ -348,7 +341,7 @@ final class WebsiteProposalService
             }
             $compiled = $this->compile($snapshot, $v['proposal']);
             $this->ledger->checkLimits($ctx, false);
-            $id = $this->ledger->insert(['scope' => 'website', 'website_snapshot' => Json::encode($snapshot), 'website_result' => Json::encode($compiled), 'summary' => $compiled['summary'], 'site_id' => $ctx->siteId, 'created_by' => $ctx->userId, 'source' => 'mcp', 'connection_id' => $connectionId, 'page_id' => array_key_first($snapshot['pages']), 'base_version' => 1, 'request_key' => $v['requestKey'], 'request_fingerprint' => $fingerprint, 'prompt' => $v['prompt'], 'status' => 'proposed', 'provider' => 'claude-code', 'model' => 'vscode']);
+            $id = $this->ledger->insert(['scope' => 'website', 'website_snapshot' => Json::encode($snapshot), 'website_result' => Json::encode($compiled), 'summary' => $compiled['summary'], 'site_id' => $ctx->siteId, 'created_by' => $ctx->userId, 'source' => 'mcp', 'connection_id' => $connectionId, 'page_id' => array_key_first($snapshot['pages']), 'base_version' => 1, 'request_key' => $v['requestKey'], 'request_fingerprint' => $fingerprint, 'prompt' => $v['prompt'], 'status' => 'proposed', 'provider' => $this->connections->providerForConnection($connectionId), 'model' => 'vscode']);
             $this->audit->forContext($ctx, 'website.ai.propose', 'site', $ctx->siteId, ['proposal' => $id, 'via' => 'mcp']);
 
             return $this->view($this->row($ctx, $id));
@@ -585,23 +578,24 @@ final class WebsiteProposalService
                 throw new StaleVersionException($snapshot['tokenVersion'], TokenService::draftVersion($ctx->siteId));
             }
             // A newly added page after generation also invalidates this broad site proposal.
-            $ids = DB::table('pages')->where('site_id', $ctx->siteId)->whereNull('deleted_at')->orderBy('id')->pluck('id')->all();
+            $ids = DB::table('pages')->where('site_id', $ctx->siteId)->where('kind', 'page')->whereNull('deleted_at')->orderBy('id')->pluck('id')->all();
             if ($ids !== array_keys($snapshot['pages'])) {
                 throw new ConflictException('The site’s page list changed. Ask for a new website proposal.');
             }
+            // Every resource is written through its own service's write primitive, so the AI
+            // application obeys the same permissions, validation and audit as the admin screens.
+            // AI-made content applied by this member: revisions and audit entries say "ai".
+            $ai = new SiteContext($ctx->siteId, $ctx->userId, 'ai');
             if (isset($result['menu'])) {
                 $m = $result['menu'];
+                MenuService::lockSite($ctx->siteId);
                 $old = DB::table('site_menus')->where('site_id', $ctx->siteId)->where('id', $m['id'])->lockForUpdate()->first();
                 if ((int) ($old?->version ?? 0) !== $m['baseVersion']) {
                     throw new StaleVersionException($m['baseVersion'], (int) ($old?->version ?? 0));
                 }
                 if ($m['changed']) {
-                    $values = ['name' => $m['definition']['name'], 'draft' => Json::encode($m['definition']), 'version' => $m['baseVersion'] + 1];
-                    if ($old) {
-                        DB::table('site_menus')->where('id', $m['id'])->update($values);
-                    } else {
-                        DB::table('site_menus')->insert(['id' => $m['id'], 'site_id' => $ctx->siteId, ...$values]);
-                    }
+                    // Its target pages may be created below; they are checked once they exist.
+                    app(MenuService::class)->writeDraftLocked($ai, $old, $m['id'], $m['definition']);
                 }
             }
             foreach ($result['shared'] as $slot => $r) {
@@ -610,14 +604,11 @@ final class WebsiteProposalService
                     throw new StaleVersionException($r['version'], (int) ($old?->version ?? 0));
                 }
                 if ($r['changed']) {
-                    ThemeService::assertAdditions($ctx->siteId, $old ? $this->registry->migrateDocument(Json::decode($old->draft)) : null, $r['document']);
-                    $values = ['name' => ucfirst($slot), 'draft' => Json::encode($r['document']), 'version' => $r['version'] + 1, 'updated_by' => $ctx->userId, 'updated_at' => DB::raw('now()')];
-                    if ($old) {
-                        DB::table('reusable_components')->where('id', $r['id'])->update($values);
-                    } else {
-                        DB::table('reusable_components')->insert(['id' => $r['id'], 'site_id' => $ctx->siteId, 'created_by' => $ctx->userId, ...$values]);
-                    }
+                    app(ComponentService::class)->writeDraftLocked($ai, $old, $r['id'], ucfirst($slot), $r['document']);
                 }
+            }
+            if ($snapshot['form']['version'] > 0 || $result['form']) {
+                FormService::lockSite($ctx->siteId);
             }
             if ($snapshot['form']['version'] > 0) {
                 $form = DB::table('site_forms')->where('site_id', $ctx->siteId)->where('id', $snapshot['form']['id'])->lockForUpdate()->first();
@@ -630,35 +621,15 @@ final class WebsiteProposalService
                 $old = DB::table('site_forms')->where('site_id', $ctx->siteId)->where('id', $f['id'])->lockForUpdate()->first();
                 if ((int) ($old?->version ?? 0) !== $f['baseVersion']) {
                     throw new StaleVersionException($f['baseVersion'], (int) ($old?->version ?? 0));
-                }$values = ['name' => $f['definition']['name'], 'draft' => Json::encode($f['definition']), 'version' => $f['baseVersion'] + 1];
-                if ($old) {
-                    DB::table('site_forms')->where('id', $f['id'])->update($values);
-                } else {
-                    DB::table('site_forms')->insert(['id' => $f['id'], 'site_id' => $ctx->siteId, ...$values]);
                 }
+                app(FormService::class)->writeDraftLocked($ai, $old, $f['id'], $f['definition']);
             }
             $applied = ['menu' => isset($result['menu']) ? ['id' => $result['menu']['id'], 'version' => $result['menu']['baseVersion'] + ($result['menu']['changed'] ? 1 : 0)] : null, 'pages' => [], 'shared' => [], 'form' => $result['form'] ? ['id' => $result['form']['id'], 'version' => $result['form']['baseVersion'] + 1] : ($snapshot['form']['version'] > 0 ? ['id' => $snapshot['form']['id'], 'version' => $snapshot['form']['version']] : null), 'tokenVersion' => $snapshot['tokenVersion'], 'replayed' => false];
             if ($result['tokenChanges'] !== []) {
                 $applied['tokenVersion'] = app(TokenService::class)->applyChangesLocked($ctx, $result['tokenChanges'], $snapshot['tokenVersion'], $id);
             }
             foreach ($result['pages'] as $p) {
-                $this->auth->authorize($ctx, $p['existing'] ? 'page.edit' : 'page.create');
-                $this->store->assertPathAvailable($ctx->siteId, $p['path'], $p['existing'] ? $p['id'] : null);
-                $this->store->validateForSave($ctx->siteId, $p['document']);
-                ThemeService::assertAdditions($ctx->siteId, $p['existing'] ? $snapshot['pages'][$p['id']]['document'] : null, $p['document']);
-                if (! $p['existing']) {
-                    DB::table('pages')->insert(['id' => $p['id'], 'site_id' => $ctx->siteId, 'title' => $p['title'], 'path' => $p['path'], 'created_by' => $ctx->userId]);
-                } else {
-                    DB::table('pages')->where('id', $p['id'])->update(['title' => $p['title'], 'path' => $p['path']]);
-                }
-                $revision = $this->store->insertRevision(new SiteContext($ctx->siteId, $ctx->userId, 'ai'), $p['id'], $p['document'], $p['title'], $p['path'], 'Applied website proposal');
-                $version = $p['baseVersion'] + 1;
-                $values = ['document' => Json::encode($p['document']), 'version' => $version, 'checkpoint_revision_id' => $revision['id'], 'checkpoint_version' => $version, 'last_save_key' => null, 'last_save_fingerprint' => null, 'updated_by' => $ctx->userId, 'updated_at' => DB::raw('now()')];
-                if ($p['existing']) {
-                    DB::table('page_drafts')->where('page_id', $p['id'])->update($values);
-                } else {
-                    DB::table('page_drafts')->insert(['page_id' => $p['id'], 'site_id' => $ctx->siteId, ...$values]);
-                }
+                $version = app(PageManagement::class)->writeDocumentLocked($ai, $p['id'], $p['title'], $p['path'], $p['document'], $p['baseVersion'], 'Applied website proposal', $p['existing'] ? $snapshot['pages'][$p['id']]['document'] : null);
                 $applied['pages'][] = ['id' => $p['id'], 'title' => $p['title'], 'path' => $p['path'], 'version' => $version];
             }
             foreach ($result['shared'] as $slot => $r) {
@@ -685,7 +656,7 @@ final class WebsiteProposalService
         $this->auth->authorize($ctx, 'page.view');
         $this->ledger->recover($ctx->siteId);
 
-        return ['requests' => DB::table('ai_proposals')->where('site_id', $ctx->siteId)->where('created_by', $ctx->userId)->where('scope', 'website')->orderByDesc('created_at')->limit(20)->get()->map(fn ($r) => $this->view($r))->all(), 'connection' => $this->helperStatus($ctx->siteId)];
+        return ['requests' => DB::table('ai_proposals')->where('site_id', $ctx->siteId)->where('created_by', $ctx->userId)->where('scope', 'website')->orderByDesc('created_at')->limit(20)->get()->map(fn ($r) => $this->view($r))->all(), 'connection' => $this->helperStatus($ctx)];
     }
 
     public function status(SiteContext $ctx, string $id): array
@@ -772,7 +743,7 @@ final class WebsiteProposalService
 
     private function view(object $r): array
     {
-        return ['id' => $r->id, 'prompt' => $r->prompt, 'status' => $r->status, 'summary' => $r->summary, 'error' => $r->error_message === "The AI's proposal doesn't fit this page's rules, so nothing was changed. Try rephrasing the request." ? 'The generated website failed validation. Nothing was changed. This older request did not retain the detailed errors or output.' : $r->error_message, 'issues' => $r->validation_issues ? Json::decode($r->validation_issues) : [], 'activity' => $r->activity, 'createdAt' => Carbon::parse($r->created_at)->toIso8601String(), 'startedAt' => $r->started_at ? Carbon::parse($r->started_at)->toIso8601String() : null, 'heartbeatAt' => $r->heartbeat_at ? Carbon::parse($r->heartbeat_at)->toIso8601String() : null, 'resolvedAt' => $r->resolved_at ? Carbon::parse($r->resolved_at)->toIso8601String() : null, 'candidateSaved' => $r->website_candidate !== null, 'result' => $r->website_result ? Json::decode($r->website_result) : null, 'applied' => ($a = DB::table('website_applications')->where('proposal_id', $r->id)->first()) ? Json::decode($a->result) : null];
+        return ['id' => $r->id, 'provider' => $r->provider, 'prompt' => $r->prompt, 'status' => $r->status, 'summary' => $r->summary, 'error' => $r->error_message === "The AI's proposal doesn't fit this page's rules, so nothing was changed. Try rephrasing the request." ? 'The generated website failed validation. Nothing was changed. This older request did not retain the detailed errors or output.' : $r->error_message, 'issues' => $r->validation_issues ? Json::decode($r->validation_issues) : [], 'activity' => $r->activity, 'createdAt' => Carbon::parse($r->created_at)->toIso8601String(), 'startedAt' => $r->started_at ? Carbon::parse($r->started_at)->toIso8601String() : null, 'heartbeatAt' => $r->heartbeat_at ? Carbon::parse($r->heartbeat_at)->toIso8601String() : null, 'resolvedAt' => $r->resolved_at ? Carbon::parse($r->resolved_at)->toIso8601String() : null, 'candidateSaved' => $r->website_candidate !== null, 'result' => $r->website_result ? Json::decode($r->website_result) : null, 'applied' => ($a = DB::table('website_applications')->where('proposal_id', $r->id)->first()) ? Json::decode($a->result) : null];
     }
 
     private function asPage(array $doc): array

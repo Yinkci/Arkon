@@ -10,7 +10,7 @@ class AiConnectionsCommand extends Command
 {
     protected $signature = 'arkon:ai-connections';
 
-    protected $description = 'List paired Claude Code connections (helper and MCP)';
+    protected $description = 'List paired AI connections (helper and MCP)';
 
     public function handle(AiConnections $connections): int
     {
