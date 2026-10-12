@@ -216,7 +216,8 @@ final class ProposalCompiler
                     }
                     $overrides[$screen][$property] = $v;
                 }
-                $props[$key] = $overrides;
+                // No overrides is an empty object (a document stores objects here, never lists).
+                $props[$key] = $overrides === [] ? new stdClass : $overrides;
             }
             if (($fields[$key]['type'] ?? null) === 'style' && Json::isList($value)) {
                 $props[$key] = $this->applyStyle(Json::toArray($current[$key] ?? []), $value);
@@ -271,11 +272,20 @@ final class ProposalCompiler
             case 'seo':
                 $field = $change['field'] ?? '';
                 $value = $change['value'] ?? null;
-                if (! in_array($field, ['title', 'description', 'focusTopic', 'socialTitle', 'socialDescription'], true) || ! is_string($value)) {
-                    throw new ProposalProblem('Use an editable SEO text field');
+                // Every page SEO setting the builder edits; values are checked by document validation (rules.json seo).
+                $fields = Rules::get('seo');
+                if (! isset($fields[$field]) || ! is_string($value)) {
+                    throw new ProposalProblem('Use an editable SEO field');
                 }
+                if ($fields[$field]['type'] === 'boolean') {
+                    if (! in_array($value, ['true', 'false'], true)) {
+                        throw new ProposalProblem("SEO {$field} is true or false");
+                    }
+                    $value = $value === 'true';
+                }
+                $before = Json::entries($doc['seo'])[$field] ?? '(default)';
 
-                return [['op' => 'updateSeo', 'set' => [$field => $value]], 'SEO '.$field.': '.(Json::entries($doc['seo'])[$field] ?? '(default)').' → '.$value];
+                return [['op' => 'updateSeo', 'set' => [$field => $value]], 'SEO '.$field.': '.(is_bool($before) ? ($before ? 'true' : 'false') : $before).' → '.(is_bool($value) ? ($value ? 'true' : 'false') : $value)];
             case 'add':
                 $parentId = $this->parent($doc, $change['parent'] ?? null);
                 $children = $nodes[$parentId]['children'];

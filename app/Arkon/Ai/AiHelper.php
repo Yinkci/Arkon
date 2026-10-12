@@ -2,6 +2,9 @@
 
 namespace App\Arkon\Ai;
 
+use App\Arkon\Ai\Images\GeneratedImageImporter;
+use App\Arkon\Ai\Images\ImageGenerator;
+use App\Arkon\Ai\Images\ImageJobs;
 use App\Arkon\Sites\Membership;
 use App\Arkon\Sites\Permissions;
 use App\Arkon\Support\Json;
@@ -12,6 +15,8 @@ use Illuminate\Support\Facades\Log;
  * The local helper's work, one step at a time (the artisan command loops over tick()):
  * report readiness, recover interrupted runs, lease the next queued request of the helper's
  * site, run the selected provider for it, and keep the connection alive while the provider works.
+ * An image-capable provider also reports image readiness separately and, when no proposal is
+ * waiting, generates the next queued image of a proposal under review.
  */
 final class AiHelper
 {
@@ -30,7 +35,11 @@ final class AiHelper
     public function status(bool $force = false): RunnerStatus
     {
         if ($force || $this->status === null || microtime(true) - $this->checkedAt > $this->recheckSeconds) {
-            $this->status = $this->runner->check();
+            $status = $this->runner->check();
+            if ($this->runner instanceof ImageGenerator) {
+                $status = $status->withImages($status->ready ? $this->runner->imageStatus($status) : new RunnerStatus(false, $status->code, $status->message));
+            }
+            $this->status = $status;
             $this->checkedAt = microtime(true);
         }
 
@@ -99,7 +108,7 @@ final class AiHelper
         }
         $claim = $this->proposals->claimNext($connection);
         if ($claim === null) {
-            return null;
+            return $this->runner instanceof ImageGenerator && $status->images?->ready ? $this->image($connection, $say) : null;
         }
         // Native login can change after a readiness report. Recheck without a model call before execution.
         $status = $this->status(force: true);
@@ -121,5 +130,33 @@ final class AiHelper
         }
 
         return $outcome;
+    }
+
+    /** The next queued generated image of this helper's site, if any: generated, validated and imported. */
+    private function image(object $connection, callable $say): ?string
+    {
+        $jobs = app(ImageJobs::class);
+        $job = $jobs->claimNext($connection);
+        if ($job === null) {
+            return null;
+        }
+        // Readiness may have changed since the last report; recheck without a model call first.
+        $status = $this->status(force: true);
+        $this->connections->heartbeat($connection->id, $status);
+        if (! $status->images?->ready) {
+            DB::table('ai_image_jobs')->where('id', $job->id)->where('lease_token', $job->lease_token)
+                ->update(['status' => 'failed', 'error_code' => $status->images?->code ?? 'IMAGE_GENERATION_UNAVAILABLE', 'error_message' => $status->images?->message ?? 'Image generation is unavailable.', 'lease_token' => null, 'lease_expires_at' => null, 'completed_at' => DB::raw('now()')]);
+
+            return 'failed';
+        }
+        $started = microtime(true);
+        $say("Generating image {$job->asset_id} for proposal {$job->proposal_id} (attempt {$job->attempts})");
+        /** @var ImageGenerator $generator */
+        $generator = $this->runner;
+        $outcome = $jobs->execute($job, $generator, app(GeneratedImageImporter::class), fn () => $this->connections->heartbeat($connection->id, $status));
+        Log::info('AI image finished', ['provider' => $job->provider, 'job' => $job->id, 'outcome' => $outcome, 'durationMs' => (int) ((microtime(true) - $started) * 1000)]);
+        $say("Image {$job->asset_id}: {$outcome}");
+
+        return 'image_'.$outcome;
     }
 }

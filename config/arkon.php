@@ -63,12 +63,46 @@ return [
         // Empty: claude.exe on PATH, then ~/.local/bin, then the newest VS Code extension binary.
         'claude_command' => env('ARKON_CLAUDE_COMMAND'),
         'codex_command' => env('ARKON_CODEX_COMMAND'),
+        // Image generation through the signed-in Codex CLI (ChatGPT account). Off until the site owner
+        // has approved and passed one real test: `codex exec` does not report where it saves images, so
+        // Arkon reads the file Codex writes to its own generated_images/<thread>/ folder. See docs/AI_SETUP.md.
+        'codex_image_generation' => (bool) env('ARKON_CODEX_IMAGE_GENERATION', false),
+        // One image generation is stopped after this long.
+        'image_timeout_seconds' => (int) env('ARKON_AI_IMAGE_TIMEOUT', 300),
         'codex_helper_token_file' => env('ARKON_CODEX_HELPER_TOKEN_FILE') ?: storage_path('app/private/ai-helper-codex.token'),
         // Optional model alias for the helper's runs (sonnet, opus, ...); empty uses Claude Code's default.
         'model' => env('ARKON_AI_MODEL'),
         'min_claude_version' => '2.1.259',
-        // One Claude Code run (including a repair run) is stopped after this long.
+        // One provider run that is not part of a staged website request (page editor proposals, a repair run).
         'run_timeout_seconds' => (int) env('ARKON_AI_RUN_TIMEOUT', 240),
+        // Website requests run in stages (plan, then shared layout and each page side by side). Measured on a
+        // ChatGPT-account Codex (October 2026): ~12 s fixed cost per call, then ~40 output tokens a second;
+        // a plan ~10 s, a full page (3,000+ tokens) ~75 s. Each limit is about twice the slowest healthy run,
+        // so a stalled model stream is stopped and reported instead of holding the request for minutes.
+        'website_stages' => (bool) env('ARKON_AI_WEBSITE_STAGES', true),
+        // Ceilings for one step. Stuck runs are caught much sooner by the signals below; a ceiling only bounds a
+        // reply that is still legitimately being written (measured October 2026: steps take 10-35 s).
+        'stage_timeouts' => ['plan' => 120, 'layout' => 240, 'page' => 240, 'section' => 180, 'revision' => 240],
+        // A model stream with no frame for this long has stopped (Codex frame trace; the longest normal gap
+        // measured was 6 s, during reasoning).
+        'stream_idle_seconds' => (int) env('ARKON_AI_STREAM_IDLE', 60),
+        // A reply that writes this many whitespace characters in a row has degenerated (it would otherwise run to
+        // the step's ceiling). Replies are compact JSON, so normal replies have almost none (measured: 0); a pretty-
+        // printed reply indents by under 40. Measured: ~1 in 25 steps ran away and was retried successfully.
+        'runaway_whitespace' => 400,
+        // A reply longer than this (compact JSON) has run away without whitespace (measured: normal steps write
+        // 0.5-5.3k characters; one ran to 48k until its ceiling).
+        'runaway_chars' => 20000,
+        // A step that failed without a usable reply (runaway or stalled stream, lost connection, never started,
+        // ceiling) is retried this many times, that step only; invalid replies and other failures never are.
+        'stage_retries' => (int) env('ARKON_AI_STAGE_RETRIES', 1),
+        // New pages are built this many planned sections per run (shorter replies; see WebsiteStages).
+        'page_section_chunk' => (int) env('ARKON_AI_PAGE_SECTION_CHUNK', 2),
+        'stage_concurrency' => (int) env('ARKON_AI_STAGE_CONCURRENCY', 3),
+        // A provider that has not begun its model turn after this long has not started: fail fast.
+        'startup_timeout_seconds' => 60,
+        // Safety ceiling for one whole website request (all stages); stages have their own limits.
+        'website_ceiling_seconds' => (int) env('ARKON_AI_WEBSITE_CEILING', 900),
         // A running request is leased to one helper; the lease is renewed while Claude works.
         'lease_seconds' => 45,
         // Interrupted runs fail; a new model attempt requires a new user request.

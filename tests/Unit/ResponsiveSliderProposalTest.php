@@ -30,6 +30,20 @@ class ResponsiveSliderProposalTest extends TestCase
         $this->assertSame('inherit', $props['responsive']['tablet']['interval']);
     }
 
+    public function test_an_empty_responsive_list_on_a_section_stays_a_valid_document(): void
+    {
+        // Models send responsive: [] for "no overrides"; it was stored as a list and rejected the whole proposal.
+        $doc = app(PatternLibrary::class)->document(['agency-hero']);
+        $section = collect($doc['nodes'])->first(fn ($n) => isset(Json::entries($n['props'])['responsive']) && $n['type'] !== 'slider');
+        $this->assertNotNull($section, 'a non-slider block with responsive settings');
+        $reply = ['summary' => 'No overrides', 'notes' => [], 'tokenChanges' => [], 'changes' => [
+            ['action' => 'update', 'change' => ['id' => $section['id'], 'type' => $section['type'], 'props' => ['responsive' => []]]],
+            ['action' => 'add', 'parent' => 'page', 'index' => null, 'ref' => null, 'block' => ['type' => 'section', 'props' => ['responsive' => []]]],
+        ]];
+        $result = app(ProposalCompiler::class)->compile($doc, $reply, [], 20);
+        $this->assertTrue(Json::isObject($result['document']['nodes'][$section['id']]['props']['responsive'] ?? new \stdClass));
+    }
+
     public function test_ai_cannot_bypass_slider_rules_through_responsive_settings(): void
     {
         foreach ([['screen' => 'mobile', 'property' => 'interval', 'value' => '999'], ['screen' => 'desktop', 'property' => 'arrows', 'value' => 'false'], ['screen' => 'mobile', 'property' => 'script', 'value' => 'bad']] as $bad) {

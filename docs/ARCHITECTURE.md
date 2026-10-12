@@ -1064,3 +1064,84 @@ See [ai-architecture.md](ai-architecture.md) for the full picture and the audit,
 Claude Code and Codex now use a shared provider registry, process transport and proposal workflow. User-owned ready connections, automatic single-provider selection, explicit choices when several are ready, provider-bound leases, native-login detection, status checks and scoped disconnect are described in [AI_CONNECTIONS.md](AI_CONNECTIONS.md). Existing Claude-specific details above describe its adapter and compatibility behavior, rather than a restriction to Claude only.
 
 AI routing ignores the retained ai_preferences table. Shared availability is workflow-aware and scoped to the current user/site. Automatic selections carry a provider hint and are checked again under the request site lock. Exact-key retries precede new selection checks and retain legacy fingerprints. Claims and outcomes require the helper user to own the request; interrupted page/website executions fail without another model attempt. Native authentication is rechecked at execution.
+
+## Website revisions and generated images
+
+- **Revisions** (`WebsiteRevisions`, migration `2026_10_22_000001`): `ai_proposals.parent_id` and `revision` record the
+  parent and target (`section | page | website`). The snapshot keeps the database state the result applies to;
+  `baseline` is the parent's result (unapplied) or null (applied: the latest drafts). Section and page revisions use a
+  narrow reply format; `assertScope` refuses any change outside the target, whatever the model was told. `conflict()`
+  reports a changed baseline in the review; apply keeps its version checks.
+- **Image capability** is reported separately from text (`RunnerStatus::$images`, heartbeat `imageGeneration`,
+  `AiConnections::forContext($ctx, 'image_generation')`, website protocol 4). Requests with an explicit generation
+  intent (`ImageIntent`, rules shared with TypeScript in `resources/arkon/ai-images.json`) need `images: generate |
+  library`; the image connection is selected under the same no-default, no-switching policy as text.
+- **Generated images**: the layout reserves asset ids; `attachImages` binds each placed id to a structured
+  `ImageSpec`; `ai_image_jobs` (unique asset id) are leased to the image helper (`ImageJobs`, `ImageGenerator`,
+  `CodexCli`), and `GeneratedImageImporter` imports through `MediaService::importGenerated` (same checks, private
+  storage, WebP variants, `media_assets.source/provenance`). Apply refuses missing images unless `withoutMissingImages`.
+- **Builder parity**: scope selects where, not what kind of change. `WebsiteRevisions::resources()` captures the forms
+  and reusable components a section or page shows (with versions); revisions edit them, plus page title, URL and every
+  SEO setting. Forms change through `FormChanges` (form-editor edits on the stored definition; ids kept; the original
+  format is kept when nothing newer is used). Notification recipients are human-only (`FormChanges::HUMAN_ONLY`; a
+  proposal carrying different ones is refused). `impacts()` lists other pages showing a changed form or component;
+  applying a revision with impacts needs `confirmShared`. `AiBuilderParityTest` fails when the builder gains a
+  setting AI cannot propose. Website protocol 5.
+- **Claude Code command line**: `SchemaCompactor::windowsCommandLength()` counts escaped quotes;
+  `loosenToFit()` relaxes the largest block property schemas for Claude only, until the command line fits.
+- **Tests**: `WebsiteRevisionsTest` (acceptance scenario and regressions), `CodexImageGenerationTest`, `ImageIntentTest`,
+  `AiBuilderParityTest`, `SchemaCompactorTest`, `imageIntent.test.ts`.
+
+## Staged website generation and provider runs
+
+- **Why** (investigated October 2026): a basic About page failed after 240 s; Arkon's own work took under a second.
+  First attributed to a stalled model stream; disproved later the same month. With Codex's websocket frames traced, the
+  failing step ("create services page, with hero too", Services 1/2; the same input failed 2 of 2 in Arkon and 1 of 1
+  directly) was streaming the whole time: after valid content the reply degenerated into an endless run of whitespace
+  (`"     \t     \n"` repeated; 9,400+ characters and growing at 60 s). `codex exec --json` reports nothing until the
+  message is complete, so it looked like silence. Compact single-line JSON made that step finish 4 of 4 times, but a
+  Home page step still ran away in 3 of 3 four-page requests. Its reply showed the cause: the model finished
+  `proposal.changes` (`…}]}`) while the schema still required `seo` after it, could not close the object, and padded
+  with whitespace. `SchemaOrder` moves bulky properties last (only bulk: sorting all keys by size also reordered small
+  keys like `action`/`parent`/`ref` and made the model mislabel blocks, 3 of 10 runs); with it the Home step finished
+  6 of 6 times. A rarer runaway without whitespace (48k characters) is bounded by `runaway_chars`.
+- **Stream monitoring** (`CodexRun`): Codex runs with `RUST_LOG=warn,tungstenite::protocol=trace`; `CliRun` streams
+  stderr to `CodexRun`, which counts received frames (liveness, `stream_idle_seconds`), measures whitespace runs in the
+  reply (`runaway_whitespace` → `PROVIDER_RUNAWAY_OUTPUT`) and reports activity. Frame contents (reply text, and the
+  prompt in sent frames as hex) are never stored: `CodexRun::withoutFrames` drops every traced entry with its
+  continuation lines before anything is logged. Without a trace, the startup watchdog and the step ceiling apply.
+- **Timeouts**: startup (no model turn, 60 s), stream inactivity (60 s without a frame), runaway reply (400 whitespace
+  characters in a row, or over 20,000 characters), step ceiling (`stage_timeouts`: 2-4 min), request ceiling (15 min). Runaway, stalled, not
+  started, connection lost and ceiling are retried once, that step only (`StageExecutor::TRANSIENT`).
+- **Stages** (`WebsiteStages`, `StageExecutor`, `StageProgress`): plan → shared layout and pages (new pages in section
+  chunks) side by side → per-page checks → the usual compile. Per-step limits, one automatic retry of a step that got
+  no reply (`StageExecutor::TRANSIENT`), per-page validation with targeted repair, `stage_cache` for Resume
+  (`WebsiteProposalService::resume`), `progress` and `diagnostics` on `ai_proposals` (migration `2026_10_23_000001`),
+  website protocol 6.
+- **Process runs** (`CliProcess`, `CliRun`, `PendingRun`, `CodexRun`, `CallbackRun`, `StagedRunner`): started runs are
+  polled, so independent steps run in parallel; the Codex watchdog fails a run whose model turn never starts; every
+  run is traced (`RunTrace`). Timeouts and cancellation stop the whole process tree.
+- **Fixes found on the way**: the compiler stored `responsive: []` as a list (rejected whole proposals); the compactor
+  wrote `"$defs": []` (Claude Code rejected the schema).
+- **Tests**: `WebsiteStagesTest`, `CodexCliTest` (watchdog, reconnects), `SchemaCompactorTest`,
+  `ResponsiveSliderProposalTest`.
+
+## Website proposals: shared layout form and the readiness gate
+
+- **Shared layout form** (investigated October 2026, "Reusable component … is invalid" in a revision preview): the
+  snapshot holds the shared header and footer page-shaped so the model can edit them (`WebsiteProposalService::asPage`);
+  a result always holds them as reusable components (root `fragment`). `WebsiteRevisions::baseResult()`, the starting
+  point of a revision of an applied proposal, copied the snapshot form into the result. It now converts
+  (`WebsiteRevisions::asComponent`), and `componentForm()` reads results stored before the fix the same way (the
+  conversion is deterministic; nothing stored is rewritten). Apply only writes shared layout marked changed, so saved
+  components were never affected.
+- **Readiness gate** (`assertPreviewable`, called by `finishProposal`): after an encode/decode round trip, every shared
+  layout and changed component must pass pinned fragment validation and every page must render with the resources its
+  preview uses (`renderPage`, shared with `preview`). Otherwise the run fails with the validator's issues: a proposal
+  that cannot be previewed is never "ready" and never offers Apply.
+- **Preview boundary** (`WebsiteController::preview`): a failing preview returns a plain "Preview unavailable" page
+  with the issues (422 for invalid content, 500 otherwise), never the framework's error page; the exception is logged
+  and the class is shown only in debug mode.
+- **`php artisan arkon:validate-content [--site=]`**: read-only scan of components, page drafts, page → component
+  references and stored website proposals. No repair mode.
+- **Tests**: `WebsiteRevisionsTest` (heading revision of an applied website with shared layout, the gate, the boundary).

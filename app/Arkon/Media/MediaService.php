@@ -9,6 +9,7 @@ use App\Arkon\Sites\Authorizer;
 use App\Arkon\Sites\Membership;
 use App\Arkon\Sites\Permissions;
 use App\Arkon\Sites\SiteContext;
+use App\Arkon\Support\Json;
 use App\Arkon\Support\Uuid;
 use Illuminate\Support\Facades\DB;
 
@@ -40,6 +41,31 @@ class MediaService
     /** @return array{id: string, url: string, width: int, height: int, mime: string, bytes: int, originalName: string} */
     public function upload(SiteContext $ctx, string $data, string $originalName): array
     {
+        return $this->store($ctx, $data, $originalName);
+    }
+
+    /**
+     * A generated image, through exactly the upload pipeline (type and size checks, private storage,
+     * responsive variants), under the asset id reserved for its placement and with its provenance.
+     * Importing the same reserved id twice returns the existing asset: it is never generated or stored again.
+     *
+     * @param  array{title: string, alt: string, description: string, provenance: array}  $meta
+     */
+    public function importGenerated(SiteContext $ctx, string $id, string $data, string $originalName, array $meta): array
+    {
+        if (! Uuid::isValid($id)) {
+            throw new ValidationException('A generated image needs its reserved asset id.');
+        }
+        $existing = DB::table('media_assets')->where('site_id', $ctx->siteId)->where('id', $id)->first();
+        if ($existing) {
+            return ['id' => $id, 'url' => self::url($existing->storage_key), 'width' => (int) $existing->width, 'height' => (int) $existing->height, 'mime' => $existing->mime, 'bytes' => (int) $existing->bytes, 'originalName' => $existing->original_name, 'optimizationWarning' => null, 'replayed' => true];
+        }
+
+        return $this->store($ctx, $data, $originalName, $id, $meta);
+    }
+
+    private function store(SiteContext $ctx, string $data, string $originalName, ?string $reservedId = null, ?array $meta = null): array
+    {
         $this->authorizer->authorize($ctx, 'media.upload');
         $bytes = strlen($data);
         if ($bytes === 0) {
@@ -63,13 +89,13 @@ class MediaService
             throw new ValidationException('This image is '.$width.' × '.$height.' px. Maximum dimensions are '.$policy['maxDimension'].' × '.$policy['maxDimension'].' px and '.$policy['maxPixels'].' total pixels.');
         }
 
-        $id = Uuid::v7();
+        $id = $reservedId ?? Uuid::v7();
         $storageKey = "{$id}.{$type['ext']}";
         $name = mb_substr((string) preg_replace('/[^\w.\- ]+/u', '_', $originalName), 0, 200);
         $name = $name === '' ? 'image' : $name;
         $this->storage->put($storageKey, $data);
 
-        $this->transactions->run(function () use ($ctx, $id, $storageKey, $type, $bytes, $width, $height, $name) {
+        $this->transactions->run(function () use ($ctx, $id, $storageKey, $type, $bytes, $width, $height, $name, $meta) {
             DB::table('media_assets')->insert([
                 'id' => $id,
                 'site_id' => $ctx->siteId,
@@ -79,10 +105,11 @@ class MediaService
                 'width' => $width,
                 'height' => $height,
                 'original_name' => $name,
-                'title' => $name,
+                'title' => $meta === null ? $name : mb_substr($meta['title'], 0, 200),
                 'created_by' => $ctx->userId,
+                ...($meta === null ? [] : ['alt_text' => mb_substr($meta['alt'], 0, 300), 'description' => mb_substr($meta['description'], 0, 1000), 'source' => 'ai-generated', 'provenance' => Json::encode($meta['provenance'])]),
             ]);
-            $this->audit->forContext($ctx, 'media.upload', 'media', $id, ['bytes' => $bytes, 'mime' => $type['mime']]);
+            $this->audit->forContext($ctx, $meta === null ? 'media.upload' : 'media.generate', 'media', $id, ['bytes' => $bytes, 'mime' => $type['mime']]);
         });
         // Responsive sizes. Best effort: without them the original is served (`arkon:media-variants` retries).
         $optimizationWarning = null;

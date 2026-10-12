@@ -175,11 +175,11 @@ test('website override updates status and SEO shares the editor provider selecti
     };
     await page.route('**/admin/api/website/requests', (route) => route.fulfill({ json: { ok: true, data: { requests: [], connection } } }));
     await page.goto('/admin/website');
-    await page.getByLabel('website brief', { exact: false }).fill('Create a contact page');
-    await expect(page.getByRole('button', { name: 'Prepare website proposal' })).toBeDisabled({ timeout: 15000 });
+    await page.getByLabel('What would you like to build?').fill('Create a contact page');
+    await expect(page.getByRole('button', { name: 'Generate proposal' })).toBeDisabled({ timeout: 15000 });
     await page.getByLabel('AI provider for this task').selectOption('codex');
-    await expect(page.getByRole('button', { name: 'Prepare website proposal' })).toBeEnabled();
-    await expect(page.locator('main')).toContainText('Codex is connected');
+    await expect(page.getByRole('button', { name: 'Generate proposal' })).toBeEnabled();
+    await expect(page.getByTestId('ai-status')).toContainText('Codex ready');
     let websiteProvider: string | undefined;
     await page.route('**/admin/api/website/requests', async (route) => {
         if (route.request().method() === 'POST') {
@@ -187,7 +187,7 @@ test('website override updates status and SEO shares the editor provider selecti
             await route.fulfill({ json: { ok: false, code: 'TEST', message: 'Test stopped before generation.' } });
         } else await route.fulfill({ json: { ok: true, data: { requests: [], connection } } });
     });
-    await page.getByRole('button', { name: 'Prepare website proposal' }).click();
+    await page.getByRole('button', { name: 'Generate proposal' }).click();
     await expect.poll(() => websiteProvider).toBe('codex');
     const id = await createPage('/provider-seo-regression', 'Provider SEO regression');
     await page.route('**/admin/api/pages/' + id + '/ai/requests', async (route) => {
@@ -227,9 +227,9 @@ test('sole Codex is automatic and an uncertain website request keeps its identit
         else await route.continue();
     });
     await page.goto('/admin/website');
-    await expect(page.locator('main')).toContainText('Using Codex.', { timeout: 15000 });
+    await expect(page.getByTestId('ai-status')).toContainText('Codex ready', { timeout: 15000 });
     await expect(page.getByLabel('AI provider for this task')).toHaveCount(0);
-    await page.getByLabel('Website brief').fill('Make a contact page');
+    await page.getByLabel('What would you like to build?').fill('Make a contact page');
     const attempts: Record<string, unknown>[] = [];
     await page.route('**/admin/api/website/requests', async (route) => {
         if (route.request().method() === 'GET') {
@@ -250,13 +250,13 @@ test('sole Codex is automatic and an uncertain website request keeps its identit
             await route.abort();
         } else await route.fulfill({ json: { ok: false, code: 'TEST', message: 'Confirmed original request in fixture.' } });
     });
-    await page.getByRole('button', { name: 'Prepare website proposal' }).click();
+    await page.getByRole('button', { name: 'Generate proposal' }).click();
     await expect(page.locator('main')).toContainText('Request could not be confirmed');
     await expect(page.getByRole('link', { name: 'Connect an AI' })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByRole('button', { name: 'Prepare website proposal' })).toBeEnabled();
-    await page.getByRole('button', { name: 'Prepare website proposal' }).click();
+    await expect(page.getByRole('button', { name: 'Generate proposal' })).toBeEnabled();
+    await page.getByRole('button', { name: 'Generate proposal' }).click();
     await expect.poll(() => attempts.length).toBe(2);
     expect(attempts[1]).toEqual(attempts[0]);
     expect(attempts[0]).toMatchObject({ provider: 'codex', selectionMode: 'automatic' });
-    await expect(page.getByRole('button', { name: 'Prepare website proposal' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Generate proposal' })).toBeDisabled();
 });

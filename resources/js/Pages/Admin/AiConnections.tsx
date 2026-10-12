@@ -24,10 +24,19 @@ type Provider = {
     checking: boolean;
     testPending: boolean;
     testResult: { ok: boolean; message: string } | null;
+    imageGeneration?: { ready: boolean; code: string | null; message: string } | null;
 };
 type State = { providers: Provider[]; email: string };
 type Action = 'check' | 'test' | 'disconnect';
 type Feedback = { tone: 'success' | 'error' | 'info'; message: string };
+
+/** Image generation is reported separately from page and website generation; never assumed. */
+function imageCapability(p: Provider) {
+    if (p.id !== 'codex') return { ready: false, text: 'Not supported by ' + p.name };
+    if (!p.ready) return { ready: false, text: 'Unavailable until the helper is connected' };
+    if (!p.imageGeneration) return { ready: false, text: 'Not reported. Restart the helper to check image generation.' };
+    return { ready: p.imageGeneration.ready, text: p.imageGeneration.ready ? 'Available' : p.imageGeneration.message };
+}
 
 function statusLabel(p: Provider) {
     if (p.checking && p.state !== 'disconnected') return 'Checking connection…';
@@ -273,6 +282,12 @@ export default function AiConnections(props: State) {
                                                 {p.id === 'codex' ? 'OpenAI coding agent · ChatGPT account' : 'Local coding assistant · Claude subscription'}
                                             </p>
                                             <Status provider={p} uncertain={stale} />
+                                            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs" aria-label={`${p.name} capabilities`}>
+                                                <dt className="text-muted">Pages and websites</dt>
+                                                <dd className={p.ready ? 'text-fg' : 'text-muted'}>{p.ready ? 'Available' : 'Unavailable'}</dd>
+                                                <dt className="text-muted">Image generation</dt>
+                                                <dd className={imageCapability(p).ready ? 'text-fg' : 'text-muted'}>{imageCapability(p).text}</dd>
+                                            </dl>
                                         </div>
                                     </div>
                                     <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">

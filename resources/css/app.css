@@ -182,6 +182,93 @@
     color-scheme: dark;
 }
 
+/*
+ * Dark workspace chrome (Build a website): the screen header, the preview toolbar and the AI panel stay dark in
+ * both themes, like the navigation rail, so the chrome frames the website being previewed instead of competing
+ * with it. It is the dark theme's own palette, scoped — no second set of colours and no second set of
+ * components: every shared class (.ui-input, .ui-check, Button, StatusPill) reads these variables and renders
+ * dark inside it. The surface is dark-2, a step below the rail's dark-3, so the two never merge into one block,
+ * and controls sit one step lighter again.
+ */
+.ak-workspace-dark {
+    /* A tool panel, not an admin sheet: it leaves .ak-comfortable for the builder's dense scale (13px body,
+       12px meta, 32px controls), which is what makes it read as part of the workspace rather than a form. */
+    --ak-d-section: var(--text-base);
+    --ak-d-section-lh: var(--text-base--line-height);
+    --ak-d-body: var(--text-ui);
+    --ak-d-body-lh: var(--text-ui--line-height);
+    --ak-d-meta: var(--text-xs);
+    --ak-d-meta-lh: var(--text-xs--line-height);
+    --ak-d-label: var(--text-xs);
+    --ak-control-h: 2rem;
+    --ak-control-px: 0.75rem;
+    --ak-control-text: var(--text-ui);
+    --ak-canvas: var(--ak-dark-1);
+    --ak-panel-pad: 0.875rem;
+    --ak-surface: var(--ak-dark-2);
+    --ak-raised: var(--ak-dark-3);
+    --ak-sunken: var(--ak-dark-1);
+    --ak-hover: rgb(255 255 255 / 0.055);
+    --ak-line: var(--ak-dark-4);
+    --ak-line-strong: var(--ak-dark-6);
+    --ak-fg: #ededed;
+    --ak-muted: #a8a8a8;
+    --ak-faint: #858585;
+    /* Primary actions invert on dark, as in the dark theme: a light button with graphite text. */
+    --ak-ink: #ededed;
+    --ak-ink-hover: #ffffff;
+    --ak-ink-fg: var(--ak-dark-2);
+    --ak-accent: #8ea1ff;
+    --ak-accent-hover: #a9b7ff;
+    --ak-accent-fg: var(--ak-dark-2);
+    --ak-accent-soft: #2b3152;
+    --ak-accent-line: #46519a;
+    --ak-live: #55c792;
+    --ak-live-soft: #1f3329;
+    --ak-changed: #efb04d;
+    --ak-changed-soft: #3a2f1c;
+    --ak-danger: #f48078;
+    --ak-danger-soft: #3f2626;
+    --ak-ai: #b8a2ff;
+    --ak-ai-soft: #332b4d;
+    --ak-site: #63c9d2;
+    --ak-site-soft: #1e3638;
+    --ak-draft: #959595;
+    --ak-shadow: 0 1px 1.5px rgb(12 12 12 / 0.45);
+    --ak-shadow-raise: 0 1px 2px rgb(12 12 12 / 0.45), 0 0 0 1px rgb(255 255 255 / 0.06);
+    --ak-shadow-pop: 0 16px 40px -8px rgb(12 12 12 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.08);
+    --ak-ring: 0 0 0 3px rgb(142 161 255 / 0.25);
+    color-scheme: dark;
+}
+/*
+ * The AI panel adds the one saturated colour of the workspace: its primary action is violet (white on it 4.6:1),
+ * which marks the AI's own action and keeps it apart from Publish, the site action, which stays the light button.
+ */
+.ak-ai-panel {
+    --ak-ink: #7a5cf0;
+    --ak-ink-hover: #8e75f7;
+    --ak-ink-fg: #ffffff;
+    /* Panel controls, the system's 28px step, not the 32px one pages use. */
+    --ak-control-h: 1.75rem;
+    --ak-control-px: 0.625rem;
+    --ak-control-text: var(--text-xs);
+}
+/* Each band of the panel: one padding, one left edge (see docs/ADMIN_DESIGN_SYSTEM.md). */
+.ak-ai-panel .ak-band {
+    padding: var(--ak-panel-pad);
+}
+.ak-ai-panel .ak-band-x {
+    padding-inline: var(--ak-panel-pad);
+}
+/* The panel's primary action: violet when it can be used, a flat grey step when it cannot (never a faded violet,
+   which reads as "broken" rather than "nothing to send yet"). */
+.ak-ai-panel .ui-action:disabled {
+    background-color: var(--ak-dark-4);
+    color: var(--ak-faint);
+    opacity: 1;
+    box-shadow: none;
+}
+
 @theme inline {
     --color-canvas: var(--ak-canvas);
     --color-surface: var(--ak-surface);
@@ -748,4 +835,3 @@ html.ak-dragging * {
         display: inline;
     }
 }
-

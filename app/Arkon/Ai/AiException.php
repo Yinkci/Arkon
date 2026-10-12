@@ -50,7 +50,27 @@ class AiException extends ArkonException
 
     public const STALE_PROPOSAL = 'STALE_PROPOSAL';
 
+    /** A revision would change something outside its selected section, page or website scope. */
+    public const SCOPE_EXCEEDED = 'SCOPE_EXCEEDED';
+
+    /** The brief asks for a generated image; the user must choose to generate or continue without. */
+    public const IMAGE_CHOICE_REQUIRED = 'IMAGE_CHOICE_REQUIRED';
+
+    /** Image generation was chosen but no connection can generate images now. */
+    public const IMAGE_GENERATION_UNAVAILABLE = 'IMAGE_GENERATION_UNAVAILABLE';
+
+    /** Generated images the proposal places are not (yet) in the media library. */
+    public const IMAGES_INCOMPLETE = 'IMAGES_INCOMPLETE';
+
+    /** A revision changes a form or shared component other pages show; applying needs that confirmed. */
+    public const SHARED_CHANGE_UNCONFIRMED = 'SHARED_CHANGE_UNCONFIRMED';
+
     private const STATUS = [
+        self::SHARED_CHANGE_UNCONFIRMED => 409,
+        self::SCOPE_EXCEEDED => 422,
+        self::IMAGE_CHOICE_REQUIRED => 409,
+        self::IMAGE_GENERATION_UNAVAILABLE => 409,
+        self::IMAGES_INCOMPLETE => 409,
         self::HELPER_OFFLINE => 503,
         self::RATE_LIMITED => 429,
         self::LIMIT_REACHED => 429,

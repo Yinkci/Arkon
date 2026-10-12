@@ -85,6 +85,50 @@ hooks, in an empty temporary folder, with the prompt on stdin and an environment
 or any API key. What Claude is told: the site name, the page title and URL, the page's blocks and their text, the
 ids/alt/sizes of images already on the page, the component catalogue and your request.
 
+## Image generation (Codex)
+
+Claude Code cannot generate images. The Codex CLI (signed in with your ChatGPT account) has a built-in image
+generation feature, and Arkon can use it through the Codex helper (`php artisan arkon:ai-helper --provider=codex`).
+It is **off by default**, for one reason: `codex exec --json` does not report where an image is saved. Arkon reads the
+file Codex itself writes to `%USERPROFILE%\.codex\generated_images\<thread id>\` (only the folder of its own run,
+only files written during that run). That location is not a documented interface and has changed in some Codex
+releases, so it must be verified on your computer with one real generation before it is relied on.
+
+What stays the same with images on: the run is still `codex exec` with `--sandbox read-only`, no user config or rules,
+no session files, and shell, patching, apps, skills and web search off. Only `features.image_generation` is turned
+on. The model gets no file access. No API key or separate billing is used; image generation counts against your
+ChatGPT plan's Codex limits.
+
+To enable it, after approving one test generation:
+
+1. Add `ARKON_CODEX_IMAGE_GENERATION=true` to `.env`.
+2. Restart the Codex helper (Ctrl+C, then `php artisan arkon:ai-helper --provider=codex`).
+3. **AI Connections** shows *Image generation: Available* for Codex. If Codex finishes without saving an image file,
+   the image fails with "no generated image file was found" and nothing else happens; turn the setting off again.
+
+## Timing, limits and diagnostics
+
+Each AI call of a website request is one short step with its own limit (`config/arkon.php` → `ai.stage_timeouts`,
+`ai.stage_retries`, `ai.page_section_chunk`, `ai.website_ceiling_seconds`). Every call writes an `AI provider run`
+entry to `storage/logs/laravel.log`: step, outcome, seconds, time to first output, longest silence, token usage and a
+timeline of provider events (no prompt text). Set `ARKON_AI_PROVIDER_DEBUG=1` in the helper's environment to let
+Codex log its network activity to that entry as well; leave it off normally.
+
+Codex is run with bounded connection retries (`features.unbounded_connection_retries=false`) and asked for compact
+JSON. `codex exec --json` prints nothing while the model writes its reply, so Arkon also runs Codex with a trace of
+its model stream (`RUST_LOG=tungstenite::protocol=trace`): Arkon only counts and times those frames, to tell a reply
+being written from a stopped one (`ai.stream_idle_seconds`) and to stop a runaway reply (`ai.runaway_whitespace`).
+The frames contain the prompt and the reply; they live in a temporary file deleted after the run and are never
+logged — the `AI provider run` entry records only counts and timings under `stream`.
+
+## Claude Code on Windows: the command-line limit
+
+Claude Code receives the reply format on its command line, and Windows allows 32,767 characters with every double
+quote escaped (about one extra character per quote). Arkon measures that exactly. When the full format does not fit,
+Claude gets a looser guide for the largest block types (their properties become a plain object; the instructions still
+list every property) and Arkon validates every reply exactly as before. Codex reads the format from a file and always
+gets the full format.
+
 ## Troubleshooting
 
 | The AI tab / helper says | Do this |
@@ -98,6 +142,9 @@ ids/alt/sizes of images already on the page, the component catalogue and your re
 | "Your Claude subscription's usage limit has been reached" | Wait until it resets (Claude Code's own limit; Arkon cannot see your remaining allowance). |
 | "did not finish within 240 seconds" | Ask for less at once, or raise `ARKON_AI_RUN_TIMEOUT`. |
 | "The draft changed while this request was waiting" | Ask again (proposals are always based on the saved draft). |
+| "This helper is running older Arkon code. Restart it" | Stop the helper (Ctrl+C) and start it again; revisions and image jobs need the current code. |
+| "Image generation through Codex is turned off in Arkon" | See [Image generation (Codex)](#image-generation-codex). |
+| "No connection can generate images" | Start the Codex helper with image generation enabled, or continue without generated images. |
 | VS Code: `arkon` tools missing / "not paired or was revoked" | Pair again with `--mcp` and re-run the printed `claude mcp add` (after `claude mcp remove arkon`). |
 
 Arkon limits how often requests start (5 per user per minute, 100 per site per day, 2 queued or running per site;

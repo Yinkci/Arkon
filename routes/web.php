@@ -103,6 +103,8 @@ Route::middleware(['auth', 'admin.site'])->group(function () {
         Route::post('/website/requests', [WebsiteController::class, 'store'])->middleware('throttle:10,1');
         Route::post('/website/{proposal}/apply', [WebsiteController::class, 'apply']);
         Route::post('/website/{proposal}/discard', [WebsiteController::class, 'discard']);
+        Route::post('/website/{proposal}/resume', [WebsiteController::class, 'resume'])->middleware('throttle:10,1');
+        Route::post('/website/images/{asset}/retry', [WebsiteController::class, 'retryImage'])->middleware('throttle:10,1');
         Route::get('/website/{proposal}/readiness', [WebsiteController::class, 'readiness']);
         Route::post('/website/{proposal}/publish', [WebsiteController::class, 'publish']);
         Route::post('/navigation/save', [NavigationController::class, 'save']);

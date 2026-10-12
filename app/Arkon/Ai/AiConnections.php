@@ -21,6 +21,9 @@ use Illuminate\Support\Facades\DB;
  */
 final class AiConnections
 {
+    /** Helpers report the website protocol they run; staged website runs, form edits, revisions and image jobs need protocol 6 (restart older helpers). */
+    public const WEBSITE_PROTOCOL = 6;
+
     public function __construct(private readonly Membership $membership, private readonly ProposalLedger $ledger) {}
 
     /** @return array{id: string, token: string} */
@@ -74,7 +77,7 @@ final class AiConnections
 
     public function heartbeat(string $id, RunnerStatus $status): void
     {
-        DB::table('ai_connections')->where('id', $id)->whereNull('revoked_at')->update(['last_seen_at' => DB::raw('now()'), 'status' => Json::encode([...$status->toArray($this->providerForConnection($id)), 'websiteProtocol' => 3])]);
+        DB::table('ai_connections')->where('id', $id)->whereNull('revoked_at')->update(['last_seen_at' => DB::raw('now()'), 'status' => Json::encode([...$status->toArray($this->providerForConnection($id)), 'websiteProtocol' => self::WEBSITE_PROTOCOL])]);
     }
 
     public function touch(string $id): void
@@ -116,6 +119,7 @@ final class AiConnections
                 default => (string) ($status['message'] ?? 'The helper is starting.'),
             },
             'websiteProtocol' => (int) ($status['websiteProtocol'] ?? 0),
+            'imageGeneration' => $fresh ? ($status['imageGeneration'] ?? null) : null,
             'claudeVersion' => $status['claudeVersion'] ?? null,
             'lastSeenAt' => $row?->last_seen_at,
         ];
@@ -138,9 +142,17 @@ final class AiConnections
         $providers = [];
         foreach (ProviderRegistry::definitions() as $id => $definition) {
             $status = $this->helperStatus($ctx->siteId, $id, $ctx->userId);
-            if (! in_array($capability, $definition['capabilities'], true) || ($status['ready'] && $capability === 'website_proposal' && $status['websiteProtocol'] < 3)) {
+            if (! in_array($capability, $definition['capabilities'], true)) {
                 $status['ready'] = false;
-                $status['message'] = 'This helper needs an update before it can handle this task. Restart its provider-specific helper.';
+                $status['message'] = $capability === 'image_generation' ? $definition['name'].' cannot generate images.' : 'This task is not supported by '.$definition['name'].'.';
+            } elseif ($status['ready'] && in_array($capability, ['website_proposal', 'image_generation'], true) && $status['websiteProtocol'] < self::WEBSITE_PROTOCOL) {
+                $status['ready'] = false;
+                $status['message'] = 'This helper is running older Arkon code. Restart it (Ctrl+C, then php artisan arkon:ai-helper'.($id === 'claude-code' ? '' : ' --provider='.$id).') to use this task.';
+            } elseif ($capability === 'image_generation' && $status['ready']) {
+                $images = $status['imageGeneration'] ?? null;
+                $status['ready'] = ($images['ready'] ?? false) === true;
+                $status['message'] = $status['ready'] ? (string) $images['message'] : (string) ($images['message'] ?? 'This helper did not report image generation.');
+                $status['code'] = $images['code'] ?? null;
             }
             $providers[] = [...$definition, ...$status];
         }
@@ -152,7 +164,8 @@ final class AiConnections
             'ready' => $automatic !== null,
             'provider' => $automatic['id'] ?? null,
             'providerName' => $automatic['name'] ?? null,
-            'message' => $automatic ? 'Using '.$automatic['name'].'. '.$automatic['message'] : (count($ready) ? 'Choose a connected AI for this task.' : 'No AI is connected and ready. Connect an AI to continue.'),
+            'message' => $automatic ? 'Using '.$automatic['name'].'. '.$automatic['message'] : (count($ready) ? 'Choose a connected AI for this task.' : ($capability === 'image_generation' ? 'No connection can generate images. '.implode(' ', array_map(fn ($p) => $p['name'].': '.$p['message'], $providers)) : 'No AI is connected and ready. Connect an AI to continue.')),
+            'capability' => $capability,
             'claudeVersion' => $automatic['claudeVersion'] ?? null,
             'lastSeenAt' => $automatic['lastSeenAt'] ?? null,
             'checkedAt' => DB::selectOne('SELECT now() AS checked_at')->checked_at,

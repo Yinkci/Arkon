@@ -2,7 +2,13 @@
 
 namespace App\Arkon\Ai;
 
-/** Shared direct-process transport. No shell or application secrets; bounded lifetime and cancellation. */
+/**
+ * Shared direct-process transport. No shell or application secrets; bounded lifetime and cancellation.
+ *
+ * The child reads its input from a file that ends (it can never wait on a terminal) and writes stdout and
+ * stderr to files that are read while it runs (no pipe can fill up and block it). start() returns a CliRun
+ * that is polled, so several runs can share one loop (parallel stages); execute() runs one to the end.
+ */
 final class CliProcess
 {
     private const ENV_ALLOW = [
@@ -14,81 +20,34 @@ final class CliProcess
 
     public function __construct(private readonly array $command, private readonly string $missingCode = AiException::CLAUDE_MISSING, private readonly string $timeoutCode = AiException::CLAUDE_TIMEOUT) {}
 
-    public function execute(array $args, ?string $cwd, string $input, int $timeout, ?callable $keepGoing = null, ?callable $onOutput = null): array
+    /**
+     * @param  callable(float): ?AiException|null  $watchdog  called on every poll with the elapsed seconds; an exception stops the run
+     * @param  callable(string): void|null  $onError  receives stderr in whole lines while the provider runs
+     * @param  array<string, string>  $env  extra environment for this run only
+     */
+    public function start(array $args, ?string $cwd, string $input, int $timeout, ?callable $keepGoing = null, ?callable $onOutput = null, ?callable $watchdog = null, ?callable $onError = null, array $env = []): CliRun
     {
-        $io = self::tempDir();
-        $process = null;
+        $closure = fn (?callable $c) => $c === null ? null : \Closure::fromCallable($c);
+
+        return new CliRun([...$this->command, ...$args], $cwd, $input, $timeout, $closure($keepGoing), $closure($onOutput), $closure($watchdog), $this->missingCode, $this->timeoutCode, $closure($onError), $env);
+    }
+
+    public function execute(array $args, ?string $cwd, string $input, int $timeout, ?callable $keepGoing = null, ?callable $onOutput = null, ?callable $watchdog = null): array
+    {
+        $run = $this->start($args, $cwd, $input, $timeout, $keepGoing, $onOutput, $watchdog);
         try {
-            file_put_contents($in = $io.DIRECTORY_SEPARATOR.'stdin', $input);
-            $descriptors = [0 => ['file', $in, 'r'], 1 => ['file', $out = $io.DIRECTORY_SEPARATOR.'stdout', 'w'], 2 => ['file', $err = $io.DIRECTORY_SEPARATOR.'stderr', 'w']];
-            $process = @proc_open([...$this->command, ...$args], $descriptors, $pipes, $cwd ?? $io, self::environment(), ['bypass_shell' => true, 'suppress_errors' => true]);
-            if (! is_resource($process)) {
-                throw new AiException($this->missingCode, 'The AI executable could not be started.');
-            }
-            $started = microtime(true);
-            $lastCheck = $started;
-            $offset = 0;
-            while (true) {
-                clearstatcache(true, $out);
-                clearstatcache(true, $err);
-                if ((int) @filesize($out) + (int) @filesize($err) > 8 * 1024 * 1024) {
-                    throw new AiException(AiException::INVALID_OUTPUT, 'The provider output exceeded the safe transport limit.');
-                }
-                if ($onOutput !== null) {
-                    clearstatcache(true, $out);
-                    $size = (int) @filesize($out);
-                    if ($size > $offset) {
-                        $chunk = file_get_contents($out, false, null, $offset, $size - $offset);
-                        $offset = $size;
-                        $onOutput($chunk);
-                    }
-                }
-                $status = proc_get_status($process);
-                if (! $status['running']) {
-                    $code = (int) $status['exitcode'];
-                    proc_close($process);
-                    // Drain output written between the last poll and process exit.
-                    clearstatcache(true, $out);
-                    clearstatcache(true, $err);
-                    $size = (int) @filesize($out);
-                    if ($size + (int) @filesize($err) > 8 * 1024 * 1024) {
-                        throw new AiException(AiException::INVALID_OUTPUT, 'The provider output exceeded the safe transport limit.');
-                    }
-                    if ($onOutput !== null && $size > $offset) {
-                        $onOutput(file_get_contents($out, false, null, $offset, $size - $offset));
-                    }
-                    break;
-                }
-                if (microtime(true) - $started > $timeout) {
-                    self::stop($process, $status['pid']);
-                    throw new AiException($this->timeoutCode, "The AI executable did not finish within {$timeout} seconds. Try a smaller request.");
-                }
-                if ($keepGoing !== null && microtime(true) - $lastCheck >= 2) {
-                    $lastCheck = microtime(true);
-                    if (! $keepGoing()) {
-                        self::stop($process, $status['pid']);
-                        throw new AiException(AiException::CANCELLED, 'The request was cancelled.');
-                    }
-                }
+            while (($result = $run->poll()) === null) {
                 usleep(100_000);
             }
 
-            return ['code' => $code, 'out' => (string) @file_get_contents($out), 'err' => (string) @file_get_contents($err)];
+            return $result;
         } finally {
-            if (is_resource($process)) {
-                $status = proc_get_status($process);
-                if ($status['running']) {
-                    self::stop($process, $status['pid']);
-                } else {
-                    proc_close($process);
-                }
-            }
-            self::removeDir($io);
+            $run->close();
         }
     }
 
-    /** Ends the CLI; Windows also terminates its process tree. Generation tools are disabled. */
-    private static function stop($process, int $pid): void
+    /** Ends the CLI; Windows also terminates its whole process tree (no orphaned children). */
+    public static function stop($process, int $pid): void
     {
         if (PHP_OS_FAMILY === 'Windows') {
             $kill = @proc_open(['taskkill', '/PID', (string) $pid, '/T', '/F'], [1 => ['file', 'NUL', 'w'], 2 => ['file', 'NUL', 'w']], $pipes, null, null, ['bypass_shell' => true]);
@@ -108,6 +67,11 @@ final class CliProcess
             if (in_array(strtoupper((string) $key), self::ENV_ALLOW, true)) {
                 $env[$key] = $value;
             }
+        }
+        // Opt-in provider tracing for diagnosis (ARKON_AI_PROVIDER_DEBUG=1): the provider logs its network
+        // activity to stderr, which the run trace keeps (bounded). Never on by default.
+        if (filter_var(getenv('ARKON_AI_PROVIDER_DEBUG'), FILTER_VALIDATE_BOOL)) {
+            $env['RUST_LOG'] = 'codex_core=debug,codex_api=debug,codex_client=debug,codex_http_client=debug';
         }
 
         return $env;

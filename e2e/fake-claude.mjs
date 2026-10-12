@@ -68,6 +68,85 @@ process.stdin.on('end', async () => {
         const context = JSON.parse(websiteText);
         const proposal = (changes) => ({ summary: 'Editable page blocks', notes: [], tokenChanges: [], changes });
         const add = (type, props, parent = 'page', ref = null) => ({ action: 'add', parent, index: null, ref, block: { type, props } });
+        // Staged website runs: the plan, the shared layout and form, then each page.
+        const titles = ['Home', 'About', 'Services', 'Contact'];
+        if (context.sharedLayout !== undefined) {
+            reply({
+                summary: 'Four-page landscaping website',
+                pages: titles.map((title) => ({
+                    pageId: null,
+                    title: `Website ${title}`,
+                    path: `/website-${title.toLowerCase()}`,
+                    purpose: `${title} page`,
+                    sections: ['Hero'],
+                    form: title === 'Contact',
+                    generatedImage: false,
+                    seo: { title: `${title} | Garden Studio`, description: 'Landscaping services and enquiries for Garden Studio.' },
+                })),
+                layout: true,
+                form: true,
+                branding: false,
+                notes: [],
+            });
+        }
+        if (context.plannedPages !== undefined) {
+            const op = (o) => ({
+                form: context.form.id,
+                field: null,
+                text: null,
+                type: null,
+                required: null,
+                width: null,
+                row: null,
+                placeholder: null,
+                help: null,
+                default: null,
+                choices: null,
+                min: null,
+                max: null,
+                step: null,
+                when: null,
+                before: null,
+                ...o,
+            });
+            reply({
+                summary: 'Shared layout and enquiry form',
+                header: proposal([
+                    add('group', { element: 'header', style: [] }, 'page', 'header'),
+                    add('text', { text: 'Garden Studio', element: 'p', style: [] }, 'new:header'),
+                    add('group', { element: 'nav', style: [] }, 'new:header', 'nav'),
+                    ...context.plannedPages.map((p) => add('button', { label: p.title, href: p.path, variant: 'text', style: [] }, 'new:nav')),
+                ]),
+                footer: proposal([
+                    add('group', { element: 'footer', style: [] }, 'page', 'footer'),
+                    add('text', { text: 'Garden Studio — plan your outdoor project.', element: 'p', style: [] }, 'new:footer'),
+                ]),
+                menu: null,
+                formChanges: [
+                    op({ op: 'name', text: 'Website enquiry' }),
+                    op({ op: 'submit', text: 'Send enquiry' }),
+                    op({ op: 'success', text: 'Thank you. Your enquiry was received.' }),
+                    op({ op: 'add', field: 'name', type: 'text', text: 'Your name', required: true }),
+                    op({ op: 'add', field: 'email', type: 'email', text: 'Email', required: true }),
+                    op({ op: 'add', field: 'message', type: 'textarea', text: 'Message', required: true }),
+                ],
+                tokenChanges: [],
+            });
+        }
+        if (context.page !== undefined) {
+            const title = context.page.title.replace('Website ', '');
+            reply({
+                summary: context.page.title,
+                proposal: proposal([
+                    add('hero', {
+                        heading: title === 'Home' ? 'Gardens made for everyday life' : title,
+                        text: 'Thoughtful landscaping for your outdoor space.',
+                        style: [],
+                    }),
+                    ...(context.form ? [add('form', { form: { id: context.form.id }, style: [] })] : []),
+                ]),
+            });
+        }
         const pages = ['Home', 'About', 'Services', 'Contact'].map((title) => ({
             pageId: null,
             title: `Website ${title}`,

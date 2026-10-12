@@ -2,7 +2,11 @@
 
 namespace App\Arkon\Ai;
 
-/** Share identical structured-output rules; never remove or weaken constraints. */
+/**
+ * compact(): share identical structured-output rules; never remove or weaken constraints.
+ * loosenToFit(): only for a command-line transport that cannot carry the full schema (Claude Code on
+ * Windows); it relaxes the model's guide, never Arkon's validation of the reply.
+ */
 final class SchemaCompactor
 {
     public static function compact(array $schema): array
@@ -78,8 +82,85 @@ final class SchemaCompactor
         foreach ($result['$defs'] as $name => $definition) {
             $defs[$names[$name]] = $definition;
         }
-        $result['$defs'] = $defs;
+        // JSON Schema requires $defs to be an object: with nothing shared there is no $defs (an empty PHP array would encode as a list).
+        if ($defs === []) {
+            unset($result['$defs']);
+        } else {
+            $result['$defs'] = $defs;
+        }
 
         return $result;
+    }
+
+    /**
+     * The length of a Windows command line for these arguments as PHP's proc_open builds it: each
+     * argument is quoted and every double quote (and backslash before one) is escaped, so a JSON
+     * schema costs about one extra character per quote. Errs on the long side.
+     */
+    public static function windowsCommandLength(array $argv): int
+    {
+        $length = 0;
+        foreach ($argv as $arg) {
+            $arg = (string) $arg;
+            $length += strlen($arg) + substr_count($arg, '"') + substr_count($arg, '\\') + 3;
+        }
+
+        return $length;
+    }
+
+    /**
+     * A structural guide for a model whose schema must fit a command line: the largest block property
+     * schemas (objects shaped {type: const, props: {...}}) become plain objects, largest first, until
+     * $fits accepts the schema. Block types, actions and every other part stay exact, the instructions
+     * still list each block's properties, and Arkon's compiler validates every proposal as before, so
+     * nothing invalid is accepted. Returns null when even the loosest guide does not fit.
+     *
+     * @param  callable(array): bool  $fits
+     */
+    public static function loosenToFit(array $schema, callable $fits): ?array
+    {
+        if ($fits($schema)) {
+            return $schema;
+        }
+        $paths = [];
+        $find = function (mixed $node, array $path) use (&$find, &$paths): void {
+            if (! is_array($node)) {
+                return;
+            }
+            if (isset($node['properties']['type']['const'], $node['properties']['props']) && ($node['properties']['props']['type'] ?? null) === 'object' && isset($node['properties']['props']['properties'])) {
+                $paths[] = [...$path, 'properties', 'props'];
+            }
+            foreach ($node as $key => $child) {
+                $find($child, [...$path, $key]);
+            }
+        };
+        $find($schema, []);
+        $size = fn (array $path) => strlen((string) json_encode(self::at($schema, $path)));
+        usort($paths, fn ($a, $b) => $size($b) <=> $size($a));
+        foreach ($paths as $path) {
+            $schema = self::put($schema, $path, ['type' => 'object']);
+            if ($fits($schema)) {
+                return $schema;
+            }
+        }
+
+        return null;
+    }
+
+    private static function at(array $node, array $path): mixed
+    {
+        foreach ($path as $key) {
+            $node = $node[$key];
+        }
+
+        return $node;
+    }
+
+    private static function put(array $node, array $path, mixed $value): array
+    {
+        $key = array_shift($path);
+        $node[$key] = $path === [] ? $value : self::put($node[$key], $path, $value);
+
+        return $node;
     }
 }

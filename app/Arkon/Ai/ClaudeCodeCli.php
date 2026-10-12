@@ -22,8 +22,11 @@ namespace App\Arkon\Ai;
  * stored login is never read here; `claude auth status` reports the mode, and anything other
  * than a claude.ai (subscription) login is refused.
  */
-final class ClaudeCodeCli implements AiProvider, ClaudeRunner
+final class ClaudeCodeCli implements AiProvider, ClaudeRunner, StagedRunner
 {
+    /** CreateProcess allows 32,767 characters; this leaves room for the executable path and quoting. */
+    public const COMMAND_LINE_BUDGET = 32000;
+
     /** @param list<string>|null $command the CLI as an argument list; null when Claude Code was not found */
     public function __construct(
         private readonly ?array $command,
@@ -104,6 +107,21 @@ final class ClaudeCodeCli implements AiProvider, ClaudeRunner
 
     public function run(AiRequest $request, callable $keepGoing): AiCompletion
     {
+        $run = $this->start($request, $keepGoing);
+        try {
+            while (($done = $run->poll()) === null) {
+                usleep(100_000);
+            }
+
+            return $done;
+        } finally {
+            $run->close();
+        }
+    }
+
+    /** Starts one generation without waiting (so independent stages can run side by side). */
+    public function start(AiRequest $request, callable $keepGoing): PendingRun
+    {
         if ($this->command === null) {
             throw new AiException(AiException::CLAUDE_MISSING, 'Claude Code was not found on this computer.');
         }
@@ -111,40 +129,43 @@ final class ClaudeCodeCli implements AiProvider, ClaudeRunner
         try {
             $instructions = $dir.DIRECTORY_SEPARATOR.'instructions.txt';
             file_put_contents($instructions, $request->instructions);
-            $schemaJson = json_encode($request->schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-            // Windows limits the complete process command line. Share identical rules without weakening them.
-            if (PHP_OS_FAMILY === 'Windows' && strlen($schemaJson) > 24000) {
-                $schemaJson = json_encode(SchemaCompactor::compact($request->schema), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-            }
-            if (PHP_OS_FAMILY === 'Windows' && (strlen($schemaJson) + 1500) * 1.1 > 32000) {
-                throw new AiException(AiException::INVALID_OUTPUT, 'The registered component schema exceeds the local CLI transport limit. No model request was started.');
-            }
-            $args = [
+            $argsFor = fn (array $schema) => [
                 '-p', '--output-format', 'json',
-                '--json-schema', $schemaJson,
+                '--json-schema', json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
                 '--system-prompt-file', $instructions,
                 '--tools', '', '--restricted', '--strict-mcp-config', '--disallowedTools', 'mcp__*',
                 '--permission-mode', 'dontAsk', '--permission-prompts', 'none',
                 '--no-session-persistence', '--disable-slash-commands', '--max-turns', '4',
                 ...($this->model ? ['--model', $this->model] : []),
             ];
-            if (strlen(implode(' ', [...$this->command, ...$args])) * 1.1 > 32000) {
-                throw new AiException(AiException::CLAUDE_FAILED, 'This page is too large to send to Claude Code in one request.');
+            // Windows limits the whole command line (32,767 characters, every quote escaped). The schema is the
+            // only large argument: compacted, then, if still too long, its largest block property schemas become
+            // plain objects (the instructions list them; Arkon validates every reply exactly as before).
+            $args = $argsFor($request->schema);
+            if (PHP_OS_FAMILY === 'Windows') {
+                $fits = fn (array $schema) => SchemaCompactor::windowsCommandLength([...$this->command, ...$argsFor($schema)]) <= self::COMMAND_LINE_BUDGET;
+                $schema = SchemaCompactor::loosenToFit(SchemaCompactor::compact($request->schema), $fits)
+                    ?? throw new AiException(AiException::INVALID_OUTPUT, 'The response format is too large for the Claude Code command line on Windows. No model request was started.');
+                $args = $argsFor($schema);
             }
             if ($request->onEvent) {
-                ($request->onEvent)(['provider' => $this->id(), 'type' => 'started']);
+                ($request->onEvent)(['provider' => $this->id(), 'type' => 'started', 'stage' => $request->label]);
             }
-            $result = $this->execute($args, $dir, $request->prompt, $this->timeoutSeconds, $keepGoing);
+            $trace = new RunTrace('claude-code', ['stage' => $request->label, 'instructionsChars' => strlen($request->instructions), 'promptChars' => strlen($request->prompt)]);
+            $cli = (new CliProcess($this->command))->start($args, $dir, $request->prompt, $request->timeout ?? $this->timeoutSeconds, $keepGoing);
+        } catch (\Throwable $e) {
+            self::removeDir($dir);
+            throw $e;
+        }
 
+        return new CallbackRun($cli, function (array $result) use ($request) {
             $completion = $this->completion($result['code'], $result['out'], $result['err']);
             if ($request->onEvent) {
-                ($request->onEvent)(['provider' => $this->id(), 'type' => 'completed']);
+                ($request->onEvent)(['provider' => $this->id(), 'type' => 'completed', 'stage' => $request->label]);
             }
 
             return $completion;
-        } finally {
-            self::removeDir($dir);
-        }
+        }, fn () => self::removeDir($dir), $trace, $request->label);
     }
 
     /**

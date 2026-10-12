@@ -6,16 +6,128 @@ Open **Build a website** in the admin menu (`/admin/website`). Describe the busi
 
 The existing locally paired Claude Code helper must be running and signed in with your subscription. This workflow makes no provider API calls and needs no API key. Restart the helper after updating application code. Alternatively, restart the Arkon MCP connection in Claude Code, ask it to use `arkon_get_website_context` and `arkon_submit_website_proposal`, then review the result on this same admin screen.
 
+## The workspace
+
+The screen is a workspace, not a form. The **AI panel** on the left holds the request, its progress and the current
+proposal; its **History** tab lists every request and revision (title, status, time), and choosing one shows it.
+Change lists (**View changes**), failure details and **Developer details** (provider, request id, run timing, every
+step) are collapsed until asked for. The rest of the screen is the **website canvas**: the real server-rendered page of
+the proposal in an isolated frame, at a true device width (Desktop 1440 px, Tablet 820 px, Mobile 390 px) scaled to
+fit (**Fit**, or 100/75/50 %), scrolling inside the frame like the live site. The canvas toolbar chooses the page,
+the device and the zoom, switches a revision between **Before** and **After**, and holds **Publish website** once a
+proposal is applied. Hide the AI panel (‹) or use **Full screen preview** (Esc returns) to
+judge the design on its own. On narrow screens the panel opens as a drawer over the canvas.
+
+The AI tab shows one thing at a time. With nothing selected it asks **What would you like to build?**
+(**Generate proposal**); with a proposal selected, **Describe a change** (**Request changes**); **New** starts a
+separate website request. Below the box is the selected request's state: **Preparing…** with its steps and **Cancel**,
+**Proposal ready** / **Changes ready** with what changed ("About Us updated", "1 image generated"), **Apply
+proposal** and a closed list of the changes, **Applied as drafts**, or **Couldn't prepare…** with **Retry** and
+**Details**. A request that asks for a new image says so in one line ("A new image will be generated", with **Don't
+generate**). Where a change applies (this page, one section, the whole website), image generation, the shared
+header/navigation/footer, automatic repair and a provider choice (only when more than one is connected) are under
+**Advanced options**. The request id, provider, timings and steps are behind the **…** button.
+
 ## Review, apply, publish
 
 1. Prepare the proposal. It creates no page drafts yet. Inspect every page in desktop, tablet and mobile previews, the page URLs, shared layout and branding changes.
-2. **Apply all website drafts** saves the accepted proposal as one transaction. New pages, changes to existing pages, shared components, branding and the contact form either all succeed or all roll back. Nothing goes live.
+2. **Apply to drafts** saves the accepted proposal as one transaction. New pages, changes to existing pages, shared components, branding and the contact form either all succeed or all roll back. Nothing goes live.
 3. Open the page editor to edit ordinary blocks. Header and footer are linked reusable components under **Design → Components**; edit them there once. Global colors, supported font choices and spacing are under **Design**. Form fields are under **Forms**. The form block's Properties selects the form to use.
-4. **Check publishing readiness** reports missing publishing requirements and output-size warnings. Inspect real layouts too. **Publish website** requires a separate confirmation and publishes the reviewed draft versions together. It refuses if a resource changed after applying; use a new website proposal or publish the manually revised resources/pages individually.
+4. **Publish website** (canvas toolbar) first checks the website: it prepares every page exactly as publishing would, without making anything live, and shows the result in a dialog. **Blockers** (a shared resource, the branding or a page changed after applying, or a page that cannot be built) stop publishing; **warnings** (placeholder `#` links, missing search descriptions, large images without responsive versions) are listed before **Publish anyway**. Page sizes are under **Page sizes**. Editors, who cannot publish, get **Check readiness** with the same dialog. Inspect real layouts too. Publishing makes the reviewed draft versions live together. It refuses if a resource changed after applying; use a new website proposal or publish the manually revised resources/pages individually.
 
 Only owners/admins can publish and read enquiries. Editors can prepare and apply drafts. Proposals belong to their requester; another site or user cannot inspect or apply them. Exact uncertain retries return their original result; a changed payload with the same key conflicts. Existing page save, lease expiry and helper revocation checks still apply.
 
 Website requests cover at most eight pages, on sites with up to thirty current pages. They preserve unrelated pages. Shared header/footer links are inserted once into each proposed page. Pages omitted from the proposal do not automatically receive the shared layout. Requests are bounded to 250 operations overall, 150 per page. There is no automatic publishing and no external account provisioning.
+
+## How a website request runs
+
+A request runs on your local helper, never in the browser request: the page can be closed or refreshed and the
+request keeps its state. It runs in steps, each a short, separate AI call:
+
+1. **Understanding the request** — a plan: which pages to create or change, their sections and SEO, and whether the
+   shared header, footer, navigation, form or branding must change. Small context (page outlines only).
+2. **Shared header, footer and navigation** (and the form), only when the plan needs them. A new page is added to
+   existing navigation without an AI call.
+3. **Each page**, side by side (three steps at a time). A new page is built two planned sections per step; an
+   existing page is edited in one step with only its own blocks as context.
+4. **Checking the proposal** against the builder rules, page by page.
+
+The review screen lists the steps with their state and timing, and when the provider last produced output. Measured
+with Codex on a ChatGPT account (October 2026): a basic About page 35–45 s, three pages with navigation, a form and
+images about 2 minutes, a six-page dental clinic site about 4 minutes. Arkon watches the model's reply as it is written, not only whether
+Codex printed something: a reply that keeps being written is never stopped early, a reply that stops arriving for
+60 s is stopped, and a reply that degenerates (the model writing nothing but empty space) is stopped within seconds.
+Such a step is tried once more automatically, that step only; a reply that is complete but invalid is not retried.
+Each step also has a generous ceiling (2-4 minutes) for replies still legitimately being written. The whole request has a 15-minute safety ceiling. A failed request names the step that
+failed; **Resume** continues it and generates only what is missing, never the finished steps again. **Details** shows
+every step's outcome and timing. Cancelling stops every running AI process.
+
+
+With a proposal selected, the AI panel's **Describe a change** box requests changes to it. Describe only the change, and choose where it applies (**Change**: this page only, one of its sections, or the entire website). The
+scope chooses *where*, not *what kind of change*: anything you could do in the builder there is allowed.
+
+- **Section**: one top-level block of the previewed page (for example the Contact hero), what is inside it,
+  the forms it shows and the reusable components placed in it.
+- **This page only**: everything on the page: blocks, title, URL, every SEO setting, the forms on it and its
+  components, including the shared header and footer.
+- **Entire website**: anything; parts the request does not mention are kept.
+
+Forms are edited the way the form editor edits them: field order, labels, types, required, rows and widths (for example
+First name and Last name side by side at half width), placeholders, help text, defaults, choices, number limits, show
+conditions, the submit button, confirmation message or redirect, description and whether the form accepts entries.
+Field ids are kept, so existing entries stay linked. Forms that use nothing newer keep the original format, which needs
+no form script on the page. **Form email notifications are human-only**: AI never changes who receives entries, and a
+proposal that tries is refused.
+
+A form, the shared header or footer, or a reusable component can also appear on other pages. The review then lists
+**Also changes other pages** with those pages, and **Apply** needs one confirmation. A page URL change is a draft change
+like in the builder: after publishing, the old URL redirects to the new one.
+
+There is no need to repeat the original brief or to know block ids. The revision starts from:
+
+- **an unapplied proposal**: that proposal's own result, including pages, forms and generated images that do not exist
+  in the database yet. The original proposal is never changed; the revision records it as its parent, and either one
+  can be applied (applying one makes the other stale).
+- **an applied proposal**: the latest saved drafts, including your manual edits since applying. Pages, sections and
+  the form are identified by their ids, so nothing is duplicated.
+
+Arkon enforces the scope on the result, not only in the instructions: a revision that would change another page, an
+unselected section, a form or component the target does not show, navigation or branding is refused with what it
+would have changed, and nothing is proposed. If the model reports that the request needs a broader scope, the error says so and
+**Choose a broader scope** reopens the request; nothing runs again until you send it. Turn on **Compare with starting
+point** to see the baseline and the revision side by side; **Changes in this revision** lists the block changes.
+
+Applying is still explicit and version-checked. If a page, the form, navigation, shared layout or branding changed after
+the starting point was captured, the proposal shows a conflict and cannot be applied; newer edits are never overwritten
+and nothing is regenerated automatically.
+
+## Generated images
+
+If a brief asks for a generated image ("Add a hero with a generated background photograph…"), Arkon asks before
+anything runs: **Generate it**, or **Continue without generated images**. Without that choice no run starts. The form
+also shows, separately, whether page/website generation and image generation are available, and which connection
+does each. Generation is never silently replaced by a library image: if you continue without it, or the model places
+no generated image, the review marks the image requirement as **Not met**. Requests without generation use suitable
+library images, chosen by their titles, descriptions and alt text (the model does not see pixels).
+
+When generation is chosen, the layout run reserves asset ids for the images and describes each one (subject, visual
+direction, background or inline placement, aspect ratio, what must stay visible, alt text). The image-capable helper
+then generates each image once, and Arkon imports it through the normal media pipeline: it checks the real file,
+applies the upload limits, stores PNG photographs as WebP, creates responsive variants and records provenance
+(provider, proposal, the structured request). The asset is private until a published page uses it; the review
+preview shows it through signed URLs. Stages shown: **Preparing layout → Generating image → Optimizing image →
+Preparing review**, with elapsed time and helper health, never percentages.
+
+If the layout succeeds and an image fails, the layout is kept and the image is marked failed. **Retry image only**
+generates just that image (the same request key replays; repeated clicks do not generate twice; a finished image is
+never replaced). Interrupted generations fail and are not restarted automatically. You can also **Apply without the
+missing image**, which leaves it out of the drafts and keeps the requirement marked as not met.
+
+The generated hero image is an ordinary background image setting: replace it, switch between background and inline
+image, cover/contain, focal point (background position), overlay and per-screen settings in the builder. Published
+pages use responsive WebP variants with per-screen preloads for the first hero background (the likely LCP image), no
+extra JavaScript, and never base64 or external image URLs. See [AI_SETUP.md](AI_SETUP.md#image-generation-codex) for
+enabling image generation.
 
 ## Native contact forms
 

@@ -40,8 +40,11 @@ function writeStored(key: string, value: unknown) {
  * beside a light workspace with a sticky header. The rail is the product's permanent place;
  * screens render inside `.ak-comfortable`, the admin's reading density. On small screens the
  * rail collapses behind a menu button; on large ones it can shrink to icons.
+ *
+ * `chrome="dark"` darkens the sticky header for a workspace screen whose own chrome is dark
+ * (Build a website), so the frame reads as one surface around the website being previewed.
  */
-export function AdminLayout({ children }: { children: ReactNode }) {
+export function AdminLayout({ children, chrome = 'default' }: { children: ReactNode; chrome?: 'default' | 'dark' }) {
     const { auth, site, can } = usePage<SharedProps>().props;
     const url = usePage().url;
     const { preference, theme, setPreference } = useTheme();
@@ -193,7 +196,9 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                 <a href="#admin-content" className="sr-only focus:not-sr-only focus:block focus:bg-surface focus:p-3">
                     Skip to content
                 </a>
-                <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-line bg-surface/90 px-5 backdrop-blur-md max-lg:top-14 sm:px-10">
+                <header
+                    className={`sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-line bg-surface/90 px-5 text-fg backdrop-blur-md max-lg:top-14 sm:px-10 ${chrome === 'dark' ? 'ak-workspace-dark' : ''}`}
+                >
                     <p className="flex min-w-0 items-center gap-2 truncate text-sm text-muted">
                         <span className="max-sm:hidden">{current?.group}</span>
                         <Icon name="chevronRight" className="size-3.5 text-faint max-sm:hidden" />

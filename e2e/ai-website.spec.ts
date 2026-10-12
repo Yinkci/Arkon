@@ -2,20 +2,25 @@ import { expect, test } from '@playwright/test';
 import { db, BASE_URL } from './support';
 test('one brief produces four editable pages with shared navigation and a working contact form', async ({ page }) => {
     await page.goto('/admin/website');
-    await page.getByLabel('Website brief').fill('Create a professional landscaping website with Home, About, Services and Contact pages.');
-    await page.getByRole('button', { name: 'Prepare website proposal' }).click();
-    await expect(page.getByRole('heading', { name: 'Four-page landscaping website' })).toBeVisible({ timeout: 30000 });
-    await page.getByRole('button', { name: 'Website Contact · /website-contact' }).click();
+    await page.getByLabel('What would you like to build?').fill('Create a professional landscaping website with Home, About, Services and Contact pages.');
+    await page.getByRole('button', { name: 'Generate proposal' }).click();
+    await expect(page.getByRole('region', { name: 'Current proposal' }).getByText('Four-page landscaping website', { exact: true })).toBeVisible({
+        timeout: 30000,
+    });
+    await page.getByLabel('Page', { exact: true }).selectOption({ label: 'Website Contact' });
     const preview = page.frameLocator('iframe');
     await expect(preview.getByRole('heading', { name: 'Contact', exact: true })).toBeVisible();
     await expect(preview.getByRole('button', { name: 'Send enquiry' })).toBeDisabled();
-    await page.getByRole('button', { name: 'Apply all website drafts' }).click();
-    await expect(page.getByRole('link', { name: 'Edit Website Contact' })).toBeVisible();
-    await page.getByRole('button', { name: 'Check publishing readiness' }).click();
-    await expect(page.getByRole('heading', { name: 'Ready to publish' })).toBeVisible();
-    page.once('dialog', (d) => d.accept());
+    await page.getByRole('button', { name: 'Apply proposal' }).click();
+    await expect(page.getByRole('link', { name: 'Edit page' })).toHaveAttribute('title', 'Edit Website Contact in the builder');
+    // One button: it checks the website (a dry run of publishing) and shows the outcome in the dialog it opens.
     await page.getByRole('button', { name: 'Publish website' }).click();
-    await expect(page.getByRole('status')).toContainText('Website published');
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('heading', { name: /^Publish (website\?|with \d+ warnings?\?)$/ })).toBeVisible();
+    await page.screenshot({ path: 'storage/screenshots/website/publish-dialog.png' });
+    await dialog.getByRole('button', { name: /^Publish (website|anyway)$/ }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole('status').filter({ hasText: 'Website published' })).toBeVisible();
     const anonymous = await page
         .context()
         .browser()!
@@ -92,20 +97,26 @@ test('website generation displays elapsed time and heartbeat, blocks duplicates,
         }
     });
     await page.goto('/admin/website');
-    await page.getByLabel('Website brief').fill('Digital marketing homepage');
-    await page.getByRole('button', { name: 'Prepare website proposal' }).click();
-    await expect(page.getByLabel('Website preparation progress')).toBeVisible();
+    await page.getByLabel('What would you like to build?').fill('Digital marketing homepage');
+    await page.getByRole('button', { name: 'Generate proposal' }).click();
+    await expect(page.getByRole('list', { name: 'Stages' })).toBeVisible();
     await expect(page.getByText(/Elapsed: 1m/)).toBeVisible();
     await expect(page.getByText(/Helper responding/)).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Prepare website proposal' })).toBeDisabled();
+    // While it runs, nothing else can be sent: the composer is replaced by the progress.
+    await expect(page.getByRole('button', { name: 'Generate proposal' })).toHaveCount(0);
     stage = 'checking';
-    await expect(page.getByText('Checking the generated pages against builder rules…')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[aria-label="Stages"] li[aria-current="step"]')).toHaveText(/Checking against builder rules/, { timeout: 10000 });
     offline = true;
     await expect(page.getByText(/Cannot refresh status/)).toBeVisible({ timeout: 10000 });
     offline = false;
     stage = 'failed';
-    await expect(page.getByText('Page /: Change 3: unknown block missing-block')).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText(/retained privately for diagnosis/)).toBeVisible();
-    await expect(page.getByLabel('Website preparation progress')).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Prepare website proposal' })).toBeEnabled();
+    await expect(page.getByRole('alert').filter({ hasText: 'The generated proposal needs correction.' })).toBeVisible({ timeout: 10000 });
+    await page.getByText('Details', { exact: true }).click();
+    await expect(page.getByText('Page /: Change 3: unknown block missing-block')).toBeVisible();
+    await expect(page.getByText(/kept privately for diagnosis/)).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Stages' })).toHaveCount(0);
+    // The accepted brief is not repeated in the composer; a new one can be sent once the run has ended.
+    await expect(page.getByLabel('What would you like to build?')).toHaveValue('');
+    await page.getByLabel('What would you like to build?').fill('Digital marketing homepage');
+    await expect(page.getByRole('button', { name: 'Generate proposal' })).toBeEnabled();
 });

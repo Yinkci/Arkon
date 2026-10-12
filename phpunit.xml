@@ -40,5 +40,6 @@
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="ARKON_MEDIA_ROOT" value="storage/testing/media" force="true"/>
+        <env name="ARKON_AI_WEBSITE_STAGES" value="false"/>
     </php>
 </phpunit>

@@ -147,9 +147,13 @@ are saved and published from **Site SEO defaults** there. Published pages carry 
 ## Build a website
 
 **Build a website** (`/admin/website`) turns one brief into a multi-page proposal with shared header, footer,
-navigation, branding and a contact form. Review the pages, apply them as drafts, then publish explicitly. Readiness
-checks list what still needs attention (placeholder links, missing descriptions). See
-[WEBSITE_WORKFLOW.md](WEBSITE_WORKFLOW.md).
+navigation, branding and a contact form. The AI panel on the left holds the request, progress and proposal (History
+lists earlier ones); the actual website fills the rest of the screen at desktop, tablet or mobile width, with a full
+screen preview. Review the pages, **Apply to drafts**, then **Publish website**: it checks the website first and shows what it found before anything goes live. With a proposal
+selected, **Describe a change** revises one section, the page or the entire website without repeating the brief;
+switch **Before**/**After** to compare it with its starting point before applying. If a brief asks for a generated image, choose whether to generate it (when a
+connection can) or continue without; the review shows which requirements were met, generated and library images, and
+offers **Retry image only** if an image failed. See [WEBSITE_WORKFLOW.md](WEBSITE_WORKFLOW.md).
 
 ## Themes
 

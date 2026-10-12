@@ -213,6 +213,21 @@ final class ProposalLedger
             ->update([...$this->proposalColumns($compiled, (string) DB::table('ai_proposals')->where('id', $id)->value('site_id')), 'lease_token' => null, 'lease_expires_at' => null]) === 1;
     }
 
+    /** Stage progress and cached stage replies of a running website request, under its live lease. */
+    public function websiteProgress(string $id, string $lease, array $progress, ?array $cache = null): bool
+    {
+        return DB::update(
+            'UPDATE ai_proposals SET progress = ?::jsonb, heartbeat_at = now()'.($cache !== null ? ', stage_cache = ?::jsonb' : '').' WHERE id = ? AND scope = \'website\' AND '.self::HOLDS_LEASE,
+            [Json::encode($progress), ...($cache !== null ? [Json::encode($cache)] : []), $id, $lease],
+        ) === 1;
+    }
+
+    /** What the run did, kept with the request for the review screen (written whatever the outcome, fenced by the lease). */
+    public function websiteDiagnostics(string $id, string $lease, array $diagnostics): void
+    {
+        DB::update('UPDATE ai_proposals SET diagnostics = ?::jsonb WHERE id = ? AND lease_token = ?', [Json::encode($diagnostics), $id, $lease]);
+    }
+
     public function finishWebsite(string $id, string $lease, array $result): bool
     {
         return DB::table('ai_proposals')->where('id', $id)->where('scope', 'website')->whereRaw(self::HOLDS_LEASE, [$lease])

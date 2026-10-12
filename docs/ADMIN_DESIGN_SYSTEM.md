@@ -98,6 +98,34 @@ titles, 36 px controls. Change the scale in `app.css`, never per component. Buil
 - The workspace is the light canvas with a sticky 64 px header (breadcrumb, search, View site). Content sits in
   white panels only where it is a distinct object; panels share one heading row (`PanelHeading` in the dashboard).
 
+## Dark workspace chrome (`.ak-workspace-dark`, `.ak-ai-panel`)
+
+**Build a website** is the one screen whose chrome stays dark in both themes, like the navigation rail: the
+sticky header (`AdminLayout chrome="dark"`), the preview toolbar and the AI panel frame the website being
+previewed instead of competing with it. It is a scoped palette, not a second component set — the class
+redefines the `--ak-*` tokens of its own subtree to the dark theme's values, so `.ui-input`, `.ui-check`,
+`Button`, `StatusPill` and the rest render dark inside it unchanged. Only the preview itself stays light.
+
+- **Surfaces**: `dark-2` (a step below the rail's `dark-3`, so the two never merge into one block), controls
+  `dark-3`, dividers `dark-4`. No cards inside: spacing, one hairline and type carry the grouping.
+- **Colour**: violet (`ai`, and `ink` inside `.ak-ai-panel`) marks the AI's own action; the light `ink` button
+  stays the site action (Publish), so the two never look alike. Green (`live`) marks ready and connected; red
+  (`danger`) only for a real failure, as an icon and heading, never a filled block. Everything else is neutral.
+- **One primary action at a time**: the violet button is whichever action moves the work forward (Generate
+  proposal → Apply proposal); the other sending control drops to `secondary`. A disabled primary is a flat grey
+  step (`.ui-action:disabled`), never a faded violet, which reads as broken rather than "nothing to send yet".
+- **Density**: the panel leaves `.ak-comfortable` for the builder's dense scale (13px body, 12px meta, 12px
+  labels) and the 28px control step panels use, not the 32px one pages use. Bands share one padding
+  (`--ak-panel-pad`, applied with `.ak-band` / `.ak-band-x`) so the status row, prompt and result cannot drift
+  apart, and each band is separated by a hairline, never a card.
+- **Hierarchy**: the state heading carries its colour (green ready, red failed) and the body sits at the band's
+  edge below it; summaries and explanations are `muted`, timings and ids `faint` behind a disclosure.
+- **Progress** is a trace: monospace, one line per real step, dim until reached, with a dot that fills violet
+  when a step runs. Steps are named in plain words, never provider or tool names.
+- **Blocks used** (`ComponentBadges`): after a proposal, the kinds of block it places as chips, read from the
+  proposal's own documents (`WebsiteProposalService::blocksUsed`) so they always match what is proposed; a theme
+  component is marked and listed last.
+
 ## Builder (`resources/js/editor/chrome.tsx`)
 
 - `EditorToolbar`: identity (back, title, path, live state) on the left; viewport and undo/redo

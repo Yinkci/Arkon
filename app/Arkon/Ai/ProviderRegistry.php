@@ -10,7 +10,7 @@ final class ProviderRegistry
     {
         return [
             'claude-code' => ['id' => 'claude-code', 'name' => 'Claude Code', 'description' => 'Use your own Claude subscription through the local CLI.', 'login' => 'claude auth login', 'install' => 'https://code.claude.com/docs/en/setup', 'capabilities' => ['structured_output', 'page_proposal', 'website_proposal', 'mcp']],
-            'codex' => ['id' => 'codex', 'name' => 'Codex', 'description' => 'Use your own ChatGPT account through the local Codex CLI.', 'login' => 'codex login', 'install' => 'https://developers.openai.com/codex/cli', 'capabilities' => ['structured_output', 'page_proposal', 'website_proposal', 'mcp']],
+            'codex' => ['id' => 'codex', 'name' => 'Codex', 'description' => 'Use your own ChatGPT account through the local Codex CLI.', 'login' => 'codex login', 'install' => 'https://developers.openai.com/codex/cli', 'capabilities' => ['structured_output', 'page_proposal', 'website_proposal', 'mcp', 'image_generation']],
         ];
     }
 

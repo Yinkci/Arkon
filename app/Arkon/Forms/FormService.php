@@ -116,7 +116,7 @@ final class FormService
                 throw new ForbiddenException('Only owners and administrators can configure notifications.');
             }
             if (($definition['schemaVersion'] ?? null) === 2) {
-                $definition['notifications'] = Json::decode($row?->draft ?? '{}')['notifications'] ?? [];
+                $definition['notifications'] = Json::entries(Json::decode($row?->draft ?? '{}'))['notifications'] ?? [];
             }
         }
         if (($definition['schemaVersion'] ?? null) === 2) {

@@ -7,6 +7,8 @@ const PATHS = {
     chevronLeft: 'M10 3.5 5.5 8l4.5 4.5',
     sidebar: 'M2 3h12v10H2zM6 3v10',
     panelRight: 'M2 3h12v10H2zM10 3v10',
+    expand: 'M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5 9.5 6.5M2.5 13.5l4-4',
+    shrink: 'M13.5 6.5h-4v-4M2.5 9.5h4v4M9.5 6.5l4-4M6.5 9.5l-4 4',
     form: 'M2.5 3h11v3h-11zM2.5 8.5h11v3h-11zM4.5 4.5h3M4.5 10h3',
     bolt: 'M9 1.5 3.5 9H8l-1 5.5L12.5 7H8z',
     chevronDown: 'M3.5 6 8 10.5 12.5 6',

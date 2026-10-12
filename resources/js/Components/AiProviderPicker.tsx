@@ -7,11 +7,13 @@ export function AiProviderPicker({
     value,
     onChange,
     disabled = false,
+    label = 'AI provider for this task',
 }: {
     connection: ProviderConnection;
     value?: string;
     onChange(value: string | undefined): void;
     disabled?: boolean;
+    label?: string;
 }) {
     const id = useId();
     const selected = selectedProvider(connection, value);
@@ -22,7 +24,7 @@ export function AiProviderPicker({
             {needsChoice ? (
                 <>
                     <label htmlFor={id} className="ui-label">
-                        AI provider for this task
+                        {label}
                     </label>
                     <select id={id} className="ui-input" value={value ?? ''} disabled={disabled} onChange={(e) => onChange(e.target.value || undefined)}>
                         <option value="">Choose a connected AI</option>

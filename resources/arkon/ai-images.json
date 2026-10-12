@@ -1,0 +1,24 @@
+{
+    "description": "Explicit requests for newly generated images. Matching only asks the user to choose before a run starts (generate, or continue without generated images); it never decides silently. Patterns are case-insensitive and shared by PHP (ImageIntent) and TypeScript (imageIntent.ts).",
+    "negations": [
+        "\\b(?:no|not|don't|do not|without|never|avoid)\\b[^.!?\\n]{0,24}\\b(?:generat\\w*|ai[- ]generated)"
+    ],
+    "patterns": [
+        "\\bgenerat\\w*\\b[^.!?\\n]{0,80}\\b(?:image|photo|photograph|picture|illustration|artwork|graphic|background|visual)s?\\b",
+        "\\b(?:image|photo|photograph|picture|illustration|artwork|graphic|background)s?\\b[^.!?\\n]{0,40}\\b(?:generated|generate)\\b",
+        "\\bai[- ](?:generated|made|created)\\b",
+        "\\b(?:create|make|draw|produce|render)\\s+(?:me\\s+)?(?:a|an|some|one|two|three|\\d+)?\\s*(?:new\\s+)?(?:image|photo|photograph|picture|illustration|artwork)s?\\b"
+    ],
+    "examples": {
+        "Add a hero with a generated professional background photograph featuring Black African adults.": true,
+        "Generate a background image for this Contact hero. Keep the form and everything else unchanged.": true,
+        "Replace only the hero background with another generated image.": true,
+        "Use an AI-generated illustration for the services section.": true,
+        "Create an image of a calm dental surgery for the hero.": true,
+        "Build a contact page with a form and use my existing library images.": false,
+        "Create a contact page with first name, last name and email fields.": false,
+        "Use images from my library, do not generate new images.": false,
+        "Make the hero background darker.": false
+    },
+    "maxImagesPerRun": 2
+}
