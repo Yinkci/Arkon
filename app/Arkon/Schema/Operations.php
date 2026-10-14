@@ -122,6 +122,23 @@ final class Operations
 
                 return $ok ? ['op' => 'updateProps', 'nodeId' => $id, 'set' => $set, 'unset' => $unset] : null;
 
+            case 'updateBindings':
+                // Where a node's properties take their values from, changed the same way the
+                // values themselves are: one patch, undoable, checked before it is applied.
+                $id = $nodeId('nodeId');
+                $set = $op['set'] ?? null;
+                if (! Json::isObject($set)) {
+                    $issues[] = ['path' => "{$at}.set", 'message' => Rules::message('expectedObject')];
+
+                    return null;
+                }
+                $ok = $id !== null;
+                array_push($issues, ...DocumentShape::bindingIssues($set, "{$at}.set"));
+                $ok = $ok && $issues === [];
+                $unset = self::parseKeyList($op, $at, fn ($key) => Rules::matches('propKey', $key), $issues, $ok);
+
+                return $ok ? ['op' => 'updateBindings', 'nodeId' => $id, 'set' => $set, 'unset' => $unset] : null;
+
             case 'updateSeo':
                 $set = $op['set'] ?? null;
                 $seoIssues = DocumentShape::seoIssues($set, "{$at}.set");
@@ -272,6 +289,27 @@ final class Operations
                 unset($node);
 
                 return ['op' => 'updateProps', 'nodeId' => $op['nodeId'], ...$inverse];
+
+            case 'updateBindings':
+                $node = &self::requireNode($doc, $op['nodeId'], $i);
+                $bindings = Json::entries($node['bindings'] ?? []);
+                $inverse = self::invertPatch($bindings, $op['set'], $op['unset'] ?? []);
+                foreach (Json::entries($op['set']) as $key => $value) {
+                    $bindings[$key] = $value;
+                }
+                foreach ($op['unset'] ?? [] as $key) {
+                    unset($bindings[$key]);
+                }
+                // A node that binds nothing says so by having no bindings at all, rather than by
+                // carrying an empty object the document schema would have to make sense of.
+                if ($bindings === []) {
+                    unset($node['bindings']);
+                } else {
+                    $node['bindings'] = self::object($bindings);
+                }
+                unset($node);
+
+                return ['op' => 'updateBindings', 'nodeId' => $op['nodeId'], ...$inverse];
 
             case 'updateSeo':
                 $seo = Json::entries($doc['seo'] ?? []);

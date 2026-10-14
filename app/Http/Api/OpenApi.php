@@ -51,7 +51,8 @@ final class OpenApi
                 $param('before', 'query', ['type' => 'string', 'format' => 'date-time'], 'Published before.'),
                 ...array_map(fn ($t) => $param($t, 'query', ['type' => 'string'], Taxonomies::get($t)['label'].' ids or slugs, comma-separated (any of them).'), $type['taxonomies']),
                 $param('sort', 'query', ['type' => 'string', 'enum' => [...ContentReader::SORTS, ...array_map(fn ($s) => '-'.$s, ContentReader::SORTS)]], 'One field; - for descending. Default '.($type['details'] ? '-published_at' : 'path').'.'),
-                $param('include', 'query', ['type' => 'string'], 'content and/or seo, comma-separated (single items always include both).'),
+                $param('related', 'query', ['type' => 'string', 'maxLength' => 500], 'Relationship filters: field:id pairs, comma-separated, e.g. agent:0190….'),
+                $param('include', 'query', ['type' => 'string'], 'content, seo and/or fields, comma-separated (single items always include all three).'),
                 ...$pageParams,
             ];
             $paths[$c] = [
@@ -160,7 +161,10 @@ final class OpenApi
             'PaginationMeta' => $object(['page' => ['type' => 'integer'], 'per_page' => ['type' => 'integer'], 'total' => ['type' => 'integer'], 'total_pages' => ['type' => 'integer']]),
             'PaginationLinks' => $object(['self' => $string, 'first' => $string, 'prev' => $nullable($string), 'next' => $nullable($string), 'last' => $string]),
             'ApiIndex' => $object(['name' => $string, 'version' => $string, 'base_url' => $string, 'openapi' => $string, 'resources' => ['type' => 'array', 'items' => $string], 'scopes' => ['type' => 'object', 'additionalProperties' => $string]]),
-            'Site' => $object(['name' => $string, 'description' => $string, 'url' => $string, 'language' => $string, 'timezone' => $string, 'logo' => ['type' => ['string', 'null']], 'favicon' => ['type' => ['string', 'null']], 'organization' => $object(['name' => $string, 'type' => $string])]),
+            'Site' => $object(['name' => $string, 'description' => $string, 'url' => $string, 'language' => $string, 'timezone' => $string, 'logo' => ['type' => ['string', 'null']], 'favicon' => ['type' => ['string', 'null']], 'organization' => $object(['name' => $string, 'type' => $string]),
+                // Whatever this site keeps as site data, by its own field keys. Fields whose
+                // definition marks them private are never included.
+                'data' => ['type' => 'object', 'additionalProperties' => true]]),
             'Author' => $object(['id' => $string, 'name' => $string]),
             'TermRef' => $object(['id' => $string, 'name' => $string, 'slug' => $string]),
             'Content' => $object(['rendered' => ['type' => 'string', 'description' => 'HTML of the main content (without the shared header and footer); image URLs are absolute.'], 'css' => ['type' => 'string', 'description' => 'The stylesheet that HTML uses.']]),
@@ -215,6 +219,11 @@ final class OpenApi
                 'author' => ['oneOf' => [$ref('Author'), ['type' => 'null']]], 'published_at' => $time, 'modified_at' => $time,
                 'version' => ['type' => 'integer', 'description' => 'Members: the draft version.'], 'has_unpublished_changes' => ['type' => ['boolean', 'null'], 'description' => 'Members: the draft differs from what is live.'],
                 'content' => ['oneOf' => [$ref('Content'), ['type' => 'null']]], 'seo' => ['oneOf' => [$ref('Seo'), ['type' => 'null']]],
+                // Whatever this type's fields hold, by their own keys (include=fields). Private
+                // fields are never included. A relationship is the entry it points at in brief —
+                // {id, type, title, path} — and never that entry's own fields, so references are
+                // followed one level and no further.
+                'fields' => ['type' => 'object', 'additionalProperties' => true, 'description' => 'include=fields: values by field key; relationships are {id, type, title, path}.'],
             ];
             $schemas[ucfirst($kind)] = ['type' => 'object', 'required' => [...$required, 'author', 'published_at', 'modified_at'], 'properties' => $properties];
             $schemas[ucfirst($kind).'Write'] = ['type' => 'object', 'additionalProperties' => false, 'properties' => $write];

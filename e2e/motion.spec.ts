@@ -226,7 +226,7 @@ test.describe('editor', () => {
         await canvas(page).locator('.ak-image__empty').click();
         await page.getByTestId('part-media').click();
         await page.getByLabel('Upload image').setInputFiles({ name: 'team.png', mimeType: 'image/png', buffer: PNG_1X1 });
-        await page.getByLabel('Alternative text (required to publish)').fill('Our team');
+        await page.getByLabel('alternative text (empty for decorative images)').fill('Our team');
         await page.getByTestId('part-root').click();
         await expect(status(page)).toHaveAttribute('data-status', 'protected');
         await expect(status(page)).toContainText('is the image that loads first');
@@ -282,7 +282,7 @@ test.describe('editor', () => {
         await canvas(page).locator('.ak-image__empty').click();
         await page.getByTestId('part-media').click();
         await page.getByLabel('Upload image').setInputFiles({ name: 'team.png', mimeType: 'image/png', buffer: PNG_1X1 });
-        await page.getByLabel('Alternative text (required to publish)').fill('Our team');
+        await page.getByLabel('alternative text (empty for decorative images)').fill('Our team');
         await selectLayer(page, 'section');
         await expect(status(page)).toHaveAttribute('data-status', 'protected');
         await expect(page.getByTestId('animation-cause')).toContainText('Image');

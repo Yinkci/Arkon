@@ -24,7 +24,7 @@ export function documentIssues(doc: unknown): PathIssue[] {
 
 export function nodeIssues(node: unknown, at: string): PathIssue[] {
     if (!isPlainObject(node)) return [{ path: at, message: message('expectedObject') }];
-    const issues = unknownKeys(node, ['id', 'type', 'version', 'variant', 'props', 'children', 'editor'], at);
+    const issues = unknownKeys(node, ['id', 'type', 'version', 'variant', 'props', 'children', 'editor', 'bindings'], at);
     if (!matches('nodeId', node.id)) issues.push({ path: `${at}.id`, message: message('invalidNodeId') });
     if (!matches('componentType', node.type)) issues.push({ path: `${at}.type`, message: message('invalidComponentType') });
     if (!isPositiveInteger(node.version)) issues.push({ path: `${at}.version`, message: message('expectedPositiveInteger') });
@@ -45,6 +45,47 @@ export function nodeIssues(node: unknown, at: string): PathIssue[] {
         } else {
             issues.push(...unknownKeys(node.editor, ['name'], `${at}.editor`));
             if ('name' in node.editor) issues.push(...stringIssues(node.editor.name, rules.limits.editorName, `${at}.editor.name`));
+        }
+    }
+    if ('bindings' in node) issues.push(...bindingIssues(node.bindings, `${at}.bindings`));
+    return issues;
+}
+
+/**
+ * What a node says about where a property's value comes from, instead of holding it: one entry
+ * per property, naming a source and a field in it. The value in `props` stays as the fallback,
+ * so a document with bindings still renders when nothing can be resolved.
+ */
+export function bindingIssues(bindings: unknown, at: string): PathIssue[] {
+    if (!isPlainObject(bindings)) return [{ path: at, message: message('expectedObject') }];
+    const issues: PathIssue[] = [];
+    const sources = rules.bindings.sources as string[];
+    for (const [prop, binding] of Object.entries(bindings)) {
+        if (!matches('propKey', prop)) {
+            issues.push({ path: `${at}.${prop}`, message: message('invalidPropKey') });
+            continue;
+        }
+        if (!isPlainObject(binding)) {
+            issues.push({ path: `${at}.${prop}`, message: message('expectedObject') });
+            continue;
+        }
+        issues.push(...unknownKeys(binding, ['source', 'field', 'path'], `${at}.${prop}`));
+        if (!sources.includes(binding.source as string)) {
+            issues.push({ path: `${at}.${prop}.source`, message: message('unknownBindingSource') });
+        }
+        if (!matches('fieldKey', binding.field)) {
+            issues.push({ path: `${at}.${prop}.field`, message: message('invalidFieldKey') });
+        }
+        // A path reaches inside a group: ["address", "city"]. Repeaters are lists, so a single
+        // value cannot come from one and a path never indexes into them.
+        if ('path' in binding) {
+            if (!Array.isArray(binding.path) || binding.path.length > rules.bindings.maxPath) {
+                issues.push({ path: `${at}.${prop}.path`, message: message('invalidBindingPath') });
+            } else {
+                binding.path.forEach((step, i) => {
+                    if (!matches('fieldKey', step)) issues.push({ path: `${at}.${prop}.path.${i}`, message: message('invalidFieldKey') });
+                });
+            }
         }
     }
     return issues;

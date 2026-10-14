@@ -213,6 +213,71 @@ final class Conformance
             'invalid: seo title too long' => self::doc(overrides: ['seo' => ['title' => str_repeat('t', 121)]]),
             'invalid: page props unknown' => str_replace('"props":{}', '"props":{"x":1}', self::doc()),
             'invalid: editor metadata' => self::doc(overrides: ['nodes' => ['hero0001' => ['editor' => ['name' => str_repeat('n', 81), 'locked' => true]]]]),
+            // Bindings: a property may say where its value comes from instead of holding it.
+            'valid: binding to an entry field' => self::doc(overrides: ['nodes' => ['hero0001' => ['bindings' => ['heading' => ['source' => 'entry', 'field' => 'short_description']]]]]),
+            'valid: binding into a group' => self::doc(overrides: ['nodes' => ['hero0001' => ['bindings' => ['heading' => ['source' => 'site', 'field' => 'address', 'path' => ['city']]]]]]),
+            'invalid: binding source unknown' => self::doc(overrides: ['nodes' => ['hero0001' => ['bindings' => ['heading' => ['source' => 'elsewhere', 'field' => 'title']]]]]),
+            'invalid: binding field key' => self::doc(overrides: ['nodes' => ['hero0001' => ['bindings' => ['heading' => ['source' => 'entry', 'field' => 'Not A Key']]]]]),
+            'invalid: binding unknown key' => self::doc(overrides: ['nodes' => ['hero0001' => ['bindings' => ['heading' => ['source' => 'entry', 'field' => 'title', 'fallback' => 'x']]]]]),
+            'invalid: binding path too deep' => self::doc(overrides: ['nodes' => ['hero0001' => ['bindings' => ['heading' => ['source' => 'entry', 'field' => 'a', 'path' => ['b', 'c', 'd']]]]]]),
+            'invalid: binding prop key' => self::doc(overrides: ['nodes' => ['hero0001' => ['bindings' => ['not a prop' => ['source' => 'entry', 'field' => 'title']]]]]),
+            'invalid: bindings not an object' => self::doc(overrides: ['nodes' => ['hero0001' => ['bindings' => ['heading']]]]),
+            // A content list: one item template plus a query, with the query's own prop types
+            // (a whole number and a list of filters) checked by both implementations.
+            'valid: content list' => self::collection(['source' => 'service', 'sort' => 'title', 'limit' => 3, 'filters' => [['field' => 'featured', 'operator' => 'is_true', 'value' => '', 'value2' => '']]]),
+            'valid: content list sorted by a field' => self::collection(['source' => 'service', 'sort' => '-field:price_from', 'limit' => 6, 'filters' => []]),
+            'valid: content list of related entries' => self::collection(['source' => 'related:viewings', 'sort' => 'chosen', 'limit' => 4, 'filters' => []]),
+            'invalid: content list limit above the cap' => self::collection(['source' => 'service', 'limit' => 200]),
+            'invalid: content list limit not whole' => self::collection(['source' => 'service', 'limit' => 6.5]),
+            'invalid: content list limit as text' => self::collection(['source' => 'service', 'limit' => '6']),
+            'invalid: content list source key' => self::collection(['source' => 'Service']),
+            'invalid: content list sort unknown' => self::collection(['source' => 'service', 'sort' => 'price']),
+            'invalid: content list filters not a list' => self::collection(['source' => 'service', 'filters' => ['field' => 'featured']]),
+            'invalid: content list too many filters' => self::collection(['source' => 'service', 'filters' => array_fill(0, 6, ['field' => 'featured', 'operator' => 'is_true'])]),
+            'invalid: content list filter operator' => self::collection(['source' => 'service', 'filters' => [['field' => 'featured', 'operator' => 'roughly']]]),
+            'invalid: content list without an item template' => self::doc(overrides: ['nodes' => [
+                'root0001' => ['children' => ['hero0001', 'coll0001']],
+                'coll0001' => ['id' => 'coll0001', 'type' => 'collection', 'version' => 1, 'props' => ['query' => ['source' => 'service']], 'children' => []],
+            ]]),
+            // Content sections: one template per layout, each drawn for the blocks of its layout.
+            'valid: content sections' => self::sections([
+                'sect0001' => 'text_section',
+                'sect0002' => 'quote',
+            ]),
+            'invalid: content sections field key' => self::doc(overrides: ['nodes' => [
+                'root0001' => ['children' => ['hero0001', 'flex0001']],
+                'flex0001' => ['id' => 'flex0001', 'type' => 'sections', 'version' => 1, 'props' => ['field' => 'Story Sections'], 'children' => ['sect0001']],
+                'sect0001' => ['id' => 'sect0001', 'type' => 'section-template', 'version' => 1, 'props' => ['layout' => 'quote'], 'children' => ['text0001']],
+                'text0001' => ['id' => 'text0001', 'type' => 'text', 'version' => 3, 'props' => ['text' => 'A quote']],
+            ]]),
+            'invalid: content sections without a layout template' => self::doc(overrides: ['nodes' => [
+                'root0001' => ['children' => ['hero0001', 'flex0001']],
+                'flex0001' => ['id' => 'flex0001', 'type' => 'sections', 'version' => 1, 'props' => ['field' => 'story'], 'children' => []],
+            ]]),
+            'invalid: content sections holding ordinary blocks' => self::doc(overrides: ['nodes' => [
+                'root0001' => ['children' => ['hero0001', 'flex0001']],
+                'flex0001' => ['id' => 'flex0001', 'type' => 'sections', 'version' => 1, 'props' => ['field' => 'story'], 'children' => ['text0001']],
+                'text0001' => ['id' => 'text0001', 'type' => 'text', 'version' => 3, 'props' => ['text' => 'Not a layout']],
+            ]]),
+            'invalid: a layout template outside content sections' => self::doc(overrides: ['nodes' => [
+                'root0001' => ['children' => ['hero0001', 'sect0001']],
+                'sect0001' => ['id' => 'sect0001', 'type' => 'section-template', 'version' => 1, 'props' => ['layout' => 'quote'], 'children' => ['text0001']],
+                'text0001' => ['id' => 'text0001', 'type' => 'text', 'version' => 3, 'props' => ['text' => 'A quote']],
+            ]]),
+            'invalid: content sections inside a layout template' => self::doc(overrides: ['nodes' => [
+                'root0001' => ['children' => ['hero0001', 'flex0001']],
+                'flex0001' => ['id' => 'flex0001', 'type' => 'sections', 'version' => 1, 'props' => ['field' => 'story'], 'children' => ['sect0001']],
+                'sect0001' => ['id' => 'sect0001', 'type' => 'section-template', 'version' => 1, 'props' => ['layout' => 'quote'], 'children' => ['flex0002']],
+                'flex0002' => ['id' => 'flex0002', 'type' => 'sections', 'version' => 1, 'props' => ['field' => 'story'], 'children' => ['sect0002']],
+                'sect0002' => ['id' => 'sect0002', 'type' => 'section-template', 'version' => 1, 'props' => ['layout' => 'quote'], 'children' => ['text0001']],
+                'text0001' => ['id' => 'text0001', 'type' => 'text', 'version' => 3, 'props' => ['text' => 'A quote']],
+            ]]),
+            'invalid: content list inside a content list' => self::doc(overrides: ['nodes' => [
+                'root0001' => ['children' => ['hero0001', 'coll0001']],
+                'coll0001' => ['id' => 'coll0001', 'type' => 'collection', 'version' => 1, 'props' => ['query' => ['source' => 'service']], 'children' => ['coll0002']],
+                'coll0002' => ['id' => 'coll0002', 'type' => 'collection', 'version' => 1, 'props' => ['query' => ['source' => 'service']], 'children' => ['text0001']],
+                'text0001' => ['id' => 'text0001', 'type' => 'text', 'version' => 3, 'props' => ['text' => 'Inner']],
+            ]]),
             'invalid: 51 children' => Json::encode($many),
             'publish: blank heading (NBSP)' => self::doc(['heading' => "\u{00A0} \u{2003}"]),
             'publish: image without alt text' => self::doc(['heading' => 'x', 'image' => ['assetId' => self::UUID, 'alt' => ' ']]),
@@ -339,6 +404,12 @@ final class Conformance
         $operations = [
             'updateProps' => [self::doc(), '[{"op":"updateProps","nodeId":"hero0001","set":{"heading":"New","text":"Added"}}]'],
             'updateProps unset' => [self::doc(), '[{"op":"updateProps","nodeId":"hero0001","set":{},"unset":["text"]}]'],
+            // Bindings are patched like props: set, unset, and undoable either way.
+            'updateBindings' => [self::doc(), '[{"op":"updateBindings","nodeId":"hero0001","set":{"heading":{"source":"entry","field":"headline"}}}]'],
+            'updateBindings into a group' => [self::doc(), '[{"op":"updateBindings","nodeId":"hero0001","set":{"heading":{"source":"site","field":"address","path":["city"]}}}]'],
+            'updateBindings unset the last one' => [self::doc(), '[{"op":"updateBindings","nodeId":"hero0001","set":{"heading":{"source":"entry","field":"a"}}},{"op":"updateBindings","nodeId":"hero0001","set":{},"unset":["heading"]}]'],
+            'updateBindings invalid source' => [self::doc(), '[{"op":"updateBindings","nodeId":"hero0001","set":{"heading":{"source":"nowhere","field":"a"}}}]'],
+            'updateBindings invalid field key' => [self::doc(), '[{"op":"updateBindings","nodeId":"hero0001","set":{"heading":{"source":"entry","field":"Not A Key"}}}]'],
             'updateProps unset everything' => [self::doc(['heading' => 'x']), '[{"op":"updateProps","nodeId":"hero0001","set":{},"unset":["heading"]}]'],
             'updateProps style' => [self::doc(), '[{"op":"updateProps","nodeId":"hero0001","set":{"style":{"root":{"mobile":{"direction":"column"}},"media":{"base":{"height":"500px","objectFit":"cover"}}}}}]'],
             'updateProps invalid style' => [self::doc(), '[{"op":"updateProps","nodeId":"hero0001","set":{"style":{"media":{"base":{"height":"9000px"}}}}}]'],
@@ -397,6 +468,42 @@ final class Conformance
         $documents['duplicate section anchors'] = Json::encode($doc);
 
         return ['documents' => $documents, 'operations' => $operations, 'paths' => $paths, 'tokens' => $tokens];
+    }
+
+    /**
+     * A page holding one content-sections block with a template per layout, each binding the
+     * block's own values.
+     *
+     * @param  array<string, string>  $templates  node id => the layout it draws
+     */
+    private static function sections(array $templates): string
+    {
+        $nodes = ['root0001' => ['children' => ['hero0001', 'flex0001']],
+            'flex0001' => ['id' => 'flex0001', 'type' => 'sections', 'version' => 1, 'props' => ['field' => 'story_sections'], 'children' => array_keys($templates)]];
+        $i = 0;
+        foreach ($templates as $id => $layout) {
+            $textId = 'text000'.++$i;
+            $nodes[$id] = ['id' => $id, 'type' => 'section-template', 'version' => 1, 'props' => ['layout' => $layout], 'children' => [$textId]];
+            $nodes[$textId] = [
+                'id' => $textId, 'type' => 'text', 'version' => 3, 'props' => ['text' => 'In this section'],
+                'bindings' => ['text' => ['source' => 'entry', 'field' => $layout === 'quote' ? 'quote_text' : 'heading']],
+            ];
+        }
+
+        return self::doc(overrides: ['nodes' => $nodes]);
+    }
+
+    /** A page holding one content list whose item template is a single bound heading. */
+    private static function collection(array $query): string
+    {
+        return self::doc(overrides: ['nodes' => [
+            'root0001' => ['children' => ['hero0001', 'coll0001']],
+            'coll0001' => ['id' => 'coll0001', 'type' => 'collection', 'version' => 1, 'props' => ['query' => $query], 'children' => ['text0001']],
+            'text0001' => [
+                'id' => 'text0001', 'type' => 'text', 'version' => 3, 'props' => ['text' => 'An item'],
+                'bindings' => ['text' => ['source' => 'entry', 'field' => 'title']],
+            ],
+        ]]);
     }
 
     public static function evaluate(array $cases): array

@@ -7,6 +7,7 @@ export type PageOperation =
     | { op: 'removeNode'; nodeId: NodeId }
     | { op: 'moveNode'; nodeId: NodeId; parentId: NodeId; index: number }
     | { op: 'updateProps'; nodeId: NodeId; set: Record<string, unknown>; unset?: string[] }
+    | { op: 'updateBindings'; nodeId: NodeId; set: Record<string, unknown>; unset?: string[] }
     | { op: 'updateSeo'; set: PageSeo; unset?: (keyof PageSeo)[] };
 
 export class OperationError extends Error {
@@ -92,6 +93,18 @@ function applyOne(doc: PageDocument, op: PageOperation, i: number): PageOperatio
             for (const [k, v] of Object.entries(op.set)) node.props[k] = structuredClone(v);
             for (const k of op.unset ?? []) delete node.props[k];
             return { op: 'updateProps', nodeId: op.nodeId, set, unset };
+        }
+        case 'updateBindings': {
+            // Where a node's properties take their values from, patched like the values are.
+            const node = requireNode(doc, op.nodeId, i) as { bindings?: Record<string, unknown> };
+            const bindings = node.bindings ?? {};
+            const { set, unset } = invertPatch(bindings, op.set, op.unset ?? []);
+            for (const [k, v] of Object.entries(op.set)) bindings[k] = structuredClone(v);
+            for (const k of op.unset ?? []) delete bindings[k];
+            // A node that binds nothing says so by having no bindings at all.
+            if (Object.keys(bindings).length === 0) delete node.bindings;
+            else node.bindings = bindings;
+            return { op: 'updateBindings', nodeId: op.nodeId, set, unset };
         }
         case 'updateSeo': {
             const seo = doc.seo as Record<string, unknown>;

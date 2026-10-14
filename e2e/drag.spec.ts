@@ -5,7 +5,7 @@
 // save or publish request.
 import { expect, test, type FrameLocator, type Locator, type Page } from '@playwright/test';
 import { AUTH_STATE, E2E_HOST, PORT } from './env';
-import { db } from './support';
+import { db, palette as openPalette } from './support';
 
 type Spec = Record<string, unknown>;
 let counter = 0;
@@ -220,16 +220,20 @@ test.describe('canvas', () => {
         // Visually between C (left) and B (middle) = between B and C in document order.
         await quickDrag(page, await handleCenter(page), { x: (c.x + c.width + b.x) / 2, y: b.y + b.height / 2 });
         await expect.poll(() => texts(page, '.ak-group')).toEqual(['A', 'B', 'Mover', 'C']);
-        // And it is drawn exactly there: between C and B.
-        const xs = await canvas(page)
-            .locator('.ak-group > .ak-text2')
-            .evaluateAll((els) =>
-                els
-                    .map((el) => [el.textContent, Math.round(el.getBoundingClientRect().left)] as const)
-                    .sort((p, q) => p[1] - q[1])
-                    .map(([t]) => t),
-            );
-        expect(xs).toEqual(['C', 'Mover', 'B', 'A']);
+        // And it is drawn exactly there: between C and B. Polled, because for a frame after the
+        // drop the block still carries the drag transform and would measure where it was dropped.
+        await expect
+            .poll(() =>
+                canvas(page)
+                    .locator('.ak-group > .ak-text2')
+                    .evaluateAll((els) =>
+                        els
+                            .map((el) => [el.textContent, Math.round(el.getBoundingClientRect().left)] as const)
+                            .sort((p, q) => p[1] - q[1])
+                            .map(([t]) => t),
+                    ),
+            )
+            .toEqual(['C', 'Mover', 'B', 'A']);
     });
 
     test('an image block moves between columns; a button goes between two text blocks', async ({ page }) => {
@@ -256,6 +260,8 @@ test.describe('canvas', () => {
             .toEqual(['ak-text2', 'ak-img2', 'ak-text2']);
         // A new button from the palette, into the left column after its text (the text's lower half).
         await page.getByRole('tab', { name: 'Layers' }).click();
+        await openPalette(page);
+        await page.getByRole('button', { name: 'Add Button' }).scrollIntoViewIfNeeded();
         const palette = await box(page.getByRole('button', { name: 'Add Button' }));
         const left = await box(canvas(page).locator('.ak-text2', { hasText: 'Left text' }));
         await quickDrag(page, { x: palette.x + palette.width / 2, y: palette.y + palette.height / 2 }, { x: left.x + 30, y: left.y + left.height - 6 }, 8);
@@ -273,6 +279,8 @@ test.describe('canvas', () => {
     test('invalid destinations are explained and change nothing', async ({ page }) => {
         const { writes } = await openPage(page, [text('Top', 60), columns([[text('In column', 60)], [text('Other', 60)]])]);
         await page.getByRole('tab', { name: 'Layers' }).click();
+        await openPalette(page);
+        await page.getByRole('button', { name: 'Add Hero' }).scrollIntoViewIfNeeded();
         const hero = await box(page.getByRole('button', { name: 'Add Hero' }));
         const inColumn = await box(canvas(page).locator('.ak-text2', { hasText: 'In column' }));
         await page.mouse.move(hero.x + hero.width / 2, hero.y + hero.height / 2);
@@ -355,6 +363,7 @@ test.describe('ending a drag without dropping', () => {
         const { writes } = await openPage(page, [text('First'), text('Second'), text('Third')]);
         // An earlier edit, so there is something to undo during the drag.
         await page.getByRole('tab', { name: 'Layers' }).click();
+        await openPalette(page);
         await page.getByRole('button', { name: 'Add Text' }).click();
         await expect(canvas(page).locator('.ak-text2')).toHaveCount(4);
         await page.getByRole('tab', { name: 'Properties' }).click();

@@ -23,7 +23,7 @@ use Illuminate\Support\Facades\DB;
  */
 final class ContentDetails
 {
-    public function __construct(private readonly Authorizer $auth, private readonly Transactions $tx, private readonly PageStore $store, private readonly AuditLog $audit) {}
+    public function __construct(private readonly Authorizer $auth, private readonly Transactions $tx, private readonly PageStore $store, private readonly AuditLog $audit, private readonly ContentTypeRegistry $types) {}
 
     /**
      * Draft details by page id.
@@ -39,7 +39,7 @@ final class ContentDetails
         }
         $out = [];
         foreach (DB::table('pages')->where('site_id', $siteId)->whereIn('id', $pageIds)->get(['id', 'kind', 'excerpt', 'featured_media_id']) as $p) {
-            $out[$p->id] = ['excerpt' => $p->excerpt, 'featuredMediaId' => $p->featured_media_id, 'terms' => array_fill_keys(ContentTypes::get($p->kind)['taxonomies'], [])];
+            $out[$p->id] = ['excerpt' => $p->excerpt, 'featuredMediaId' => $p->featured_media_id, 'terms' => array_fill_keys($this->types->forSite($siteId)->get($p->kind)['taxonomies'], [])];
         }
         foreach (DB::table('page_terms as pt')->join('terms as t', 't.id', '=', 'pt.term_id')->where('pt.site_id', $siteId)->whereIn('pt.page_id', $pageIds)->orderBy('t.name')->get(['pt.page_id', 't.id', 't.taxonomy']) as $r) {
             $out[$r->page_id]['terms'][$r->taxonomy][] = $r->id;
@@ -76,7 +76,8 @@ final class ContentDetails
             return;
         }
         $this->auth->authorize($ctx, 'page.edit');
-        $type = ContentTypes::get($page->kind);
+        $siteTypes = $this->types->forSite($ctx->siteId);
+        $type = $siteTypes->get($page->kind);
         if (! $type['details'] && (array_key_exists('excerpt', $v) || array_key_exists('featuredMediaId', $v))) {
             throw new ValidationException($type['plural'].' have no excerpt or featured image.');
         }
@@ -92,7 +93,7 @@ final class ContentDetails
             $values['featured_media_id'] = $id;
         }
         foreach ($v['terms'] ?? [] as $taxonomy => $ids) {
-            if (! ContentTypes::uses($page->kind, $taxonomy)) {
+            if (! $siteTypes->uses($page->kind, $taxonomy)) {
                 throw new ValidationException($type['plural'].' do not use '.strtolower(Taxonomies::get($taxonomy)['plural']).'.');
             }
             TermService::assertIds($ctx->siteId, $taxonomy, $ids);

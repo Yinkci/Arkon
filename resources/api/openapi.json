@@ -1552,10 +1552,20 @@
                         }
                     },
                     {
+                        "name": "related",
+                        "in": "query",
+                        "required": false,
+                        "description": "Relationship filters: field:id pairs, comma-separated, e.g. agent:0190….",
+                        "schema": {
+                            "type": "string",
+                            "maxLength": 500
+                        }
+                    },
+                    {
                         "name": "include",
                         "in": "query",
                         "required": false,
-                        "description": "content and/or seo, comma-separated (single items always include both).",
+                        "description": "content, seo and/or fields, comma-separated (single items always include all three).",
                         "schema": {
                             "type": "string"
                         }
@@ -2187,10 +2197,20 @@
                         }
                     },
                     {
+                        "name": "related",
+                        "in": "query",
+                        "required": false,
+                        "description": "Relationship filters: field:id pairs, comma-separated, e.g. agent:0190….",
+                        "schema": {
+                            "type": "string",
+                            "maxLength": 500
+                        }
+                    },
+                    {
                         "name": "include",
                         "in": "query",
                         "required": false,
-                        "description": "content and/or seo, comma-separated (single items always include both).",
+                        "description": "content, seo and/or fields, comma-separated (single items always include all three).",
                         "schema": {
                             "type": "string"
                         }
@@ -3341,7 +3361,8 @@
                     "timezone",
                     "logo",
                     "favicon",
-                    "organization"
+                    "organization",
+                    "data"
                 ],
                 "properties": {
                     "name": {
@@ -3385,6 +3406,10 @@
                                 "type": "string"
                             }
                         }
+                    },
+                    "data": {
+                        "type": "object",
+                        "additionalProperties": true
                     }
                 }
             },
@@ -4378,6 +4403,11 @@
                                 "type": "null"
                             }
                         ]
+                    },
+                    "fields": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "description": "include=fields: values by field key; relationships are {id, type, title, path}."
                     }
                 }
             },
@@ -4558,6 +4588,11 @@
                                 "type": "null"
                             }
                         ]
+                    },
+                    "fields": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "description": "include=fields: values by field key; relationships are {id, type, title, path}."
                     }
                 }
             },

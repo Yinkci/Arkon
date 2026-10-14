@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Arkon\Content\ContentItems;
 use App\Arkon\Content\ContentReader;
 use App\Arkon\Content\ContentTypes;
+use App\Arkon\Content\EntryFields;
 use App\Arkon\Content\RenderedOutput;
 use App\Arkon\Content\Taxonomies;
 use App\Arkon\Pages\PageManagement;
@@ -47,22 +48,25 @@ final class ContentController extends Controller
             'search' => ['sometimes', 'string', 'max:200'], 'slug' => ['sometimes', 'string', 'max:100'], 'path' => ['sometimes', 'string', 'max:2000'],
             'author' => ['sometimes', 'uuid'], 'after' => ['sometimes', 'date'], 'before' => ['sometimes', 'date'],
             'include' => ['sometimes', 'string'], 'sort' => ['sometimes', 'string'], 'page' => ['sometimes'], 'per_page' => ['sometimes'],
+            'related' => ['sometimes', 'string', 'max:500'],
             ...$taxonomyParams,
         ]);
         $page = Pagination::from($request);
         $sort = ApiResponse::sort($request, ContentReader::SORTS, $type['details'] ? '-published_at' : 'path');
-        $include = ApiResponse::includes($request, ['content', 'seo']);
+        $include = ApiResponse::includes($request, ['content', 'seo', 'fields']);
         $status = $v['status'] ?? 'published';
         $member = $this->member($request, $type, $status !== 'published' || ($v['context'] ?? 'view') === 'edit');
         $filters = [
             'status' => $status, 'search' => $v['search'] ?? null, 'slug' => $v['slug'] ?? null, 'path' => $v['path'] ?? null, 'author' => $v['author'] ?? null,
             'after' => $v['after'] ?? null, 'before' => $v['before'] ?? null,
             'terms' => $this->termFilters(ApiPrincipal::of($request)->siteId, $type, $v),
+            'refs' => self::relatedFilters($v['related'] ?? null),
         ];
         $result = $this->reader->page($this->reader->query(ApiPrincipal::of($request)->siteId, $kind, $member ? 'draft' : 'live', array_filter($filters, fn ($x) => $x !== null)), $sort, $page->page, $page->perPage);
-        $rendered = $include === [] ? [] : $this->rendered($request, $result['rows'], $member);
+        $rendered = array_intersect($include, ['content', 'seo']) === [] ? [] : $this->rendered($request, $result['rows'], $member);
+        $fields = in_array('fields', $include, true) ? $this->fieldValues($request, $result['rows'], $member) : [];
 
-        return ApiResponse::collection($request, $this->resource($request, $member)->many($result['rows'], $rendered, $include), $page, $result['total']);
+        return ApiResponse::collection($request, $this->resource($request, $member)->many($result['rows'], $rendered, $include, $fields), $page, $result['total']);
     }
 
     public function show(Request $request): JsonResponse
@@ -84,7 +88,8 @@ final class ContentController extends Controller
         if ($row === null) {
             throw ApiError::notFound($type['label']);
         }
-        $data = $this->resource($request, $member)->many([$row], $this->rendered($request, [$row], $member), ['content', 'seo'])[0];
+        $include = ['content', 'seo', 'fields'];
+        $data = $this->resource($request, $member)->many([$row], $this->rendered($request, [$row], $member), $include, $this->fieldValues($request, [$row], $member))[0];
 
         return ApiResponse::item($request, $data, lastModified: $member ? null : $row['modifiedAt']);
     }
@@ -186,6 +191,40 @@ final class ContentController extends Controller
     private function resource(Request $request, bool $member): ContentResource
     {
         return new ContentResource(ApiPrincipal::of($request)->siteId, $request->getSchemeAndHttpHost(), $member);
+    }
+
+    /**
+     * The entries' own field values. A visitor sees them as a page does — without private
+     * fields, and without references to anything in the Trash. One pair of queries for the
+     * whole page of results, whatever it holds.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function fieldValues(Request $request, array $rows, bool $member): array
+    {
+        $ids = array_values(array_filter(array_map(fn ($row) => $member || $row['status'] === 'published' ? $row['id'] : null, $rows)));
+
+        return app(EntryFields::class)->publicValues(ApiPrincipal::of($request)->siteId, $ids, asVisitor: ! $member);
+    }
+
+    /**
+     * `related=agent:<id>,instructor:<id>`: items whose relationship field points at that entry.
+     * Only well-formed field keys are read, so a stray parameter narrows nothing by accident.
+     *
+     * @return array<string, list<string>>
+     */
+    private static function relatedFilters(?string $given): array
+    {
+        $filters = [];
+        foreach (array_filter(array_map('trim', explode(',', (string) $given))) as $pair) {
+            [$field, $id] = array_pad(explode(':', $pair, 2), 2, null);
+            if (! Rules::matches('fieldKey', $field) || ! Uuid::isValid((string) $id)) {
+                continue;
+            }
+            $filters[$field][] = (string) $id;
+        }
+
+        return $filters;
     }
 
     /** @return array<string, array{html: string, css: string, seo: array}|null> */

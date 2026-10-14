@@ -2,6 +2,7 @@
 
 namespace App\Arkon\Components;
 
+use App\Arkon\Content\Bindings;
 use App\Arkon\Schema\DocumentShape;
 use App\Arkon\Schema\DocumentStructure;
 use App\Arkon\Style\StyleSchema;
@@ -189,17 +190,41 @@ final class DocumentValidator
      *
      * @return list<array{nodeId: string, message: string}>
      */
-    public function publishIssues(array $doc): array
+    public function publishIssues(array $doc, array $content = []): array
     {
         $issues = [];
         foreach (Json::entries($doc['nodes']) as $node) {
             $definition = $this->definitionOf($node);
-            foreach ($definition->publishProblems($definition->props->parseValid($node['props'])) as $message) {
+            // Judged on what will actually be published: a heading that is empty here but takes
+            // its words from the entry is not a missing heading.
+            $props = Bindings::apply($node['props'], $node['bindings'] ?? null, $content, $definition->mediaRefs, $definition->props->fields());
+            foreach ($definition->publishProblems($definition->props->parseValid($props)) as $message) {
                 $issues[] = ['nodeId' => $node['id'], 'message' => $message];
             }
         }
 
         return $issues;
+    }
+
+    /**
+     * Bindings that no longer point at anything, to report before publishing. Such a page still
+     * renders — it falls back to what was typed — but somebody should know about it here rather
+     * than finding out from the live site.
+     *
+     * @param  list<array<string, mixed>>  $entryFields
+     * @param  list<array<string, mixed>>  $siteFields
+     * @return list<array{nodeId: string, message: string}>
+     */
+    public function bindingIssues(array $doc, array $entryFields, array $siteFields): array
+    {
+        return array_map(
+            fn ($broken) => [
+                'nodeId' => $broken['nodeId'],
+                'message' => '“'.$broken['prop'].'” is set to show '.($broken['source'] === 'site' ? 'site data' : 'content')
+                    .' “'.$broken['field'].'”, which no longer exists. What is typed in is shown instead.',
+            ],
+            Bindings::broken($doc, $entryFields, $siteFields),
+        );
     }
 
     /**

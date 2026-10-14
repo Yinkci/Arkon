@@ -249,7 +249,7 @@ class PublicApiTest extends DatabaseTestCase
     public function test_site_details_expose_nothing_secret(): void
     {
         $data = $this->getJson(self::BASE.'/site')->assertOk()->json('data');
-        $this->assertSame(['name', 'description', 'url', 'language', 'timezone', 'logo', 'favicon', 'organization'], array_keys($data));
+        $this->assertSame(['name', 'description', 'url', 'language', 'timezone', 'logo', 'favicon', 'organization', 'data'], array_keys($data));
         $this->assertSame('http://api.test', $data['url']);
         $index = $this->getJson(self::BASE)->assertOk()->json('data');
         $this->assertSame('v1', $index['version']);

@@ -5,6 +5,9 @@ namespace App\Arkon\Design;
 use App\Arkon\Audit\AuditLog;
 use App\Arkon\Components\ComponentRegistry;
 use App\Arkon\Components\DocumentValidator;
+use App\Arkon\Content\BindingContext;
+use App\Arkon\Content\Bindings;
+use App\Arkon\Content\BindingSources;
 use App\Arkon\Database\Transactions;
 use App\Arkon\Errors\ConflictException;
 use App\Arkon\Errors\NotFoundException;
@@ -56,6 +59,7 @@ class ComponentService
         private readonly DesignResources $resources,
         private readonly PageRefreshes $refreshes,
         private readonly AuditLog $audit,
+        private readonly BindingContext $bindings,
     ) {}
 
     /** @return list<array{id: string, name: string, version: int, published: int|null, changed: bool, livePages: int, updatedAt: string}> */
@@ -124,30 +128,58 @@ class ComponentService
                 'canvas' => $this->readCanvas($ctx, $doc, $signer),
                 'multiline' => $this->registry->multilineFields(),
                 'refreshes' => $this->refreshes->status($ctx),
+                // A component is designed away from any one entry, so it offers sample ones to
+                // preview with, and the site's own fields, which it can bind to for real.
+                'bindingSources' => BindingSources::all([], $this->bindings->siteFields($ctx->siteId)),
+                'previewEntries' => $this->previewEntries($ctx->siteId),
             ];
         }, isolation: 'REPEATABLE READ', readOnly: true);
     }
 
     /** Editor-mode rendering of a (draft) component document, as it would look on a page. */
-    public function renderCanvas(SiteContext $ctx, string $id, mixed $document, MediaSigner $signer): array
+    public function renderCanvas(SiteContext $ctx, string $id, mixed $document, MediaSigner $signer, ?string $previewEntryId = null): array
     {
-        return $this->transactions->run(function () use ($ctx, $id, $document, $signer) {
+        return $this->transactions->run(function () use ($ctx, $id, $document, $signer, $previewEntryId) {
             $this->authorizer->authorize($ctx, 'page.view');
             $this->load($ctx->siteId, $id);
 
-            return $this->readCanvas($ctx, $document, $signer);
+            return $this->readCanvas($ctx, $document, $signer, $previewEntryId);
         }, isolation: 'REPEATABLE READ', readOnly: true);
     }
 
-    private function readCanvas(SiteContext $ctx, mixed $document, MediaSigner $signer): array
+    /**
+     * Entries a component can be previewed as, newest first and only of kinds that carry fields:
+     * previewing as something with nothing to show would tell the designer nothing.
+     *
+     * @return list<array{id: string, title: string, kind: string, label: string}>
+     */
+    private function previewEntries(string $siteId): array
+    {
+        $kinds = array_keys($this->bindings->kindsWithFields($siteId));
+        if ($kinds === []) {
+            return [];
+        }
+
+        return DB::table('pages')->where('site_id', $siteId)->whereIn('kind', $kinds)
+            ->whereNull('deleted_at')->whereNull('purged_at')
+            ->orderByDesc('updated_at')->limit(50)->get(['id', 'title', 'kind'])
+            ->map(fn ($page) => ['id' => $page->id, 'title' => $page->title, 'kind' => $page->kind, 'label' => $page->title])
+            ->all();
+    }
+
+    private function readCanvas(SiteContext $ctx, mixed $document, MediaSigner $signer, ?string $previewEntryId = null): array
     {
         if ($this->validator->validateFragment($document) !== []) {
             throw new ValidationException('The component is not valid', $this->validator->validateFragment($document));
         }
         $page = $this->asPage($document);
-        $media = $this->media->signedMediaMap($ctx->siteId, $this->validator->safeMediaRefs($page), $signer);
+        // A component has no entry of its own, so a sample one stands in while it is designed:
+        // its values show what the bindings will do on a real page.
+        $content = $this->bindings->draft($ctx->siteId, $previewEntryId);
+        $mediaIds = [...$this->validator->safeMediaRefs($page), ...Bindings::mediaIds($page, $content)];
+        $media = $this->media->signedMediaMap($ctx->siteId, array_values(array_unique($mediaIds)), $signer);
         try {
-            $out = $this->renderer->render($page, 'editor', ['title' => 'Component', 'path' => '/'], ['name' => 'Component'], $media, resources: ['tokens' => $this->resources->publishedTokens($ctx->siteId)], protectLcp: false);
+            $out = $this->renderer->render($page, 'editor', ['title' => 'Component', 'path' => '/'], ['name' => 'Component'], $media, resources: ['tokens' => $this->resources->publishedTokens($ctx->siteId)], protectLcp: false, content: $content);
         } catch (RenderException $error) {
             throw new ValidationException('The component could not be rendered', $error->issues);
         }

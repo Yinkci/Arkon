@@ -133,6 +133,15 @@ redefines the `--ak-*` tokens of its own subtree to the dark theme's values, so 
 - `EditorWorkspace`: at ≥ 1536 px, Outline (Layers, History, AI) on the left, the canvas, and
   Properties always on the right. The outline can be hidden and the choice is remembered.
   Narrower screens keep one tabbed sidebar, because the desktop canvas never drops below 960 px.
+- Both sidebars collapse from the toolbar (`panelLeft` for the outline, `panelRight` for
+  Properties, wide layouts only) and each choice is remembered (`usePanelPreference`).
+- Layers tab: the outline is the content. Adding is a single `+ Add` button that opens
+  `BlockPicker` — a searchable list grouped Layout / Content / Media / Forms / Navigation, then
+  starting layouts, then reusable components — above the outline; it stays open while you insert
+  and closes with Done. There is no permanent block grid and no helper paragraphs.
+- Layer rows show Duplicate and Remove only on hover, focus or selection, overlaying the end of
+  the row; the whole row is the drag handle. Secondary block actions (move, select parent, make
+  reusable, remove) live in the `Columns actions`-style `RowMenu` in the Properties header.
 - Design properties are **property rows**: the name (bold with a cobalt dot when set here,
   plus an override badge) beside the control, and Reset as an icon after it. See `StyleControl`
   and `QuickChoice`. Content fields keep the label-above form layout.

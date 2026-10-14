@@ -1,6 +1,8 @@
 import { usePage } from '@inertiajs/react';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { currentDefinition } from '@/arkon/components/registry';
+import { BindingPanel, type Binding, type BindingSource } from './BindingPanel';
+import { bindableProps } from '@/lib/bindings';
 import { componentName, partsOf, resolvePart, styleFieldOf, type Part } from '@/arkon/editor/parts';
 import { matches, message } from '@/arkon/rules';
 import { canContain, createNodes, insertOps } from '@/arkon/editor/structure';
@@ -12,8 +14,9 @@ import { BREAKPOINT_LABEL, effectiveValue, styleOf, withStyleValue } from '@/ark
 import type { Breakpoint, Style } from '@/arkon/style/schema';
 import type { TokenSet } from '@/arkon/style/tokens';
 import { Icon, type IconName } from '@/Components/Icon';
-import { Button, PanelSection, Segmented } from '@/Components/ui';
-import type { MediaInfo, ReusableComponentInfo } from '@/types';
+import { Button, Field, PanelSection, Segmented } from '@/Components/ui';
+import type { CollectionSources, CollectionState, FlexibleFieldInfo, MediaInfo, ReusableComponentInfo } from '@/types';
+import { CollectionPanel, queryOf } from './CollectionPanel';
 import { ScreenBar, StyleControl, StyleGroups, type StyleTarget } from './DesignPanel';
 import { MediaPicker } from './MediaPicker';
 import { AnimationSection, canAnimate, type Protection } from './AnimationPanel';
@@ -57,6 +60,14 @@ export interface InspectorProps {
     tokens: TokenSet;
     /** Published reusable components of the site. */
     components: ReusableComponentInfo[];
+    /** What a block's properties can take their values from: this entry's fields, and the site's. */
+    bindingSources?: BindingSource[];
+    /** What a content list can show, and how each kind's fields can be filtered and sorted. */
+    collectionSources?: CollectionSources;
+    /** What each content list on the page resolved to, from the last canvas render. */
+    collectionStates?: Record<string, CollectionState>;
+    /** The entry's content-sections fields, with the kinds of section each offers. */
+    flexibleFields?: FlexibleFieldInfo[];
     /** Replaces an instance with a copy of its component's blocks (one undo step). */
     onDetach?(nodeId: string): void;
     /** Structural actions for the selected component (move, remove, make reusable). */
@@ -91,6 +102,33 @@ const ICONS: Record<string, IconName> = {
     group: 'layers',
     instance: 'component',
 };
+
+/**
+ * Inside a content list, "this entry" means the item being rendered, so a block there binds to
+ * the fields of what the list shows — "Current Service → Title" — and not to the page's own.
+ * Inside a section layout it means the section being drawn, so a block there binds to that
+ * layout's own fields. Site data is offered unchanged, because it does not depend on either.
+ */
+function itemSourcesFor(props: Omit<InspectorProps, 'part'>, node: Node): BindingSource[] | null {
+    const site = (props.bindingSources ?? []).filter((s) => s.source === 'site');
+    const template = ancestorsOf(props.document, node.id).find((a) => a.type === 'section-template');
+    if (template) {
+        const parent = findParent(props.document, template.id);
+        const parentNode = parent ? props.document.nodes[parent.parentId] : undefined;
+        const field = (props.flexibleFields ?? []).find((f) => f.key === String(parentNode?.props.field ?? ''));
+        const layout = field?.layouts.find((one) => one.key === String(template.props.layout ?? ''));
+
+        return layout === undefined ? site : [{ source: 'entry', label: `This ${layout.label}`, fields: layout.bindable ?? [] }, ...site];
+    }
+    const list = ancestorsOf(props.document, node.id).find((a) => a.type === 'collection');
+    if (!list || !props.collectionSources) return null;
+    const source = String((list.props.query as { source?: unknown } | undefined)?.source ?? '');
+    const related = source.startsWith('related:') ? props.collectionSources.related.find((r) => r.key === source.slice('related:'.length)) : undefined;
+    const type = props.collectionSources.types.find((t) => (related ? t.plural === related.targetLabel : t.key === source));
+    if (!type) return site;
+
+    return [{ source: 'entry', label: `Current ${type.label}`, fields: type.bindable }, ...site];
+}
 
 /** Ancestors of a node, outermost first (the page root excluded). */
 function ancestorsOf(doc: PageDocument, nodeId: NodeId): Node[] {
@@ -134,6 +172,19 @@ export function Inspector(props: InspectorProps) {
             {props.toolbar}
             <div data-testid="design-panel">
                 <Body {...props} node={node} part={part} set={set} style={style} goToPart={(slot) => props.onSelectPart(node.id, slot)} />
+                <BindingPanel
+                    props={bindableProps(node.type)}
+                    sources={itemSourcesFor(props, node) ?? props.bindingSources ?? []}
+                    bindings={(node.bindings ?? {}) as Record<string, Binding>}
+                    canEdit={props.canEdit}
+                    onChange={(prop, binding) =>
+                        props.onChange([
+                            binding === null
+                                ? { op: 'updateBindings', nodeId: node.id, set: {}, unset: [prop] }
+                                : { op: 'updateBindings', nodeId: node.id, set: { [prop]: binding } },
+                        ])
+                    }
+                />
                 {canAnimate(field) && (
                     <AnimationSection
                         document={props.document}
@@ -1629,7 +1680,128 @@ function SliderBody(props: NodeInspectorProps) {
     );
 }
 
+/**
+ * A content-sections block: which of the entry's content-sections fields it draws. Each child is
+ * the template for one kind of section, so the templates are designed here and the content is
+ * written in the entry editor.
+ */
+function SectionsBody(props: NodeInspectorProps) {
+    const fields = props.flexibleFields ?? [];
+    const chosen = fields.find((f) => f.key === String(props.node.props.field ?? ''));
+    const covered = (props.node.children ?? []).map((id) => String((props.document.nodes[id]?.props.layout ?? '') as string)).filter((layout) => layout !== '');
+    const missing = (chosen?.layouts ?? []).filter((layout) => !covered.includes(layout.key));
+    return (
+        <>
+            <PanelSection title="What it draws">
+                <Field label="Content sections" hint="A field of this entry that holds an ordered sequence of sections.">
+                    {({ id }) => (
+                        <select
+                            id={id}
+                            className="ui-input"
+                            disabled={!props.canEdit}
+                            value={String(props.node.props.field ?? '')}
+                            onChange={(e) => props.set({ field: e.target.value })}
+                        >
+                            <option value="">Choose a field…</option>
+                            {fields.map((field) => (
+                                <option key={field.key} value={field.key}>
+                                    {field.label}
+                                </option>
+                            ))}
+                        </select>
+                    )}
+                </Field>
+                {fields.length === 0 && <p className="t-meta">This kind of entry has no content-sections field yet. Add one to its content type first.</p>}
+                {missing.length > 0 && (
+                    <p className="t-meta">
+                        No template yet for: {missing.map((layout) => layout.label).join(', ')}. Add a section layout inside this block for each kind you want
+                        drawn.
+                    </p>
+                )}
+            </PanelSection>
+            <DesignArea props={props} />
+        </>
+    );
+}
+
+/** One kind of section: which layout this template draws. */
+function SectionTemplateBody(props: NodeInspectorProps) {
+    const parent = findParent(props.document, props.node.id);
+    const parentNode = parent ? props.document.nodes[parent.parentId] : undefined;
+    const field = (props.flexibleFields ?? []).find((f) => f.key === String(parentNode?.props.field ?? ''));
+    const taken = (parentNode?.children ?? [])
+        .filter((id) => id !== props.node.id)
+        .map((id) => String((props.document.nodes[id]?.props.layout ?? '') as string));
+    return (
+        <>
+            <PanelSection title="Which section">
+                <Field label="Kind of section" hint="Everything inside this template is drawn once for each section of that kind.">
+                    {({ id }) => (
+                        <select
+                            id={id}
+                            className="ui-input"
+                            disabled={!props.canEdit}
+                            value={String(props.node.props.layout ?? '')}
+                            onChange={(e) => props.set({ layout: e.target.value })}
+                        >
+                            <option value="">Choose a kind…</option>
+                            {(field?.layouts ?? []).map((layout) => (
+                                <option key={layout.key} value={layout.key} disabled={taken.includes(layout.key)}>
+                                    {layout.label}
+                                    {taken.includes(layout.key) ? ' (already drawn)' : ''}
+                                </option>
+                            ))}
+                        </select>
+                    )}
+                </Field>
+                {field === undefined && <p className="t-meta">Choose what the surrounding block draws first.</p>}
+            </PanelSection>
+            <DesignArea props={props} />
+        </>
+    );
+}
+
+/**
+ * A content list: its query, then the design of the list and of each item. The item template
+ * itself is the block inside it, edited like any other block.
+ */
+function CollectionBody(props: NodeInspectorProps) {
+    const sources = props.collectionSources ?? { types: [], related: [] };
+    const state = props.collectionStates?.[props.node.id];
+    return (
+        <>
+            <PanelSection title="What it shows">
+                <CollectionPanel
+                    query={queryOf(props.node.props)}
+                    sources={sources}
+                    state={state}
+                    canEdit={props.canEdit}
+                    onChange={(query) => props.set({ query: { ...query } }, 'query')}
+                />
+            </PanelSection>
+            <PanelSection title="When there is nothing to show">
+                <Field label="Message" hint="Shown to visitors instead of an empty space.">
+                    {({ id }) => (
+                        <input
+                            id={id}
+                            className="ui-input"
+                            maxLength={200}
+                            disabled={!props.canEdit}
+                            value={String(props.node.props.emptyText ?? '')}
+                            onChange={(e) => props.set({ emptyText: e.target.value }, 'emptyText')}
+                        />
+                    )}
+                </Field>
+            </PanelSection>
+            <DesignArea props={props} />
+        </>
+    );
+}
+
 const BODIES: Record<string, (props: NodeInspectorProps) => React.JSX.Element> = {
+    collection: CollectionBody,
+    sections: SectionsBody,
+    'section-template': SectionTemplateBody,
     slider: SliderBody,
     slide: SlideBody,
     hero: HeroBody,

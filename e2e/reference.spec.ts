@@ -2,10 +2,19 @@ import { execFileSync } from 'node:child_process';
 import { expect, test } from '@playwright/test';
 import { E2E_ENV, PHP, APP_ORIGIN } from './env';
 import { E2E_OWNER } from './fixtures';
-import { createPage, db } from './support';
+import { createPage, db, palette } from './support';
 
-test.beforeAll(() => {
-    execFileSync(PHP, ['artisan', 'arkon:perf-fixtures', '--email=' + E2E_OWNER.email], { env: { ...process.env, ...E2E_ENV }, encoding: 'utf8' });
+// The pages may already be there (another spec file built them); building them twice would
+// collide on the path. On failure the command's own output is what explains it, so show it.
+test.beforeAll(async () => {
+    const existing = await db.query("select id from pages where path='/perf-hero' and deleted_at is null limit 1");
+    if (existing.rowCount) return;
+    try {
+        execFileSync(PHP, ['artisan', 'arkon:perf-fixtures', '--email=' + E2E_OWNER.email], { env: { ...process.env, ...E2E_ENV }, encoding: 'utf8' });
+    } catch (e) {
+        const run = e as { stdout?: string; stderr?: string };
+        throw new Error(`arkon:perf-fixtures failed:\n${run.stdout ?? ''}\n${run.stderr ?? ''}`);
+    }
 });
 test.afterAll(async () => {
     await db.end();
@@ -65,6 +74,7 @@ test('starting layouts insert ordinary editable blocks, save, undo and reload in
     const id = await createPage('/reference-editor', 'Reference editor');
     await page.goto('/admin/editor/' + id);
     await page.getByRole('tab', { name: 'Layers', exact: true }).click();
+    await palette(page);
     await page.getByText('Starting layouts', { exact: true }).click();
     await page.getByRole('button', { name: 'Introduction and service cards', exact: true }).click();
     await expect(page.frameLocator('[data-testid="canvas"]').getByText('What we do for our clients')).toBeVisible();
@@ -117,6 +127,7 @@ test('canvas shows one slide and reveals hidden content selected through Layers'
     const id = await createPage('/slider-canvas-v2', 'Slider canvas');
     await page.goto('/admin/editor/' + id);
     await page.getByRole('tab', { name: 'Layers', exact: true }).click();
+    await palette(page);
     await page.getByText('Starting layouts', { exact: true }).click();
     await page.getByRole('button', { name: 'Image hero slider', exact: true }).click();
     const canvas = page.frameLocator('[data-testid=canvas]');
@@ -215,6 +226,7 @@ test('edge arrows and no pagination work in the builder, survive saving and publ
     const id = await createPage('/slider-edge-layout', 'Edge slider');
     await page.goto('/admin/editor/' + id);
     await page.getByRole('tab', { name: 'Layers', exact: true }).click();
+    await palette(page);
     await page.getByText('Starting layouts', { exact: true }).click();
     await page.getByRole('button', { name: 'Image hero slider', exact: true }).click();
     await page.locator('[data-testid=layer][data-node-type=slider]').first().click();
@@ -322,6 +334,7 @@ test('slider screen overrides inherit, reset and survive publication and resizin
     const id = await createPage('/slider-responsive-layout', 'Responsive slider');
     await page.goto('/admin/editor/' + id);
     await page.getByRole('tab', { name: 'Layers', exact: true }).click();
+    await palette(page);
     await page.getByText('Starting layouts', { exact: true }).click();
     await page.getByRole('button', { name: 'Image hero slider', exact: true }).click();
     await page.locator('[data-testid=layer][data-node-type=slider]').first().click();

@@ -239,7 +239,7 @@ test('columns: invalid custom widths are refused before applying; moving a colum
     await page.getByRole('tab', { name: 'Layers' }).click();
     await layer(page, 'columns').first().locator('button').first().click();
     await page.getByRole('tab', { name: 'Properties' }).click();
-    const widths = page.getByLabel('Custom widths (all screens)', { exact: true });
+    const widths = page.getByLabel('Custom column widths', { exact: true });
     await widths.fill('1fr 2fr 1fr');
     await expect(page.getByText('Columns: 3 widths for 2 columns; give one width per column')).toBeVisible();
     await expect(undo(page)).toBeDisabled();

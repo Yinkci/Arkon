@@ -52,7 +52,7 @@ class PerfFixtures extends Command
 
         // 1. A hero with its photo on the right (the design acceptance layout), and a short section.
         $hero = [
-            ['id' => 'hero0001', 'type' => 'hero', 'version' => 4, 'props' => [
+            ['id' => 'hero0001', 'type' => 'hero', 'version' => 5, 'props' => [
                 'heading' => 'Gardens that grow with you', 'headingLevel' => 'h1',
                 'text' => 'Garden design, planting and lawn care for homes and businesses across the valley.',
                 'image' => ['assetId' => $photos[0]['id'], 'alt' => 'A walled garden with flowering borders'],
@@ -77,7 +77,7 @@ class PerfFixtures extends Command
                 $img = sprintf('img%d%d0001', $row, $c);
                 $children[] = $col;
                 $nodes[] = ['id' => $col, 'type' => 'column', 'version' => 6, 'props' => $o, 'children' => [$img]];
-                $nodes[] = ['id' => $img, 'type' => 'image', 'version' => 5, 'props' => [
+                $nodes[] = ['id' => $img, 'type' => 'image', 'version' => 6, 'props' => [
                     'image' => ['assetId' => $photos[1 + ($row * 3 + $c) % 6]['id'], 'alt' => 'Garden project '.($row * 3 + $c + 1)],
                     'caption' => 'Project '.($row * 3 + $c + 1),
                     'style' => ['media' => ['base' => ['aspectRatio' => '4/3', 'objectFit' => 'cover']]],
@@ -87,7 +87,7 @@ class PerfFixtures extends Command
             $cols[] = $id;
             $nodes[] = ['id' => $id, 'type' => 'columns', 'version' => 3, 'props' => ['style' => ['root' => ['tablet' => ['columns' => '2'], 'mobile' => ['columns' => '1']]]], 'children' => $children];
         }
-        $nodes[] = ['id' => 'imagbig01', 'type' => 'image', 'version' => 5, 'props' => ['image' => ['assetId' => $photos[6]['id'], 'alt' => 'A meadow garden at dusk'], 'caption' => 'Meadow planting, 2026', 'style' => ['root' => ['base' => ['maxWidth' => '@container.wide']]]]];
+        $nodes[] = ['id' => 'imagbig01', 'type' => 'image', 'version' => 6, 'props' => ['image' => ['assetId' => $photos[6]['id'], 'alt' => 'A meadow garden at dusk'], 'caption' => 'Meadow planting, 2026', 'style' => ['root' => ['base' => ['maxWidth' => '@container.wide']]]]];
         $this->page($pages, $ctx, '/perf-images', 'Perf images', $nodes, ['text0001', ...$cols, 'imagbig01']);
         // The heading and the first row hold the likely LCP (left still); the second row and the wide photo fade up in view.
         $this->page($pages, $ctx, '/perf-images-motion', 'Perf images motion', self::animate($nodes, ['text0001' => 'load', 'cols00001' => 'view', 'cols10001' => 'view', 'imagbig01' => 'view']), ['text0001', ...$cols, 'imagbig01']);
@@ -177,7 +177,7 @@ class PerfFixtures extends Command
             ['id' => 'header01', 'type' => 'instance', 'version' => 2, 'props' => ['componentId' => $shared['header']]],
             ['id' => 'heading1', 'type' => 'text', 'version' => 3, 'props' => ['text' => 'Let’s plan your garden', 'element' => 'h1']],
             ['id' => 'intro001', 'type' => 'text', 'version' => 3, 'props' => ['text' => 'Tell us about the outdoor space you would like to create.']],
-            ['id' => 'contact1', 'type' => 'form', 'version' => 3, 'props' => ['form' => ['id' => $form['id']]]],
+            ['id' => 'contact1', 'type' => 'form', 'version' => 4, 'props' => ['form' => ['id' => $form['id']]]],
             ['id' => 'footer01', 'type' => 'instance', 'version' => 2, 'props' => ['componentId' => $shared['footer']]],
         ], ['header01', 'heading1', 'intro001', 'contact1', 'footer01']);
 

@@ -107,6 +107,28 @@ export interface ContentDetailsValues {
     terms: Record<string, string[]>;
 }
 
+/** One field of a defined content type, as the entry editor draws it. */
+export interface ContentFieldDefinition {
+    key: string;
+    label: string;
+    type: string;
+    settings: Record<string, unknown>;
+    choices?: { label: string; value: string }[];
+    /** The fields a group or a repeater holds. */
+    fields?: ContentFieldDefinition[];
+    /** The kinds of section a content-sections field offers, each with its own fields. */
+    layouts?: { key: string; label: string; fields: ContentFieldDefinition[]; min?: number | null; max?: number | null }[];
+    default?: unknown;
+}
+
+/** One section of an entry editor: the type's own fields, or one attached field group. */
+export interface EntryFieldSection {
+    key: string | null;
+    name: string | null;
+    description: string;
+    fields: ContentFieldDefinition[];
+}
+
 export interface EditorContent {
     kind: string;
     label: string;
@@ -114,8 +136,66 @@ export interface EditorContent {
     /** Whether the type has an excerpt and a featured image (posts). */
     details: boolean;
     listUrl: string;
+    /** Everything entries of this type carry, grouped for display; empty for a built-in kind. */
+    sections: EntryFieldSection[];
+    /** What a block's properties can be bound to here: this entry's fields, and the site's. */
+    bindingSources?: { source: string; label: string; fields: { field: string; path: string[]; label: string; type: string; fits: string[] }[] }[];
+    /** What a content list can show, and how each kind's fields can be filtered and sorted. */
+    collectionSources?: CollectionSources;
+    /** The entry's content-sections fields, with the kinds of section each offers. */
+    flexibleFields?: FlexibleFieldInfo[];
+    /** Sections this entry holds whose kind was removed from its content type. */
+    deprecatedSections?: string[];
+    fieldValues: Record<string, unknown>;
     values: ContentDetailsValues;
     taxonomies: { name: string; label: string; plural: string; terms: { id: string; name: string }[] }[];
+}
+
+/** One field of a content type as the content-list query editor offers it. */
+export interface CollectionFilterField {
+    key: string;
+    label: string;
+    type: string;
+    /** Operators this field can answer; empty when it can only be sorted on. */
+    operators: string[];
+    sortable: boolean;
+    choices: { value: string; label: string }[];
+}
+
+export interface CollectionSources {
+    types: {
+        key: string;
+        label: string;
+        plural: string;
+        taxonomies: { key: string; label: string }[];
+        fields: CollectionFilterField[];
+        /** What a block inside the item template can bind to, in the same shape as the page's own sources. */
+        bindable: { field: string; path: string[]; label: string; type: string; fits: string[] }[];
+    }[];
+    /** Relationship fields on the entry being edited, which a list can follow. */
+    related: { key: string; label: string; targetLabel: string }[];
+}
+
+/**
+ * A content-sections field as the Builder needs it: the kinds of section it offers and, for each,
+ * what a block inside its template can bind to.
+ */
+export interface FlexibleFieldInfo {
+    key: string;
+    label: string;
+    layouts: {
+        key: string;
+        label: string;
+        bindable: { field: string; path: string[]; label: string; type: string; fits: string[] }[];
+    }[];
+}
+
+/** What one content list on the page resolved to, as the canvas reports it back. */
+export interface CollectionState {
+    total: number;
+    shown: number;
+    sample: boolean;
+    issues: string[];
 }
 
 export interface Term {
@@ -133,5 +213,7 @@ export interface SharedProps {
     auth: { user: { id: string; name: string; email: string } | null };
     site: { id: string; name: string; role: string; url?: string } | null;
     can: Record<string, boolean>;
+    /** Content types this site defined that asked to appear in the admin menu. */
+    contentTypes?: { key: string; plural: string; icon: string }[];
     [key: string]: unknown;
 }

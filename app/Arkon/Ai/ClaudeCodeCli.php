@@ -142,16 +142,22 @@ final class ClaudeCodeCli implements AiProvider, ClaudeRunner, StagedRunner
             // only large argument: compacted, then, if still too long, its largest block property schemas become
             // plain objects (the instructions list them; Arkon validates every reply exactly as before).
             $args = $argsFor($request->schema);
+            $loosened = 0;
             if (PHP_OS_FAMILY === 'Windows') {
                 $fits = fn (array $schema) => SchemaCompactor::windowsCommandLength([...$this->command, ...$argsFor($schema)]) <= self::COMMAND_LINE_BUDGET;
-                $schema = SchemaCompactor::loosenToFit(SchemaCompactor::compact($request->schema), $fits)
+                $compact = SchemaCompactor::compact($request->schema);
+                $schema = SchemaCompactor::loosenToFit($compact, $fits)
                     ?? throw new AiException(AiException::INVALID_OUTPUT, 'The response format is too large for the Claude Code command line on Windows. No model request was started.');
+                // How many blocks lost their detailed guide to fit the line. Recorded because it
+                // is the difference between a model that was told the shape and one that was not;
+                // every reply is still validated exactly the same way.
+                $loosened = SchemaCompactor::loosenedCount($compact, $schema);
                 $args = $argsFor($schema);
             }
             if ($request->onEvent) {
                 ($request->onEvent)(['provider' => $this->id(), 'type' => 'started', 'stage' => $request->label]);
             }
-            $trace = new RunTrace('claude-code', ['stage' => $request->label, 'instructionsChars' => strlen($request->instructions), 'promptChars' => strlen($request->prompt)]);
+            $trace = new RunTrace('claude-code', ['stage' => $request->label, 'instructionsChars' => strlen($request->instructions), 'promptChars' => strlen($request->prompt), 'loosenedBlocks' => $loosened]);
             $cli = (new CliProcess($this->command))->start($args, $dir, $request->prompt, $request->timeout ?? $this->timeoutSeconds, $keepGoing);
         } catch (\Throwable $e) {
             self::removeDir($dir);

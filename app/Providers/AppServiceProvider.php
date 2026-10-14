@@ -8,6 +8,8 @@ use App\Arkon\Ai\ClaudeCodeCli;
 use App\Arkon\Ai\ClaudeRunner;
 use App\Arkon\Components\ComponentRegistry;
 use App\Arkon\Components\DocumentValidator;
+use App\Arkon\Content\ContentTypeRegistry;
+use App\Arkon\Content\FieldSchemaResolver;
 use App\Arkon\Database\Transactions;
 use App\Arkon\Media\MediaStorage;
 use App\Arkon\Renderer\PageRenderer;
@@ -32,6 +34,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(DocumentValidator::class);
         $this->app->singleton(PageRenderer::class);
         $this->app->singleton(Transactions::class);
+        // One registry per request: every service shares the types it has read, and a definition
+        // that changes is forgotten for all of them at once.
+        $this->app->singleton(ContentTypeRegistry::class);
+        // The schema every reader resolves through, memoised per request like the registry it wraps.
+        $this->app->singleton(FieldSchemaResolver::class);
         $this->app->singleton(MediaStorage::class, fn () => MediaStorage::fromConfig());
         // AI runs through the Claude Code CLI under the user's own login (used by the local helper only).
         $this->app->bind(ClaudeRunner::class, fn () => ClaudeCodeCli::fromConfig());

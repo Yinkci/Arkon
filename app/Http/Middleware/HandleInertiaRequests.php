@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Arkon\Components\ComponentRegistry;
+use App\Arkon\Content\ContentTypeRegistry;
 use App\Arkon\Pages\PublicPages;
 use App\Arkon\Themes\ThemeService;
 use App\Http\AdminContext;
@@ -29,7 +30,29 @@ class HandleInertiaRequests extends Middleware
             'themeComponents' => fn () => $request->user() ? app(ComponentRegistry::class)->themeManifests() : [],
             'siteMenus' => fn () => $admin() ? DB::table('site_menus')->where('site_id', $admin()->siteId)->get(['id', 'name', 'published_version'])->all() : [],
             'siteForms' => fn () => $admin() ? DB::table('site_forms')->where('site_id', $admin()->siteId)->get(['id', 'name', 'published_version'])->all() : [],
+            // The content types this site defined and wants listed, so the admin menu grows with
+            // the content model instead of naming every type in code.
+            'contentTypes' => fn () => $admin() ? self::menuTypes($admin()->siteId) : [],
             'can' => fn () => $admin()?->permissions() ?? [],
         ];
+    }
+
+    /**
+     * The defined types that asked to be in the admin menu, in their menu order.
+     *
+     * @return list<array{key: string, plural: string, icon: string}>
+     */
+    private static function menuTypes(string $siteId): array
+    {
+        $listed = array_filter(
+            app(ContentTypeRegistry::class)->forSite($siteId)->defined(),
+            fn ($type) => $type['inMenu'] && $type['active'],
+        );
+
+        return array_values(array_map(
+            fn ($type, $key) => ['key' => $key, 'plural' => $type['plural'], 'icon' => $type['icon']],
+            $listed,
+            array_keys($listed),
+        ));
     }
 }

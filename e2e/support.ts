@@ -9,8 +9,33 @@ export const BASE_URL = SERVER_URL;
 /** The dashboard heading: a time-of-day greeting with the signed-in name. */
 export const greeting = (name: string) => new RegExp(`^Good (morning|afternoon|evening), ${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
 
-/** The e2e database as the restricted runtime role (fixtures only). */
-export const db = new pg.Pool({ ...runtimeDatabase(), max: 2 });
+/**
+ * The e2e database as the restricted runtime role (fixtures only). A worker runs several spec
+ * files in turn and some of them close the pool when they finish, so the next query opens a
+ * fresh one instead of failing on the closed pool the previous file left behind.
+ */
+let pool: pg.Pool | null = null;
+export const db = {
+    // The default row type matches pg's own, so callers that do not name one keep working.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    query<T extends pg.QueryResultRow = any>(text: string, values?: unknown[]) {
+        pool ??= new pg.Pool({ ...runtimeDatabase(), max: 2 });
+
+        return pool.query<T>(text, values);
+    },
+    async end() {
+        const open = pool;
+        pool = null;
+        await open?.end();
+    },
+};
+
+/** Opens the builder's block picker (the palette lives behind "+ Add"); safe to call when it is already open. */
+export async function palette(page: Page) {
+    const open = page.getByTestId('open-block-picker');
+    if (await open.isVisible().catch(() => false)) await open.click();
+    await page.getByRole('group', { name: 'Add a block' }).waitFor();
+}
 
 export async function login(page: Page) {
     await page.goto('/login');

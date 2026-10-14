@@ -1311,12 +1311,26 @@ final class WebsiteProposalService
     private function blocksUsed(array $result): array
     {
         $seen = [];
+        // Depth first from the root, so the list reads in the order a visitor meets the blocks
+        // rather than in whatever order the document's node map happens to store them.
         $walk = function (mixed $document) use (&$seen) {
-            foreach (Json::entries(is_array($document) ? ($document['nodes'] ?? []) : []) as $node) {
-                $type = is_array($node) ? ($node['type'] ?? null) : null;
+            if (! is_array($document)) {
+                return;
+            }
+            $nodes = is_array($document['nodes'] ?? null) ? $document['nodes'] : [];
+            $queue = [$document['root'] ?? null];
+            $visited = [];
+            while ($queue) {
+                $id = array_shift($queue);
+                if (! is_string($id) || isset($visited[$id]) || ! is_array($node = $nodes[$id] ?? null)) {
+                    continue;
+                }
+                $visited[$id] = true;
+                $type = $node['type'] ?? null;
                 if (is_string($type) && ! in_array($type, ['page', 'fragment', 'column', 'slide'], true)) {
                     $seen[$type] ??= str_starts_with($type, 'theme-');
                 }
+                array_unshift($queue, ...array_values(is_array($node['children'] ?? null) ? $node['children'] : []));
             }
         };
         foreach ($result['pages'] ?? [] as $page) {

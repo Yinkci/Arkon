@@ -1,0 +1,358 @@
+{
+    "$comment": "Shared content-type and field rules. Read by PHP (App\\Arkon\\Content\\FieldTypes) and handed to the admin editors as a prop (fieldTypes), so neither side keeps its own list of field types or settings.",
+    "schemaVersion": 1,
+    "limits": {
+        "typesPerSite": 40,
+        "fields": 60,
+        "choices": 50,
+        "label": 120,
+        "help": 500,
+        "name": 60,
+        "description": 500,
+        "text": 500,
+        "textarea": 5000,
+        "richText": 100000,
+        "gallery": 60,
+        "multiSelect": 50,
+        "rows": 100,
+        "childFields": 20,
+        "nesting": 1,
+        "blocks": 50,
+        "layouts": 20,
+        "layoutFields": 20,
+        "deprecatedBlockBytes": 20000,
+        "related": 50
+    },
+    "patterns": {
+        "typeKey": "^[a-z][a-z0-9_]{0,31}$",
+        "fieldKey": "^[a-z][a-z0-9_]{0,39}$",
+        "choiceValue": "^[A-Za-z0-9][A-Za-z0-9 ._-]{0,99}$",
+        "slug": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        "color": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
+        "time": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$"
+    },
+    "$comment2": "Keys the platform owns: a content type or field may not take one, because routes, system fields and the API already mean something by them.",
+    "reservedTypeKeys": [
+        "page",
+        "post",
+        "admin",
+        "api",
+        "media",
+        "login",
+        "logout",
+        "preview",
+        "sitemap",
+        "robots",
+        "content",
+        "term",
+        "terms",
+        "form",
+        "forms",
+        "user",
+        "users",
+        "site",
+        "sites"
+    ],
+    "reservedFieldKeys": [
+        "id",
+        "type",
+        "title",
+        "slug",
+        "path",
+        "status",
+        "author",
+        "excerpt",
+        "fields",
+        "seo",
+        "terms",
+        "created_at",
+        "updated_at",
+        "published_at",
+        "deleted_at",
+        "revision"
+    ],
+    "$comment3": "Every field type: how a value is stored in the entry's JSON, how it is projected into content_field_index for filtering and sorting, and which settings its editor offers. `index: none` means the value is not queryable by design (free HTML, lists).",
+    "types": {
+        "text": {
+            "label": "Text",
+            "group": "Basic",
+            "store": "string",
+            "index": "text",
+            "settings": [
+                "placeholder",
+                "default",
+                "required",
+                "unique",
+                "minLength",
+                "maxLength",
+                "pattern",
+                "help",
+                "private"
+            ]
+        },
+        "textarea": {
+            "label": "Paragraph",
+            "group": "Basic",
+            "store": "string",
+            "index": "text",
+            "settings": [
+                "placeholder",
+                "default",
+                "required",
+                "minLength",
+                "maxLength",
+                "help",
+                "private"
+            ]
+        },
+        "rich_text": {
+            "label": "Rich text",
+            "group": "Basic",
+            "store": "html",
+            "index": "none",
+            "settings": [
+                "required",
+                "help",
+                "private"
+            ]
+        },
+        "number": {
+            "label": "Whole number",
+            "group": "Numeric",
+            "store": "integer",
+            "index": "number",
+            "settings": [
+                "default",
+                "required",
+                "unique",
+                "min",
+                "max",
+                "step",
+                "unit",
+                "help",
+                "private"
+            ]
+        },
+        "decimal": {
+            "label": "Decimal",
+            "group": "Numeric",
+            "store": "decimal",
+            "index": "number",
+            "settings": [
+                "default",
+                "required",
+                "unique",
+                "min",
+                "max",
+                "step",
+                "unit",
+                "help",
+                "private"
+            ]
+        },
+        "boolean": {
+            "label": "Toggle",
+            "group": "Basic",
+            "store": "boolean",
+            "index": "boolean",
+            "settings": [
+                "default",
+                "help",
+                "private"
+            ]
+        },
+        "select": {
+            "label": "Select",
+            "group": "Choices",
+            "store": "string",
+            "index": "text",
+            "choices": true,
+            "settings": [
+                "default",
+                "required",
+                "help",
+                "private"
+            ]
+        },
+        "multi_select": {
+            "label": "Multi-select",
+            "group": "Choices",
+            "store": "stringList",
+            "index": "text",
+            "choices": true,
+            "settings": [
+                "required",
+                "help",
+                "private"
+            ]
+        },
+        "email": {
+            "label": "Email",
+            "group": "Contact",
+            "store": "string",
+            "index": "text",
+            "settings": [
+                "placeholder",
+                "default",
+                "required",
+                "unique",
+                "help",
+                "private"
+            ]
+        },
+        "url": {
+            "label": "Link",
+            "group": "Contact",
+            "store": "string",
+            "index": "text",
+            "settings": [
+                "placeholder",
+                "default",
+                "required",
+                "help",
+                "private"
+            ]
+        },
+        "phone": {
+            "label": "Phone",
+            "group": "Contact",
+            "store": "string",
+            "index": "text",
+            "settings": [
+                "placeholder",
+                "default",
+                "required",
+                "help",
+                "private"
+            ]
+        },
+        "date": {
+            "label": "Date",
+            "group": "Time",
+            "store": "date",
+            "index": "date",
+            "settings": [
+                "required",
+                "min",
+                "max",
+                "help",
+                "private"
+            ]
+        },
+        "datetime": {
+            "label": "Date and time",
+            "group": "Time",
+            "store": "datetime",
+            "index": "date",
+            "settings": [
+                "required",
+                "min",
+                "max",
+                "help",
+                "private"
+            ]
+        },
+        "time": {
+            "label": "Time",
+            "group": "Time",
+            "store": "time",
+            "index": "text",
+            "settings": [
+                "required",
+                "help",
+                "private"
+            ]
+        },
+        "color": {
+            "label": "Colour",
+            "group": "Basic",
+            "store": "color",
+            "index": "text",
+            "settings": [
+                "default",
+                "required",
+                "help",
+                "private"
+            ]
+        },
+        "media": {
+            "label": "Image or file",
+            "group": "Media",
+            "store": "media",
+            "index": "ref",
+            "settings": [
+                "required",
+                "help",
+                "private"
+            ]
+        },
+        "gallery": {
+            "label": "Gallery",
+            "group": "Media",
+            "store": "mediaList",
+            "index": "none",
+            "settings": [
+                "required",
+                "help",
+                "private"
+            ]
+        },
+        "group": {
+            "label": "Group",
+            "group": "Structure",
+            "store": "object",
+            "index": "none",
+            "children": true,
+            "settings": [
+                "required",
+                "help",
+                "private"
+            ]
+        },
+        "repeater": {
+            "label": "Repeater",
+            "group": "Structure",
+            "store": "rows",
+            "index": "none",
+            "children": true,
+            "settings": [
+                "required",
+                "help",
+                "minRows",
+                "maxRows",
+                "rowLabel",
+                "addLabel",
+                "private"
+            ]
+        },
+        "flexible": {
+            "label": "Content sections",
+            "group": "Structure",
+            "store": "blocks",
+            "index": "none",
+            "layouts": true,
+            "settings": [
+                "required",
+                "help",
+                "private",
+                "minRows",
+                "maxRows",
+                "addLabel"
+            ]
+        },
+        "relationship": {
+            "label": "Related content",
+            "group": "Structure",
+            "store": "refs",
+            "index": "ref",
+            "settings": [
+                "required",
+                "help",
+                "private",
+                "targetType",
+                "multiple",
+                "maxItems"
+            ]
+        }
+    }
+}

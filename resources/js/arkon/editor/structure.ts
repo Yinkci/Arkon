@@ -22,6 +22,8 @@ export function addableTypes(): string[] {
         'icon',
         'slider',
         'back-to-top',
+        'collection',
+        'sections',
         ...componentTypes().filter((type) => type.startsWith('theme-') && themeIsAddable(type)),
     ];
 }
@@ -39,6 +41,8 @@ export const ADDABLE_TYPES = [
     'icon',
     'slider',
     'back-to-top',
+    'collection',
+    'sections',
 ] as const;
 export type AddableType = (typeof ADDABLE_TYPES)[number];
 
@@ -48,6 +52,26 @@ export function createNodes(type: string, props: Record<string, unknown> = {}): 
     if (!definition) throw new Error(`Unknown component ${type}`);
     const node: Node = { id: createNodeId(), type, version: definition.version, props: { ...structuredClone(definition.defaultProps), ...props } };
     if (definition.children === false) return [node];
+    // A content list is born with its item template: one heading showing each entry's title, so
+    // what the block does is visible before anything is configured.
+    if (type === 'collection') {
+        const item = createNodes('text', { text: 'Item title', element: 'h3' })[0]!;
+        item.bindings = { text: { source: 'entry', field: 'title' } };
+        node.children = [item.id];
+        return [node, item];
+    }
+    // A content-sections block is born with one layout template, and a template with one line of
+    // text, because both must hold something to be a valid document.
+    if (type === 'sections') {
+        const [template, ...inside] = createNodes('section-template');
+        node.children = [template!.id];
+        return [node, template!, ...inside];
+    }
+    if (type === 'section-template') {
+        const line = createNodes('text', { text: 'What this section says' })[0]!;
+        node.children = [line.id];
+        return [node, line];
+    }
     const children =
         type === 'columns' ? [...createNodes('column'), ...createNodes('column')] : type === 'slider' ? [...createNodes('slide'), ...createNodes('slide')] : [];
     node.children = children.filter((c) => c.type === 'column' || c.type === 'slide').map((c) => c.id);

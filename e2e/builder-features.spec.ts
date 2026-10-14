@@ -4,7 +4,7 @@
 // isolated e2e database; the AI panel uses the fake Claude Code CLI (no subscription usage).
 import { expect, test, type FrameLocator, type Page } from '@playwright/test';
 import { E2E_HOST, PORT } from './env';
-import { BASE_URL, db } from './support';
+import { BASE_URL, db, palette } from './support';
 
 type Spec = Record<string, unknown>;
 let counter = 0;
@@ -179,6 +179,7 @@ test.describe('columns', () => {
     test('the layout picker creates real columns with their widths, in one undo step', async ({ page }) => {
         await openPage(page, [hero('Top')]);
         await page.getByRole('tab', { name: 'Layers' }).click();
+        await palette(page);
         await page.getByTestId('add-columns').click();
         await page.getByTestId('columns-preset-5').click();
         await expect(canvas(page).locator('[data-ak-type="column"]')).toHaveCount(5);

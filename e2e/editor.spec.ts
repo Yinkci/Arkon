@@ -55,7 +55,8 @@ test('draft, preview, history and publish keep the live page safe', async ({ pag
 
     // ── Publish ──
     await page.getByRole('button', { name: 'Publish' }).click();
-    await expect(page.getByTestId('live-status')).toContainText('Live: revision #2');
+    // The toolbar shows a dot; which revision is live and when it went live are in its tooltip.
+    await expect(page.getByTestId('live-status')).toHaveAttribute('title', /^Live: revision #2 · /);
     const published = await live(anonymous);
     expect(published.status).toBe(200);
     expect(published.html).toContain('<h1 class="ak-hero3__heading">Hello from the canvas</h1>');

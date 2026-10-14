@@ -238,22 +238,27 @@ export function MenuItem({
     href,
     external,
     tone = 'default',
+    disabled,
     children,
+    ...rest
 }: {
     onSelect?(): void;
     href?: string;
     external?: boolean;
     tone?: 'default' | 'danger';
+    /** An action that does not apply to this item right now; it stays listed so the menu does not shift. */
+    disabled?: boolean;
     children: ReactNode;
+    [data: `data-${string}`]: string | undefined;
 }) {
-    const className = `${item} ${tone === 'danger' ? 'text-danger hover:bg-danger-soft focus:bg-danger-soft' : 'text-fg hover:bg-hover focus:bg-hover'}`;
+    const className = `${item} ${tone === 'danger' ? 'text-danger hover:bg-danger-soft focus:bg-danger-soft' : 'text-fg hover:bg-hover focus:bg-hover'} disabled:pointer-events-none disabled:opacity-40`;
     return href ? (
-        <a role="menuitem" href={href} className={className} {...(external ? { target: '_blank', rel: 'noreferrer' } : {})}>
+        <a role="menuitem" href={href} className={className} {...(external ? { target: '_blank', rel: 'noreferrer' } : {})} {...rest}>
             {children}
             {external && <Icon name="external" className="ml-auto size-3.5 text-faint" />}
         </a>
     ) : (
-        <button role="menuitem" type="button" onClick={onSelect} className={className}>
+        <button role="menuitem" type="button" onClick={onSelect} disabled={disabled} className={className} {...rest}>
             {children}
         </button>
     );

@@ -7,6 +7,8 @@ use App\Arkon\Components\ComponentRegistry;
 use App\Arkon\Components\DocumentValidator;
 use App\Arkon\Components\Render\ImageSizes;
 use App\Arkon\Components\Render\RenderContext;
+use App\Arkon\Content\Bindings;
+use App\Arkon\Content\Flexible;
 use App\Arkon\Forms\FormRuntime;
 use App\Arkon\Seo\SeoDefaults;
 use App\Arkon\Style\StyleSheet;
@@ -72,7 +74,7 @@ final class PageRenderer
      *
      * @throws RenderException
      */
-    public function render(mixed $document, string $mode, array $page, array $site, array $media, bool $strict = false, bool $pinned = false, string $rendererVersion = self::VERSION, array $resources = [], string $motionRuntime = Motion::RUNTIME, bool $protectLcp = true): array
+    public function render(mixed $document, string $mode, array $page, array $site, array $media, bool $strict = false, bool $pinned = false, string $rendererVersion = self::VERSION, array $resources = [], string $motionRuntime = Motion::RUNTIME, bool $protectLcp = true, array $content = []): array
     {
         $motionAssets = Motion::RUNTIMES[$motionRuntime] ?? throw new RenderException("Animation runtime {$motionRuntime} is not available", [['message' => "Unknown animation runtime {$motionRuntime}"]]);
         $build = self::COMPAT_BUILDS[$rendererVersion] ?? null;
@@ -93,6 +95,9 @@ final class PageRenderer
         $components = $resources['components'] ?? [];
         $forms = $resources['forms'] ?? [];
         $menus = $resources['menus'] ?? [];
+        // Content lists: their entries, resolved before rendering (App\Arkon\Content\Collections)
+        // exactly as forms and menus are, so nothing in the renderer queries anything.
+        $collections = $resources['collections'] ?? [];
         $usedMenus = [];
         $usedForms = [];
         foreach ([$document, ...array_column($components, 'document')] as $formDocument) {
@@ -117,7 +122,12 @@ final class PageRenderer
                 }
             }
         }
-        $warnings = $this->validator->publishIssues($document);
+        $warnings = $this->validator->publishIssues($document, $content);
+        foreach ($collections as $collectionId => $resolved) {
+            foreach ($resolved['issues'] ?? [] as $message) {
+                $warnings[] = ['nodeId' => $collectionId, 'message' => $message];
+            }
+        }
         foreach ($nodes as $node) {
             if ($node['type'] === 'instance' && ! isset($components[(string) (Json::entries($node['props'])['componentId'] ?? '')])) {
                 $warnings[] = ['nodeId' => $node['id'], 'message' => 'This reusable component has not been published'];
@@ -185,7 +195,11 @@ final class PageRenderer
             }
         }
 
-        $renderNode = function (string $id, array $tree, array $rootChildren, int $top, float $fraction, bool $annotate, string $occurrence = '', array $screenShares = ['base' => 1.0, 'tablet' => 1.0, 'mobile' => 1.0]) use (&$renderNode, &$usedComponents, &$usedReusable, &$priorityImages, &$mainHeading, &$priorityCauses, &$headingCause, &$motion, $mode, $protectLcp, $styles, $mediaLookup, $claimPriority, $notePriority, $components, $forms, $menus, $contentIndexes, $baseVersion): Element {
+        // `$itemContent` is what bindings in this subtree resolve against: the page's own
+        // content everywhere, except inside a content list, where each item is rendered again
+        // with that entry's content in place of the page's.
+        $renderNode = function (string $id, array $tree, array $rootChildren, int $top, float $fraction, bool $annotate, string $occurrence = '', array $screenShares = ['base' => 1.0, 'tablet' => 1.0, 'mobile' => 1.0], ?array $itemContent = null) use (&$renderNode, &$usedComponents, &$usedReusable, &$priorityImages, &$mainHeading, &$priorityCauses, &$headingCause, &$motion, $mode, $protectLcp, $styles, $mediaLookup, $claimPriority, $notePriority, $components, $forms, $menus, $collections, $contentIndexes, $baseVersion, $content): Element {
+            $content = $itemContent ?? $content;
             $node = $tree[$id];
             $imagesBefore = $priorityImages;
             $causesBefore = count($priorityCauses);
@@ -200,12 +214,65 @@ final class PageRenderer
                 }
             }
             $usedComponents["{$definition->type}@{$definition->version}"] = $definition;
-            $props = $definition->props->parseValid($node['props']);
+            // Bindings are applied before the props are parsed, so a bound value is checked by
+            // the component exactly like one somebody typed, and every renderer — canvas,
+            // preview and the live page — resolves them the same way because they all come here.
+            $props = $definition->props->parseValid(Bindings::apply($node['props'], $node['bindings'] ?? null, $content, $definition->mediaRefs, $definition->props->fields()));
             $index = array_search($id, $rootChildren, true);
             $top = $index === false ? $top : ($contentIndexes[$id] ?? $index);
             $childIds = $node['children'] ?? [];
             $childFraction = $node['type'] === 'columns' && count($childIds) > 1 ? $fraction / count($childIds) : $fraction;
-            $children = array_map(fn ($child, $childPosition) => $renderNode((string) $child, $tree, $rootChildren, $node['type'] === 'slider' && $childPosition > 0 ? -1 : $top, $childFraction, $annotate, $occurrence, $node['type'] === 'columns' ? ImageSizes::childShares($props, $screenShares, count($childIds), $childPosition) : $screenShares), $childIds, array_keys($childIds));
+            $children = array_map(fn ($child, $childPosition) => $renderNode((string) $child, $tree, $rootChildren, $node['type'] === 'slider' && $childPosition > 0 ? -1 : $top, $childFraction, $annotate, $occurrence, $node['type'] === 'columns' ? ImageSizes::childShares($props, $screenShares, count($childIds), $childPosition) : $screenShares, $itemContent), $childIds, array_keys($childIds));
+            // A content list renders its one item template once per entry, each time against
+            // that entry's own content. Only the first item is annotated, so the editor has one
+            // template to select and edit rather than a copy per entry.
+            $items = [];
+            // Content sections: the entry's own blocks, each drawn by the template registered
+            // for its layout, with that block's values in place of the entry's. In the editor
+            // every template is also drawn once on its own, so a layout nobody has used yet can
+            // still be designed.
+            if ($node['type'] === 'sections') {
+                $templates = [];
+                foreach ($childIds as $childId) {
+                    $child = $tree[(string) $childId] ?? null;
+                    $layout = $child === null ? '' : (string) (Json::entries($child['props'] ?? [])['layout'] ?? '');
+                    if ($layout !== '' && ! isset($templates[$layout])) {
+                        $templates[$layout] = (string) $childId;
+                    }
+                }
+                $drawn = [];
+                foreach (Flexible::blocksOf($content, (string) ($props['field'] ?? '')) as $position => $block) {
+                    $templateId = $templates[$block['layout']] ?? null;
+                    if ($templateId === null) {
+                        continue;
+                    }
+                    $first = ! isset($drawn[$block['layout']]);
+                    $drawn[$block['layout']] = true;
+                    $items[] = [$renderNode(
+                        $templateId, $tree, [], $top, $fraction, $annotate && $first,
+                        $occurrence.'-'.$id.'-'.$position, $screenShares,
+                        Bindings::context($block['values'], $content['site'] ?? []),
+                    )];
+                }
+                if ($mode === 'editor') {
+                    foreach ($templates as $layout => $templateId) {
+                        if (! isset($drawn[$layout])) {
+                            $items[] = [$renderNode($templateId, $tree, [], $top, $fraction, $annotate, $occurrence.'-'.$id.'-'.$layout, $screenShares, Bindings::context([], $content['site'] ?? []))];
+                        }
+                    }
+                }
+                $children = [];
+            }
+            if ($node['type'] === 'collection') {
+                $resolved = $collections[$node['id']] ?? ['items' => []];
+                foreach ($resolved['items'] as $position => $itemOwnContent) {
+                    $items[] = array_map(
+                        fn ($child) => $renderNode((string) $child, $tree, [], $top, $fraction, $annotate && $position === 0, $occurrence.'-'.$id.'-'.$position, $screenShares, $itemOwnContent),
+                        $childIds,
+                    );
+                }
+                $children = [];
+            }
 
             if ($node['type'] === 'instance') {
                 $resource = $components[$props['componentId']] ?? null;
@@ -214,7 +281,7 @@ final class PageRenderer
                     $fragment = $resource['document'];
                     $fragmentNodes = Json::entries($fragment['nodes']);
                     $children = array_map(
-                        fn ($child) => $renderNode((string) $child, $fragmentNodes, [], $top, $fraction, false, $occurrence.'-'.$id, $screenShares),
+                        fn ($child) => $renderNode((string) $child, $fragmentNodes, [], $top, $fraction, false, $occurrence.'-'.$id, $screenShares, $itemContent),
                         $fragmentNodes[$fragment['root']]['children'] ?? [],
                     );
                 } elseif ($mode === 'editor') {
@@ -239,6 +306,7 @@ final class PageRenderer
                 forms: $forms,
                 menus: $menus,
                 occurrence: $occurrence,
+                items: $items,
             ));
             if ($priorityImages > $imagesBeforeOwn) {
                 $priorityCauses[] = $node['id'];

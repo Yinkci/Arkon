@@ -11,6 +11,8 @@ export interface Node {
     props: Record<string, unknown>;
     children?: NodeId[];
     editor?: { name?: string };
+    /** Properties that take their value from content instead of holding it. */
+    bindings?: Record<string, { source: string; field: string; path?: string[] }>;
 }
 
 export interface PageSeo {

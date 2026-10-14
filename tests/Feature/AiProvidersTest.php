@@ -268,9 +268,9 @@ class AiProvidersTest extends DatabaseTestCase
                 throw new \RuntimeException('Must not run');
             }
         };
-        $helper = new AiHelper(app(ProposalService::class),app(AiConnections::class),$runner);
-        $this->assertSame('failed',$helper->tick($connection));
-        $this->assertSame(0,$runner->runs);
-        $this->assertSame('PROVIDER_UNAVAILABLE',DB::table('ai_proposals')->where('id',$r['id'])->value('error_code'));
+        $helper = new AiHelper(app(ProposalService::class), app(AiConnections::class), $runner);
+        $this->assertSame('failed', $helper->tick($connection));
+        $this->assertSame(0, $runner->runs);
+        $this->assertSame('PROVIDER_UNAVAILABLE', DB::table('ai_proposals')->where('id', $r['id'])->value('error_code'));
     }
 }

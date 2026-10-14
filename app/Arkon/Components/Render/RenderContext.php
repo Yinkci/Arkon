@@ -20,6 +20,7 @@ final class RenderContext
      * @param  float  $widthFraction  estimated share of the content width this node gets on wide screens
      * @param  (Closure(): bool)|null  $claimPriority  true for the first image in the first two top-level blocks, once
      * @param  (Closure(): void)|null  $notePriority  told about every image that gets high priority (the likely LCP)
+     * @param  list<list<Element|TextNode>>  $items  a content list's entries, each already rendered from the one item template
      */
     public function __construct(
         public readonly array $node,
@@ -37,6 +38,7 @@ final class RenderContext
         public readonly string $occurrence = '',
         public readonly array $menus = [],
         public readonly array $screenShares = ['base' => 1.0, 'tablet' => 1.0, 'mobile' => 1.0],
+        public readonly array $items = [],
     ) {}
 
     /** @return array{id: string, url: string, width: int, height: int, mime: string, variants?: list<array{url: string, width: int}>}|null */

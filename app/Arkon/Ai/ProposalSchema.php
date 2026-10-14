@@ -61,6 +61,14 @@ final class ProposalSchema
             }
         }
         $defs['responsive'] = ['type' => 'array', 'items' => ['type' => 'object', 'additionalProperties' => false, 'required' => ['screen', 'property', 'value'], 'properties' => ['screen' => ['type' => 'string', 'enum' => ['tablet', 'mobile']], 'property' => ['type' => 'string', 'enum' => array_keys($responsiveKeys)], 'value' => ['type' => 'string', 'maxLength' => 64]]]];
+        // A content list's query is described once and referred to twice (adding a block and
+        // changing one), because the whole schema has to fit on a command line.
+        foreach ($definitions as $definition) {
+            $query = $definition->props->fields()['query'] ?? null;
+            if (is_array($query) && isset($query['properties']['filters'])) {
+                $defs['collectionQuery'] = $this->fieldSchema($query, $assetIds);
+            }
+        }
         foreach ($definitions as $type => $definition) {
             $defs["block_{$type}"] = $this->blockSchema($definition, $assetIds);
             $defs["update_{$type}"] = $this->updateSchema($definition, $assetIds);
@@ -193,9 +201,19 @@ final class ProposalSchema
     }
 
     /** @return array<string, ComponentDefinition> every component a page can contain (not the page, not a reusable component's root) */
+    /**
+     * Blocks a proposal may add or change.
+     *
+     * The page itself and a fragment are structural. The content-sections blocks are left out
+     * too: they are the template a designer writes for one kind of structured section, and AI
+     * works on the sections themselves — the blocks an entry holds — through the field
+     * operations, not by rewriting somebody's template.
+     */
+    private const NOT_PROPOSABLE = ['page', 'fragment', 'sections', 'section-template'];
+
     private function insertable(?array $themeTypes = null): array
     {
-        return array_filter($this->registry->currentDefinitions(), fn (ComponentDefinition $definition) => ! in_array($definition->type, ['page', 'fragment'], true) && (! str_starts_with($definition->type, 'theme-') || $themeTypes === null || in_array($definition->type, $themeTypes, true)));
+        return array_filter($this->registry->currentDefinitions(), fn (ComponentDefinition $definition) => ! in_array($definition->type, self::NOT_PROPOSABLE, true) && (! str_starts_with($definition->type, 'theme-') || $themeTypes === null || in_array($definition->type, $themeTypes, true)));
     }
 
     /** Whether a block can be proposed at all: image blocks need images, instances need published components. */
@@ -247,7 +265,11 @@ final class ProposalSchema
     {
         $properties = [];
         foreach ($definition->props->fields() as $name => $field) {
-            $schema = $name === 'responsive' && isset($field['properties']['tablet']) ? ['$ref' => '#/$defs/responsive'] : $this->fieldSchema($field, $assetIds);
+            $schema = match (true) {
+                $name === 'responsive' && isset($field['properties']['tablet']) => ['$ref' => '#/$defs/responsive'],
+                $name === 'query' && isset($field['properties']['filters']) => ['$ref' => '#/$defs/collectionQuery'],
+                default => $this->fieldSchema($field, $assetIds),
+            };
             // In an update, null means "leave unchanged".
             $properties[$name] = $nullable ? ['anyOf' => [$schema, ['type' => 'null']]] : $schema;
         }
@@ -270,6 +292,16 @@ final class ProposalSchema
             'uuid' => ($field['ref'] ?? null) === 'component'
                 ? ($this->componentIds === [] ? ['type' => 'null'] : ['type' => 'string', 'enum' => $this->componentIds])
                 : ($assetIds === [] ? ['type' => 'null'] : ['type' => 'string', 'enum' => $assetIds]),
+            'number' => array_filter([
+                'type' => ($field['integer'] ?? false) ? 'integer' : 'number',
+                'minimum' => $field['min'] ?? null,
+                'maximum' => $field['max'] ?? null,
+            ], fn ($value) => $value !== null),
+            'list' => array_filter([
+                'type' => 'array',
+                'items' => $this->fieldSchema($field['items'], $assetIds),
+                'maxItems' => $field['max'] ?? null,
+            ], fn ($value) => $value !== null),
             'style' => ['type' => 'array', 'items' => ['$ref' => '#/$defs/style']],
             'object' => $this->objectSchema($field, $assetIds),
             default => throw new \LogicException("Unknown prop type {$field['type']}"),

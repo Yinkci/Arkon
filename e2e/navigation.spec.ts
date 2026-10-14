@@ -50,7 +50,8 @@ test('local layout repair uses no helper and previews native keyboard and mobile
     // The first test leaves no local edits after this full navigation.
     await page.getByRole('button', { name: 'Prepare missing header and footer' }).click();
     await expect(page).toHaveURL(/\/admin\/website$/);
-    await expect(page.getByRole('heading', { name: 'Add missing shared header, footer and navigation', exact: true })).toBeVisible();
+    // The panel leads with its state; the proposal's summary sits under it as ordinary text.
+    await expect(page.getByRole('tabpanel', { name: 'AI' }).getByText('Add missing shared header, footer and navigation', { exact: true })).toBeVisible();
     const frame = page.frameLocator('iframe');
     await expect(frame.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
     await expect(frame.getByRole('navigation').locator('.ak-navigation__desktop summary')).toHaveText('Services');
@@ -65,5 +66,5 @@ test('local layout repair uses no helper and previews native keyboard and mobile
         "SELECT provider,status FROM ai_proposals WHERE summary='Add missing shared header, footer and navigation' ORDER BY created_at DESC LIMIT 1",
     );
     expect(result.rows[0]).toEqual({ provider: 'local', status: 'proposed' });
-    await expect(page.getByRole('button', { name: 'Apply all website drafts' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Apply proposal' })).toBeVisible();
 });

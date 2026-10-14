@@ -32,7 +32,19 @@ export default function Pages({ type, pages, trash }: { type: ContentTypeInfo; p
         return status && ['published', 'draft', 'changed', 'trash'].includes(status) && (status !== 'trash' || canDelete) ? status : 'all';
     });
     const [query, setQuery] = useState('');
-    const [confirm, setConfirm] = useState<Confirm>(null);
+    const [confirm, setConfirmState] = useState<Confirm>(null);
+    // What points at these entries, so a confirmation can say "Used by 14 Properties as Agent"
+    // before the reference disappears. Asked for when the dialog opens, never on every row.
+    const [uses, setUses] = useState<string[]>([]);
+    const setConfirm = (next: Confirm) => {
+        setConfirmState(next);
+        setUses([]);
+        const pages = next && next.kind !== 'unpublish' ? next.pages : [];
+        if (pages.length === 0) return;
+        void api<{ sentences: string[] }>('/pages/usage', { body: { ids: pages.map((p) => p.id) } })
+            .then((result) => setUses(result.ok ? result.data.sentences : []))
+            .catch(() => undefined);
+    };
     const matches = (p: { title: string; path: string }) => (p.title + ' ' + p.path).toLowerCase().includes(query.toLowerCase());
     const inTrash = tab === 'trash';
     const shown = pages.filter((p) => (tab === 'all' || p.status === tab) && matches(p));
@@ -217,6 +229,7 @@ export default function Pages({ type, pages, trash }: { type: ContentTypeInfo; p
                 }
             >
                 {confirm?.kind === 'trash' && <TrashNote pages={confirm.pages} noun={NOUN} />}
+                <UsesNote uses={uses} permanent={false} />
             </ConfirmDialog>
 
             <ConfirmDialog
@@ -245,6 +258,7 @@ export default function Pages({ type, pages, trash }: { type: ContentTypeInfo; p
                     This cannot be undone: {confirm?.kind === 'purge' && confirm.pages.length > 1 ? 'they' : 'it'} can’t be restored. Published history stays in
                     Arkon’s audit record.
                 </p>
+                <UsesNote uses={uses} permanent />
             </ConfirmDialog>
 
             <ConfirmDialog
@@ -273,6 +287,24 @@ export default function Pages({ type, pages, trash }: { type: ContentTypeInfo; p
                 )}
             </ConfirmDialog>
         </AdminLayout>
+    );
+}
+
+/**
+ * What refers to what is about to go. Trashing keeps the references — the entry can come back —
+ * while deleting permanently takes them out, which is worth saying before it happens.
+ */
+function UsesNote({ uses, permanent }: { uses: string[]; permanent: boolean }) {
+    if (uses.length === 0) return null;
+    return (
+        <>
+            <p>{uses.join(' ')}</p>
+            <p>
+                {permanent
+                    ? 'Those references are removed. Where a page shows this content, it falls back to what is typed into the block.'
+                    : 'Those references are kept, and a published page leaves this content out until it is restored.'}
+            </p>
+        </>
     );
 }
 

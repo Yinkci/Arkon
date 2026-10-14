@@ -5,6 +5,9 @@ namespace App\Arkon\Pages;
 use App\Arkon\Ai\ProposalLedger;
 use App\Arkon\Audit\AuditLog;
 use App\Arkon\Components\DocumentValidator;
+use App\Arkon\Content\BindingContext;
+use App\Arkon\Content\Bindings;
+use App\Arkon\Content\Collections;
 use App\Arkon\Content\ContentDetails;
 use App\Arkon\Database\Transactions;
 use App\Arkon\Design\DesignResources;
@@ -49,6 +52,7 @@ class PageService
         private readonly DocumentValidator $validator,
         private readonly ProposalLedger $proposals,
         private readonly DesignResources $resources,
+        private readonly BindingContext $bindings,
     ) {}
 
     // ── Reading ─────────────────────────────────────────────────────────────
@@ -276,7 +280,10 @@ class PageService
             $this->authorizer->authorize($ctx, 'page.view');
             $page = $this->store->loadPage($ctx->siteId, Input::id($pageId));
             $draft = $this->store->loadDraft($ctx->siteId, $page->id);
-            $out = $this->store->renderForSite($ctx->siteId, $page->title, $page->path, $this->store->document($draft->document), false);
+            // The same content the canvas resolves bindings against, so a preview shows the
+            // entry's own values rather than the fallbacks the blocks were left holding.
+            $content = $this->bindings->draft($ctx->siteId, $page->id);
+            $out = $this->store->renderForSite($ctx->siteId, $page->title, $page->path, $this->store->document($draft->document), false, content: $content, pageId: $page->id);
 
             return ['html' => $out['html'], 'runtime' => $out['report']['motion']['runtime']];
         });
@@ -301,15 +308,41 @@ class PageService
         $page = $this->store->loadPage($ctx->siteId, Input::id($pageId));
         $site = DB::table('sites')->where('id', $ctx->siteId)->first(['name']);
         $resources = $this->resources->published($ctx->siteId, $document);
-        $media = $this->media->signedMediaMap($ctx->siteId, $this->store->mediaIdsFor($document, $resources['components'], $recorded), $signer);
+        $content = $this->bindings->draft($ctx->siteId, $page->id);
+        // The canvas shows the entries a visitor would see, so the item template is designed
+        // against real content; where there is nothing published yet it shows one sample entry
+        // rather than an empty frame nobody can edit.
+        $resources['collections'] = Collections::inDocument($document) === []
+            ? []
+            : app(Collections::class)->resolve($ctx->siteId, $document, $page->id, editor: true);
+        // A bound picture is named by the content, not by the block, so its id joins the ones the
+        // document names before the media is looked up.
+        $mediaIds = [
+            ...$this->store->mediaIdsFor($document, $resources['components'], $recorded),
+            ...Bindings::mediaIds($document, $content),
+            ...array_merge([], ...array_column($resources['collections'], 'mediaIds')),
+        ];
+        $media = $this->media->signedMediaMap($ctx->siteId, array_values(array_unique($mediaIds)), $signer);
         try {
-            $out = $this->renderer->render($document, 'editor', ['title' => $page->title, 'path' => $page->path], ['name' => $site->name], $media, pinned: $recorded, resources: $resources);
+            $out = $this->renderer->render($document, 'editor', ['title' => $page->title, 'path' => $page->path], ['name' => $site->name], $media, pinned: $recorded, resources: $resources, content: $content);
         } catch (RenderException $error) {
             throw new ValidationException('The page could not be rendered', $error->issues);
         }
 
         // Animations the renderer left off (they would hide the likely LCP), for the inspector to explain.
-        return ['body' => $out['body'], 'css' => $out['css'], 'motion' => ['protected' => (object) $out['report']['motion']['protected']]];
+        return [
+            'body' => $out['body'],
+            'css' => $out['css'],
+            'motion' => ['protected' => (object) $out['report']['motion']['protected']],
+            // What each content list on the page found, so its settings can say "showing 6 of
+            // 12" and name a field somebody has since removed.
+            'collections' => (object) array_map(fn ($resolved) => [
+                'total' => $resolved['total'],
+                'shown' => count($resolved['items']),
+                'sample' => $resolved['sample'],
+                'issues' => $resolved['issues'],
+            ], $resources['collections']),
+        ];
     }
 
     /**
@@ -545,7 +578,8 @@ class PageService
             }
 
             // Rendered while holding the epoch lock: what it reads is the published state at `epoch`.
-            $rendered = MenuService::withPaths($ctx->siteId, [$pageId => $meta->path], fn () => $this->store->renderForSite($ctx->siteId, $meta->title, $meta->path, $doc, true));
+            $content = $this->bindings->published($ctx->siteId, $pageId);
+            $rendered = MenuService::withPaths($ctx->siteId, [$pageId => $meta->path], fn () => $this->store->renderForSite($ctx->siteId, $meta->title, $meta->path, $doc, true, content: $content, pageId: $pageId));
             // The draft's details (excerpt, featured image, terms) go live with it.
             $details = ContentDetails::snapshot($ctx->siteId, $pageId);
             $publicationId = Uuid::v7();
@@ -703,7 +737,7 @@ class PageService
             // The live revision exactly as published, each node at its own component version: a dependency
             // change must not silently upgrade content. Only the site's data is current.
             $doc = Json::decode($revision->document);
-            $rendered = $this->store->renderForSite($siteId, $revision->title, $live->path, $doc, false, pinned: true);
+            $rendered = $this->store->renderForSite($siteId, $revision->title, $live->path, $doc, false, pinned: true, pageId: $pageId);
             // The live details stay exactly as published (never the draft's).
             $contentMeta = DB::table('publications')->where('id', $live->publication_id)->value('content_meta');
 

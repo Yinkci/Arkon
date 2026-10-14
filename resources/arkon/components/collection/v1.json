@@ -1,0 +1,109 @@
+{
+  "type": "collection",
+  "version": 1,
+  "label": "Content list",
+  "children": {
+    "allow": ["text", "image", "button", "group", "columns", "icon", "logo"],
+    "min": 1,
+    "max": 12
+  },
+  "props": {
+    "query": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string",
+          "maxLength": 48,
+          "default": "",
+          "pattern": "^(?:|[a-z][a-z0-9_]{0,31}|related:[a-z][a-z0-9_]{0,39})$"
+        },
+        "sort": {
+          "type": "string",
+          "maxLength": 48,
+          "default": "-published_at",
+          "pattern": "^-?(?:title|published_at|modified_at|path|chosen|field:[a-z][a-z0-9_]{0,39})$"
+        },
+        "limit": {
+          "type": "number",
+          "integer": true,
+          "min": 1,
+          "max": 48,
+          "default": 6
+        },
+        "filters": {
+          "type": "list",
+          "max": 5,
+          "default": [],
+          "items": {
+            "type": "object",
+            "properties": {
+              "field": {
+                "type": "string",
+                "maxLength": 40,
+                "default": "",
+                "pattern": "^(?:|[a-z][a-z0-9_]{0,39})$"
+              },
+              "operator": {
+                "type": "enum",
+                "values": ["is", "is_not", "contains", "gt", "lt", "between", "before", "after", "has_term", "is_true", "is_false"],
+                "default": "is"
+              },
+              "value": {
+                "type": "string",
+                "maxLength": 200,
+                "default": ""
+              },
+              "value2": {
+                "type": "string",
+                "maxLength": 200,
+                "default": ""
+              }
+            }
+          }
+        }
+      },
+      "default": {
+        "source": "",
+        "sort": "-published_at",
+        "limit": 6,
+        "filters": []
+      }
+    },
+    "emptyText": {
+      "type": "string",
+      "maxLength": 200,
+      "default": "Nothing to show yet."
+    },
+    "style": {
+      "type": "style",
+      "slots": {
+        "root": {
+          "label": "List",
+          "groups": ["layout", "spacing", "size", "background", "border", "effects", "motion"]
+        },
+        "item": {
+          "label": "Each item",
+          "groups": ["spacing", "size", "background", "border", "effects"]
+        }
+      },
+      "default": {}
+    }
+  },
+  "defaultProps": {
+    "query": {
+      "source": "",
+      "sort": "-published_at",
+      "limit": 6,
+      "filters": []
+    },
+    "emptyText": "Nothing to show yet.",
+    "style": {}
+  },
+  "publishChecks": [
+    {
+      "rule": "notBlank",
+      "prop": "query.source",
+      "message": "Choose what this content list shows"
+    }
+  ]
+}

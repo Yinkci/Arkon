@@ -6,6 +6,7 @@ use App\Arkon\Components\Render\BackTopV1;
 use App\Arkon\Components\Render\ButtonV1;
 use App\Arkon\Components\Render\ButtonV2;
 use App\Arkon\Components\Render\ButtonV3;
+use App\Arkon\Components\Render\CollectionV1;
 use App\Arkon\Components\Render\ColumnsV1;
 use App\Arkon\Components\Render\ColumnsV2;
 use App\Arkon\Components\Render\ColumnV1;
@@ -32,6 +33,8 @@ use App\Arkon\Components\Render\PageV1;
 use App\Arkon\Components\Render\PageV3;
 use App\Arkon\Components\Render\PageV4;
 use App\Arkon\Components\Render\PageV5;
+use App\Arkon\Components\Render\SectionsV1;
+use App\Arkon\Components\Render\SectionTemplateV1;
 use App\Arkon\Components\Render\SectionV1;
 use App\Arkon\Components\Render\SectionV2;
 use App\Arkon\Components\Render\SectionV3;
@@ -90,12 +93,16 @@ final class ComponentRegistry
             $this->themeManifests[] = $manifest;
         }
         // A registration policy extension, not an edit to any released manifest or stylesheet.
+        // Container types that accept ordinary content accept these too, which is how a theme's
+        // widgets and the content list can be placed without reissuing every container.
         $themeTypes = array_unique(array_column($this->themeManifests, 'type'));
         foreach ($this->definitions as $type => $versions) {
             foreach ($versions as $version => $definition) {
                 if ($definition->children !== false && in_array('text', $definition->children['allow'], true)) {
                     $children = $definition->children;
-                    $children['allow'] = array_values(array_unique([...$children['allow'], ...$themeTypes]));
+                    // The controlled containers keep their own allow list (NOT_WIDENED).
+                    $widen = in_array($type, self::NOT_WIDENED, true) ? $themeTypes : [...self::ADDABLE_ANYWHERE, ...$themeTypes];
+                    $children['allow'] = array_values(array_unique([...$children['allow'], ...$widen]));
                     $this->definitions[$type][$version] = new ComponentDefinition($definition->type, $definition->version, $definition->label, $children, $definition->props, $definition->defaultProps, $definition->inlineFields, $definition->mediaRefs, $definition->publishChecks, $definition->css);
                 }
             }
@@ -104,6 +111,21 @@ final class ComponentRegistry
             ksort($this->definitions[$type]);
         }
     }
+
+    /**
+     * Component types any container of ordinary content may hold, whichever version of that
+     * container a document was written with. The TypeScript twin applies the same list
+     * (resources/js/arkon/components/registry.ts), and tests/Conformance pins the agreement.
+     */
+    public const ADDABLE_ANYWHERE = ['collection', 'sections'];
+
+    /**
+     * Containers that keep exactly the children their manifest allows. A content list, a content
+     * sections block and one of its layout templates each hold a controlled set: a list inside a
+     * list, or sections inside a section, is a query or a loop per item and not something anyone
+     * can reason about.
+     */
+    private const NOT_WIDENED = ['collection', 'sections', 'section-template'];
 
     /**
      * Renderers of every released component version ("type@version"). Never
@@ -137,6 +159,9 @@ final class ComponentRegistry
         'section@6' => SectionV3::class,
         'slide@1' => SlideV1::class,
         'back-to-top@1' => BackTopV1::class,
+        'collection@1' => CollectionV1::class,
+        'sections@1' => SectionsV1::class,
+        'section-template@1' => SectionTemplateV1::class,
 
         'page@1' => PageV1::class,
         // v2 only widens which sections a page may contain; its markup is unchanged.

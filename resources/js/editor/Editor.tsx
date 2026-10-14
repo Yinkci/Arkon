@@ -28,7 +28,7 @@ import { api, newRequestKey, type ApiResult } from '@/lib/api';
 import { useTheme } from '@/lib/theme';
 import { Icon } from '@/Components/Icon';
 import { Button, IconButton, Spinner, buttonClass } from '@/Components/ui';
-import type { EditorInit, LiveInfo, MediaInfo, PageStatus, RecoveryItem, Revision } from '@/types';
+import type { CollectionState, EditorInit, LiveInfo, MediaInfo, PageStatus, RecoveryItem, Revision } from '@/types';
 import { Canvas, type Viewport } from './Canvas';
 import { DragProvider } from './drag/DragProvider';
 import type { CancelReason, Session } from './drag/controller';
@@ -39,6 +39,7 @@ import { Inspector } from './Inspector';
 import { LayersPanel } from './LayersPanel';
 import { StructureBar } from './StructureBar';
 import { PageSettings } from './PageSettings';
+import { EntryFields } from './EntryFields';
 import { PostDetails } from './PostDetails';
 import { RecoveryPanel } from './RecoveryPanel';
 import { applyOperations as applySeoOperations } from '@/arkon/schema/operations';
@@ -57,6 +58,7 @@ import {
     ToolbarDivider,
     ViewportSwitch,
     saveState,
+    useInspectorPreference,
     useOutlinePreference,
     useWideLayout,
     type PanelKey,
@@ -83,7 +85,13 @@ function storeIntent(intent: PublishIntent | null, pageId: string) {
 }
 
 /** The renderer's editor-mode output for the canvas, and the animations it leaves off on the page. */
-type CanvasRender = { body: string; css: string; motion?: { protected?: Record<string, Protection> } };
+type CanvasRender = {
+    body: string;
+    css: string;
+    motion?: { protected?: Record<string, Protection> };
+    /** What each content list on the page found, by node id. */
+    collections?: Record<string, CollectionState>;
+};
 
 export function Editor({ init }: { init: EditorInit }) {
     const pageId = init.page.id;
@@ -122,6 +130,7 @@ export function Editor({ init }: { init: EditorInit }) {
     }, []);
     const wide = useWideLayout();
     const [outlineOpen, setOutlineOpen] = useOutlinePreference();
+    const [inspectorOpen, setInspectorOpen] = useInspectorPreference();
     const { conflict, conflictRef, setConflict } = useConflict();
     const [notice, setNotice] = useState<Notice | null>(null);
     const [live, setLive] = useState<LiveInfo | null>(init.live);
@@ -929,40 +938,41 @@ export function Editor({ init }: { init: EditorInit }) {
                         <>
                             <BackMark href="/admin" label="Arkon dashboard" />
                             {wide && (
-                                <IconButton
-                                    icon="sidebar"
-                                    label={outlineOpen ? 'Hide outline' : 'Show outline'}
-                                    aria-pressed={outlineOpen}
-                                    onClick={() => setOutlineOpen(!outlineOpen)}
-                                />
+                                <>
+                                    <IconButton
+                                        icon="sidebar"
+                                        label={outlineOpen ? 'Hide outline' : 'Show outline'}
+                                        aria-pressed={outlineOpen}
+                                        onClick={() => setOutlineOpen(!outlineOpen)}
+                                    />
+                                    <IconButton
+                                        icon="panelRight"
+                                        label={inspectorOpen ? 'Hide properties' : 'Show properties'}
+                                        aria-pressed={inspectorOpen}
+                                        onClick={() => setInspectorOpen(!inspectorOpen)}
+                                    />
+                                </>
                             )}
                             <ToolbarDivider />
-                            <div className="min-w-0 pl-1">
-                                <p className="flex min-w-0 items-baseline gap-2 leading-tight">
-                                    <span className="truncate text-ui font-semibold" data-testid="page-title">
-                                        {pageMeta.title}
-                                    </span>
-                                    <span className="truncate font-mono text-2xs text-muted" data-testid="page-path">
-                                        {pageMeta.path}
-                                    </span>
-                                </p>
-                                <p
+                            {/* Identity only: the title, its path, and a dot for whether it is live.
+                                The revision and the time it went live are in the dot's tooltip. */}
+                            <p className="flex min-w-0 items-baseline gap-2 pl-1 leading-tight">
+                                <span
                                     data-testid="live-status"
-                                    className="mt-0.5 flex items-center gap-1.5 truncate text-2xs leading-tight text-muted max-md:hidden"
-                                >
-                                    {live ? (
-                                        <>
-                                            <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-live" />
-                                            {`Live: revision #${live.revisionNumber} · ${new Date(live.publishedAt).toLocaleTimeString('en-GB')}`}
-                                        </>
-                                    ) : (
-                                        <>
-                                            <span aria-hidden className="size-1.5 shrink-0 rounded-full border border-draft" />
-                                            Not published
-                                        </>
-                                    )}
-                                </p>
-                            </div>
+                                    title={
+                                        live
+                                            ? `Live: revision #${live.revisionNumber} · ${new Date(live.publishedAt).toLocaleTimeString('en-GB')}`
+                                            : 'Not published'
+                                    }
+                                    className={`size-1.5 shrink-0 self-center rounded-full ${live ? 'bg-live' : 'border border-draft'}`}
+                                />
+                                <span className="truncate text-ui font-semibold" data-testid="page-title">
+                                    {pageMeta.title}
+                                </span>
+                                <span className="truncate font-mono text-2xs text-muted" data-testid="page-path">
+                                    {pageMeta.path}
+                                </span>
+                            </p>
                         </>
                     }
                     center={
@@ -985,11 +995,11 @@ export function Editor({ init }: { init: EditorInit }) {
                                     href={live.path}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className={buttonClass('ghost', 'md', 'max-lg:px-2')}
+                                    className={buttonClass('ghost', 'md', 'px-2')}
                                     title="Open the live page in a new tab"
                                 >
                                     <Icon name="external" />
-                                    <span className="max-lg:sr-only">View live</span>
+                                    <span className="sr-only">View live</span>
                                 </a>
                             )}
                             <Button
@@ -1033,7 +1043,6 @@ export function Editor({ init }: { init: EditorInit }) {
                 {/* On narrow screens the status moves under the toolbar, so it is never hidden. */}
                 <div className="flex items-center gap-2 border-b border-line bg-surface px-3 py-1.5 md:hidden">
                     <SaveStatus state={state} testId="save-status-compact" />
-                    <span className="truncate text-2xs text-muted">{live ? `Live: revision #${live.revisionNumber}` : 'Not published'}</span>
                 </div>
                 {!canPublish && (
                     <p className="border-b border-line bg-raised px-3 py-1.5 text-2xs text-muted" data-testid="role-note">
@@ -1049,6 +1058,7 @@ export function Editor({ init }: { init: EditorInit }) {
                     leftTab={leftTab}
                     onTab={chooseTab}
                     outlineOpen={outlineOpen}
+                    inspectorOpen={inspectorOpen}
                     replaceSidebar={
                         recovery ? (
                             <div className="min-h-0 flex-1 overflow-auto">
@@ -1063,14 +1073,13 @@ export function Editor({ init }: { init: EditorInit }) {
                         ) : undefined
                     }
                     tabs={[
-                        { value: 'inspect', label: 'Properties', icon: 'sliders' },
-                        { value: 'seo', label: 'SEO', icon: 'globe' },
-                        { value: 'layers', label: 'Layers', icon: 'layers' },
-                        { value: 'history', label: 'History', icon: 'history' },
+                        { value: 'inspect', label: 'Properties' },
+                        { value: 'seo', label: 'SEO' },
+                        { value: 'layers', label: 'Layers' },
+                        { value: 'history', label: 'History' },
                         {
                             value: 'ai',
                             label: 'AI',
-                            icon: 'sparkle',
                             badge:
                                 proposal || waitingProposals > 0 ? (
                                     <span
@@ -1188,6 +1197,10 @@ export function Editor({ init }: { init: EditorInit }) {
                                 onBreakpoint={(bp) => setViewport(bp === 'base' ? 'desktop' : bp)}
                                 tokens={init.tokens}
                                 components={components}
+                                bindingSources={init.content.bindingSources}
+                                collectionSources={init.content.collectionSources}
+                                collectionStates={canvas.collections}
+                                flexibleFields={init.content.flexibleFields}
                                 onDetach={detach}
                                 motion={proposal ? undefined : canvas.motion}
                                 onReplay={actions.replayBlock}
@@ -1221,6 +1234,13 @@ export function Editor({ init }: { init: EditorInit }) {
                                                       : null
                                             }
                                             onApply={applySettings}
+                                        />
+                                        <EntryFields
+                                            pageId={init.page.id}
+                                            sections={init.content.sections ?? []}
+                                            initial={init.content.fieldValues ?? {}}
+                                            canEdit={canEdit && !locked}
+                                            deprecated={init.content.deprecatedSections}
                                         />
                                         {(init.content.details || init.content.taxonomies.length > 0) && (
                                             <PostDetails

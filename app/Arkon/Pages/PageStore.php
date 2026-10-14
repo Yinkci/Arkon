@@ -4,6 +4,8 @@ namespace App\Arkon\Pages;
 
 use App\Arkon\Components\ComponentRegistry;
 use App\Arkon\Components\DocumentValidator;
+use App\Arkon\Content\Bindings;
+use App\Arkon\Content\Collections;
 use App\Arkon\Design\DesignResources;
 use App\Arkon\Errors\ConflictException;
 use App\Arkon\Errors\NotFoundException;
@@ -163,12 +165,20 @@ class PageStore
      *
      * @return array{html: string, body: string, css: string, title: string, inputs: array, report: array, mediaIds: list<string>}
      */
-    public function renderForSite(string $siteId, string $title, string $path, mixed $doc, bool $strict, bool $pinned = false): array
+    public function renderForSite(string $siteId, string $title, string $path, mixed $doc, bool $strict, bool $pinned = false, array $content = [], ?string $pageId = null, bool $editor = false): array
     {
         $site = DB::table('sites')->where('id', $siteId)->first() ?? throw new NotFoundException('Site');
         $settings = Json::entries(Json::decode($site->settings));
         $resources = $this->resources->published($siteId, $doc);
-        $mediaIds = $this->mediaIdsFor($doc, $resources['components'], $pinned);
+        // What the content lists on this page show. Resolved here so every production render —
+        // publishing, the member preview, an SEO report, a re-render — shows the same entries,
+        // and asked for lazily because the query layer reads drafts through this store.
+        $resources['collections'] = Collections::inDocument($doc) === [] ? [] : app(Collections::class)->resolve($siteId, $doc, $pageId, $editor);
+        $mediaIds = [
+            ...$this->mediaIdsFor($doc, $resources['components'], $pinned),
+            ...Bindings::mediaIds($doc, $content),
+            ...array_merge([], ...array_column($resources['collections'], 'mediaIds')),
+        ];
         $seoDefaults = SeoDefaults::published($siteId);
         $social = $seoDefaults['values']['socialImage'] ?? '';
         if ($social !== '') {
@@ -181,7 +191,7 @@ class PageStore
                 'origin' => $this->origin($siteId),
                 'seoDefaults' => $seoDefaults,
                 'lang' => is_string($settings['lang'] ?? null) ? $settings['lang'] : 'en',
-            ], $media, $strict, $pinned, resources: $resources);
+            ], $media, $strict, $pinned, resources: $resources, content: $content);
             $themeVersion = DB::table('site_theme_sets')->where('site_id', $siteId)->value('published_version');
             $rendered['inputs']['themeSelection'] = $themeVersion === null ? null : (int) $themeVersion;
 

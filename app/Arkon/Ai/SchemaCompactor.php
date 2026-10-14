@@ -117,6 +117,27 @@ final class SchemaCompactor
      *
      * @param  callable(array): bool  $fits
      */
+    /**
+     * How many block property schemas were relaxed between the compacted schema and the one that
+     * fitted: zero when the whole guide was carried, which is what should normally happen.
+     */
+    public static function loosenedCount(array $compact, array $sent): int
+    {
+        $plain = function (mixed $node) use (&$plain): int {
+            if (! is_array($node)) {
+                return 0;
+            }
+            $count = $node === ['type' => 'object'] ? 1 : 0;
+            foreach ($node as $child) {
+                $count += $plain($child);
+            }
+
+            return $count;
+        };
+
+        return max(0, $plain($sent) - $plain($compact));
+    }
+
     public static function loosenToFit(array $schema, callable $fits): ?array
     {
         if ($fits($schema)) {

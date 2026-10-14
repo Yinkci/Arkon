@@ -17,12 +17,37 @@ export interface ComponentManifest {
 
 const modules = import.meta.glob<ComponentManifest>('../../../arkon/components/*/v*.json', { eager: true, import: 'default' });
 
+/**
+ * Component types any container of ordinary content may hold, whichever version of that
+ * container a document was written with. Twin of ComponentRegistry::ADDABLE_ANYWHERE.
+ */
+const ADDABLE_ANYWHERE = ['collection', 'sections'];
+
+/**
+ * Containers that keep exactly the children their manifest allows. Twin of
+ * ComponentRegistry::NOT_WIDENED.
+ */
+const NOT_WIDENED = ['collection', 'sections', 'section-template'];
+
 const byType = new Map<string, Map<number, ComponentManifest>>();
-for (const manifest of Object.values(modules)) {
-    const versions = byType.get(manifest.type) ?? new Map<number, ComponentManifest>();
-    versions.set(manifest.version, manifest);
-    byType.set(manifest.type, versions);
+function register(manifests: ComponentManifest[], extraTypes: string[]): void {
+    for (const manifest of manifests) {
+        const versions = byType.get(manifest.type) ?? new Map<number, ComponentManifest>();
+        versions.set(manifest.version, manifest);
+        byType.set(manifest.type, versions);
+    }
+    for (const [type, versions] of byType) {
+        // The controlled containers keep their own allow list (NOT_WIDENED).
+        const widen = NOT_WIDENED.includes(type) ? extraTypes : [...ADDABLE_ANYWHERE, ...extraTypes];
+        for (const [version, definition] of versions) {
+            if (definition.children !== false && definition.children.allow.includes('text')) {
+                versions.set(version, { ...definition, children: { ...definition.children, allow: [...new Set([...definition.children.allow, ...widen])] } });
+            }
+        }
+        byType.set(type, versions);
+    }
 }
+register(Object.values(modules), []);
 
 let activeThemeTypes: Set<string> | null = null;
 export function themeIsAddable(type: string): boolean {
@@ -33,20 +58,10 @@ export function themeIsAddable(type: string): boolean {
 export function installThemeDefinitions(manifests: ComponentManifest[], addableTypes?: string[]): void {
     activeThemeTypes = addableTypes === undefined ? null : new Set(addableTypes);
     byType.clear();
-    for (const manifest of [...Object.values(modules), ...manifests]) {
-        const versions = byType.get(manifest.type) ?? new Map<number, ComponentManifest>();
-        versions.set(manifest.version, manifest);
-        byType.set(manifest.type, versions);
-    }
-    const types = manifests.map((m) => m.type);
-    for (const [type, versions] of byType) {
-        for (const [version, definition] of versions) {
-            if (definition.children !== false && definition.children.allow.includes('text')) {
-                versions.set(version, { ...definition, children: { ...definition.children, allow: [...new Set([...definition.children.allow, ...types])] } });
-            }
-        }
-        byType.set(type, versions);
-    }
+    register(
+        [...Object.values(modules), ...manifests],
+        manifests.map((m) => m.type),
+    );
 }
 
 export function getDefinition(type: string, version: number): ComponentManifest | undefined {

@@ -20,18 +20,19 @@ final class ContentResource
     /**
      * @param  list<array>  $rows  ContentReader rows
      * @param  array<string, array{html: string, css: string, seo: array}|null>  $rendered  by id, for rows whose content or SEO is included
+     * @param  array<string, array<string, mixed>>  $fields  by id, each entry's own field values
      * @return list<array>
      */
-    public function many(array $rows, array $rendered = [], array $include = []): array
+    public function many(array $rows, array $rendered = [], array $include = [], array $fields = []): array
     {
         $media = MediaResource::byIds($this->siteId, array_column($rows, 'featuredMediaId'), $this->origin, $this->member);
         $termIds = array_merge([], ...array_column($rows, 'terms'));
         $terms = $termIds === [] ? collect() : DB::table('terms')->where('site_id', $this->siteId)->whereIn('id', array_unique($termIds))->orderBy('name')->get(['id', 'taxonomy', 'name', 'slug'])->keyBy('id');
 
-        return array_map(fn ($row) => $this->present($row, $media, $terms->all(), $rendered[$row['id']] ?? null, $include), $rows);
+        return array_map(fn ($row) => $this->present($row, $media, $terms->all(), $rendered[$row['id']] ?? null, $include, $fields[$row['id']] ?? []), $rows);
     }
 
-    private function present(array $row, array $media, array $terms, ?array $rendered, array $include): array
+    private function present(array $row, array $media, array $terms, ?array $rendered, array $include, array $fields = []): array
     {
         $type = ContentTypes::get($row['kind']);
         $out = [
@@ -65,6 +66,12 @@ final class ContentResource
         }
         if (in_array('seo', $include, true)) {
             $out['seo'] = $rendered['seo'] ?? null;
+        }
+        // The entry's own fields, by the keys its type declares. A relationship is the entry it
+        // points at in brief — id, type, title, path — and never that entry's own fields, so
+        // following references can neither recurse nor grow the response without limit.
+        if (in_array('fields', $include, true)) {
+            $out['fields'] = (object) $fields;
         }
 
         return $out;

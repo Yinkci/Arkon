@@ -23,7 +23,7 @@ final class PageSeo
     {
         $this->auth->authorize($ctx, 'page.view');
         $page = $this->store->loadPage($ctx->siteId, Input::id($pageId));
-        $out = $this->store->renderForSite($ctx->siteId, $page->title, $page->path, $document, false);
+        $out = $this->store->renderForSite($ctx->siteId, $page->title, $page->path, $document, false, pageId: $page->id);
 
         return $this->analysis->analyze($out['html'], Json::entries($document['seo'] ?? []), self::knownPaths($ctx->siteId, $page->path), $this->store->origin($ctx->siteId) ?? '');
     }

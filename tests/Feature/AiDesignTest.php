@@ -7,6 +7,7 @@ use App\Arkon\Ai\AiException;
 use App\Arkon\Ai\AiHelper;
 use App\Arkon\Ai\Mcp\McpServer;
 use App\Arkon\Ai\ProposalService;
+use App\Arkon\Ai\SchemaCompactor;
 use App\Arkon\Design\ComponentService;
 use App\Arkon\Design\TokenService;
 use App\Arkon\Media\MediaService;
@@ -141,7 +142,9 @@ class AiDesignTest extends DatabaseTestCase
         $this->assertStringContainsString('row puts the hero text left and its image right', $sent->instructions);
         $this->assertStringNotContainsString('heights, custom styles', $sent->instructions);
         $this->assertStringNotContainsString('background colours, heights', $sent->instructions);
-        $this->assertLessThan(28000, strlen(json_encode($sent->schema)), 'the schema fits the Claude Code command line');
+        // What actually goes on the command line is the compacted schema (identical rules, shared
+        // once), so that is what has to fit: Windows allows 32,767 characters for the whole line.
+        $this->assertLessThan(28000, strlen(json_encode(SchemaCompactor::compact($sent->schema))), 'the schema fits the Claude Code command line');
 
         // The proposal expresses exactly these settings, merged with the hero's defaults (tablet stacking).
         $this->assertSame('proposed', $view['status'], json_encode($view['error']));

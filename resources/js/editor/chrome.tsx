@@ -74,10 +74,11 @@ export function ViewportSwitch({ value, onChange }: { value: Viewport; onChange(
                         aria-pressed={active}
                         title={`${v.label} (${v.width})`}
                         onClick={() => onChange(v.value)}
-                        className={`inline-flex h-full items-center gap-1.5 rounded px-2 text-xs font-medium transition-[background-color,color,box-shadow] duration-100 ${active ? 'bg-surface text-fg shadow-raise' : 'text-muted hover:text-fg'}`}
+                        className={`grid h-full w-8 place-items-center rounded transition-[background-color,color,box-shadow] duration-100 ${active ? 'bg-surface text-fg shadow-raise' : 'text-muted hover:text-fg'}`}
                     >
                         <Icon name={v.icon} className="size-3.5" />
-                        <span className="max-2xl:sr-only">{v.label}</span>
+                        {/* The icon carries it; the name stays for screen readers and the tooltip. */}
+                        <span className="sr-only">{v.label}</span>
                     </button>
                 );
             })}
@@ -138,14 +139,14 @@ export function EditorToolbar({ start, center, end }: { start: ReactNode; center
 export interface TabSpec<T extends string> {
     value: T;
     label: string;
-    icon: IconName;
     badge?: ReactNode;
 }
 
 export function SidebarTabs<T extends string>({ tabs, value, onChange, aside }: { tabs: TabSpec<T>[]; value: T; onChange(value: T): void; aside?: ReactNode }) {
     return (
-        <div className="flex h-10 shrink-0 items-stretch gap-1 border-b border-line bg-surface px-2">
-            <div className="flex min-w-0 flex-1 items-stretch gap-1" role="tablist">
+        <div className="flex h-10 shrink-0 items-center gap-1 border-b border-line bg-surface px-2">
+            {/* Plain names in a segmented row: the panel below says what it is, so no icons. */}
+            <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto" role="tablist">
                 {tabs.map((t) => {
                     const active = t.value === value;
                     return (
@@ -155,12 +156,10 @@ export function SidebarTabs<T extends string>({ tabs, value, onChange, aside }: 
                             role="tab"
                             aria-selected={active}
                             onClick={() => onChange(t.value)}
-                            className={`relative flex min-w-0 items-center gap-1.5 text-xs font-medium whitespace-nowrap transition-colors ${tabs.length === 1 ? 'justify-start px-2' : 'flex-auto justify-center px-1.5'} ${active ? 'text-fg' : 'text-muted hover:text-fg'}`}
+                            className={`flex h-7 min-w-0 items-center gap-1.5 rounded-md px-2 text-xs font-medium whitespace-nowrap transition-colors ${active ? 'bg-sunken text-fg' : 'text-muted hover:text-fg'}`}
                         >
-                            {tabs.length < 5 && <Icon name={t.icon} className={`size-3.5 ${active ? 'text-accent' : ''}`} />}
                             <span className="truncate">{t.label}</span>
                             {t.badge}
-                            {active && <span aria-hidden className="absolute inset-x-1 -bottom-px h-0.5 rounded-full bg-accent" />}
                         </button>
                     );
                 })}
@@ -170,7 +169,10 @@ export function SidebarTabs<T extends string>({ tabs, value, onChange, aside }: 
     );
 }
 
-/** Wide enough for the outline and the inspector beside a desktop-width canvas (960 px minimum). */
+/**
+ * Wide enough for the outline and the inspector beside a desktop-width canvas (960 px minimum), which needs
+ * about 1490 px in all; narrower windows keep one tabbed sidebar. Either panel can be collapsed for more canvas.
+ */
 const WIDE = '(min-width: 1536px)';
 
 export function useWideLayout(): boolean {
@@ -186,27 +188,51 @@ export function useWideLayout(): boolean {
     return wide;
 }
 
-const OUTLINE_KEY = 'arkon.editor.outline';
-
-/** Whether the left panel is shown on wide screens (remembered per browser). */
-export function useOutlinePreference(): [boolean, (open: boolean) => void] {
+/** Whether a side panel is shown on wide screens (remembered per browser). */
+function usePanelPreference(key: string): [boolean, (open: boolean) => void] {
     const [open, setOpen] = useState(() => {
         try {
-            return localStorage.getItem(OUTLINE_KEY) !== 'hidden';
+            return localStorage.getItem(key) !== 'hidden';
         } catch {
             return true;
+        }
+    });
+    const update = useCallback(
+        (value: boolean) => {
+            setOpen(value);
+            try {
+                localStorage.setItem(key, value ? 'shown' : 'hidden');
+            } catch {
+                // Storage unavailable: the choice lasts for this page only.
+            }
+        },
+        [key],
+    );
+    return [open, update];
+}
+
+export const useOutlinePreference = () => usePanelPreference('arkon.editor.outline');
+
+/** Whether the block picker is open in the Layers panel (closed by default, and remembered). */
+export function usePalettePreference(): [boolean, (open: boolean) => void] {
+    const [open, setOpen] = useState(() => {
+        try {
+            return localStorage.getItem('arkon.editor.palette') === 'shown';
+        } catch {
+            return false;
         }
     });
     const update = useCallback((value: boolean) => {
         setOpen(value);
         try {
-            localStorage.setItem(OUTLINE_KEY, value ? 'shown' : 'hidden');
+            localStorage.setItem('arkon.editor.palette', value ? 'shown' : 'hidden');
         } catch {
             // Storage unavailable: the choice lasts for this page only.
         }
     }, []);
     return [open, update];
 }
+export const useInspectorPreference = () => usePanelPreference('arkon.editor.inspector');
 
 export type PanelKey = 'inspect' | 'layers' | 'history' | 'ai' | 'seo';
 
@@ -224,6 +250,7 @@ export function EditorWorkspace<T extends PanelKey>({
     render,
     replaceSidebar,
     outlineOpen = true,
+    inspectorOpen = true,
 }: {
     canvas: ReactNode;
     tabs: TabSpec<T>[];
@@ -234,6 +261,7 @@ export function EditorWorkspace<T extends PanelKey>({
     /** Shown instead of every panel (e.g. a repair that must happen first). */
     replaceSidebar?: ReactNode;
     outlineOpen?: boolean;
+    inspectorOpen?: boolean;
 }) {
     const wide = useWideLayout();
     const leftTabs = tabs.filter((t) => t.value !== 'inspect' && t.value !== 'seo');
@@ -244,7 +272,7 @@ export function EditorWorkspace<T extends PanelKey>({
         return (
             <div className="flex min-h-0 flex-1">
                 {outlineOpen && !replaceSidebar && (
-                    <aside className={`${panelClass} w-[15rem] border-r`} aria-label="Outline">
+                    <aside className={`${panelClass} w-60 border-r`} aria-label="Outline">
                         <SidebarTabs<T> value={leftTab} onChange={onTab} tabs={leftTabs} />
                         <div className="ui-dense ak-scroll min-h-0 flex-1 overflow-x-hidden" data-testid="sidebar-body">
                             {render(leftTab)}
@@ -254,7 +282,7 @@ export function EditorWorkspace<T extends PanelKey>({
                 <section className="flex min-h-0 min-w-0 flex-1 flex-col" aria-label="Canvas">
                     {canvas}
                 </section>
-                <aside className={`${panelClass} w-[19rem] border-l`} aria-label="Sidebar">
+                <aside className={`${panelClass} w-[19rem] border-l ${inspectorOpen || replaceSidebar ? '' : 'hidden'}`} aria-label="Sidebar">
                     {replaceSidebar ?? (
                         <>
                             <SidebarTabs<T>

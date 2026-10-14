@@ -7,6 +7,7 @@
     "nodeId": "^[A-Za-z0-9_-]{4,32}$",
     "componentType": "^[a-z][a-z0-9-]{0,39}$",
     "propKey": "^[A-Za-z][A-Za-z0-9]{0,39}$",
+    "fieldKey": "^[a-z][a-z0-9_]{0,39}$",
     "requestKey": "^[A-Za-z0-9_-]{16,100}$",
     "uuid": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
     "pathSegment": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
@@ -101,11 +102,23 @@
     "media",
     "build"
   ],
+  "$commentBindings": "Where a node's property may take its value from instead of holding it, and how deep inside a group a binding may reach.",
+  "bindings": {
+    "sources": ["entry", "site"],
+    "maxPath": 2
+  },
   "messages": {
     "expectedObject": "Expected an object",
+    "unknownBindingSource": "Unknown binding source",
+    "invalidBindingPath": "Invalid binding path",
+    "invalidFieldKey": "Invalid field key",
+    "invalidPropKey": "Invalid property key",
     "expectedString": "Expected a string",
     "expectedBoolean": "Expected a boolean",
     "expectedList": "Expected a list",
+    "expectedNumber": "Expected a number",
+    "outOfRange": "Expected a number between {min} and {max}",
+    "tooManyItems": "At most {max} items allowed",
     "expectedPositiveInteger": "Expected a positive integer",
     "required": "Required",
     "unrecognizedKey": "Unrecognized key \"{key}\"",

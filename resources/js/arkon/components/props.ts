@@ -8,6 +8,8 @@ export type Field =
     | { type: 'boolean'; default?: unknown }
     | { type: 'uuid'; ref?: 'component'; default?: unknown }
     | { type: 'link'; maxLength?: number; default?: unknown }
+    | { type: 'number'; min?: number; max?: number; integer?: boolean; default?: unknown }
+    | { type: 'list'; items: Field; max?: number; default?: unknown }
     | { type: 'object'; properties?: Record<string, Field>; nullable?: boolean; default?: unknown }
     | StyleField;
 
@@ -77,6 +79,27 @@ function parseField(field: Field, value: unknown, at: string, issues: PropIssue[
         case 'uuid':
             if (!matches('uuid', value)) issues.push({ path: at, message: message('invalidUuid') });
             return value;
+        case 'number':
+            if (typeof value !== 'number' || !Number.isFinite(value)) {
+                issues.push({ path: at, message: message('expectedNumber') });
+                return null;
+            }
+            // A whole number means a whole number: 6.5 items is not a smaller mistake than
+            // "six and a half".
+            if (field.integer && !Number.isInteger(value)) issues.push({ path: at, message: message('expectedPositiveInteger') });
+            else if ((field.min !== undefined && value < field.min) || (field.max !== undefined && value > field.max))
+                issues.push({ path: at, message: message('outOfRange', { min: field.min ?? '-∞', max: field.max ?? '∞' }) });
+            return value;
+        case 'list':
+            if (!Array.isArray(value)) {
+                issues.push({ path: at, message: message('expectedList') });
+                return null;
+            }
+            if (field.max !== undefined && value.length > field.max) {
+                issues.push({ path: at, message: message('tooManyItems', { max: field.max }) });
+                return null;
+            }
+            return value.map((item, index) => parseField(field.items, item, join(at, String(index)), issues));
         case 'style':
             return parseStyle(field, value, at, issues);
         case 'object':

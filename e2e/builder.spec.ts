@@ -1,6 +1,6 @@
 import { expect, test, type FrameLocator, type Locator, type Page } from '@playwright/test';
 import { E2E_EDITOR, PNG_1X1 } from './fixtures';
-import { BASE_URL, createPage, greeting, interceptNext, isAction, publicationCount } from './support';
+import { BASE_URL, createPage, greeting, interceptNext, isAction, palette, publicationCount } from './support';
 
 const status = (page: Page) => page.getByTestId('save-status');
 const notice = (page: Page) => page.getByTestId('notice');
@@ -54,6 +54,7 @@ async function drop(page: Page, source: Locator, target: Locator, where: 'inside
 
 /** + Columns opens the layout picker; two equal columns are the classic choice. */
 async function addColumns(page: Page) {
+    await palette(page);
     await page.getByRole('button', { name: 'Add Columns', exact: true }).click();
     await page.getByRole('button', { name: 'Add Columns: 2 equal' }).click();
 }
@@ -65,6 +66,7 @@ test('build a layout with the palette, layers, drag and drop and undo/redo, then
     await openLayers(page);
 
     // Add: after the selected hero, a text block; then columns after it.
+    await palette(page);
     await page.getByRole('button', { name: 'Add Text' }).click();
     await expect(canvas(page).getByText('Write something here.')).toBeVisible();
     await addColumns(page);
@@ -90,7 +92,8 @@ test('build a layout with the palette, layers, drag and drop and undo/redo, then
     await expect(canvas(page).locator('a:is(.ak-btn2,.ak-btn3)')).toHaveText('Contact us');
 
     // Accessible reordering: move the button above the text inside its column.
-    await page.getByRole('button', { name: 'Move Button up' }).click();
+    await page.getByRole('button', { name: /actions$/ }).click();
+    await page.getByRole('menuitem', { name: 'Move up' }).click();
     await openLayers(page);
     expect(await outline(page)).toEqual(['hero<page', 'text<page', 'columns<page', 'column<columns', 'button<column', 'text<column', 'column<columns']);
 
@@ -167,7 +170,8 @@ test('removing and reordering with the structure toolbar, and the last column ca
     );
 
     // Toolbar: move Columns above the hero, then remove it (undo brings it back).
-    await page.getByRole('toolbar').getByRole('button', { name: 'Move Columns up' }).click();
+    await page.getByRole('button', { name: /actions$/ }).click();
+    await page.getByRole('menuitem', { name: 'Move up' }).click();
     await openLayers(page);
     expect(await outline(page)).toEqual(['columns<page', 'column<columns', 'column<columns', 'hero<page']);
     await page.getByRole('button', { name: 'Remove Columns' }).click();
@@ -181,6 +185,7 @@ test('an unfinished link is kept and flagged, and blocks Preview and Publish unt
     const id = await createPage('/link-draft', 'Link draft');
     await page.goto(`/admin/editor/${id}`);
     await openLayers(page);
+    await palette(page);
     await page.getByRole('button', { name: 'Add Button' }).click();
     await page.getByRole('tab', { name: 'Properties' }).click();
     await page.getByLabel('Link').fill('/contact');
@@ -248,6 +253,7 @@ async function buttonWithUnsavedLabel(page: Page, path: string): Promise<string>
     const id = await createPage(path, 'Held action');
     await page.goto(`/admin/editor/${id}`);
     await openLayers(page);
+    await palette(page);
     await page.getByRole('button', { name: 'Add Button' }).click();
     await page.getByRole('tab', { name: 'Properties' }).click();
     await page.getByLabel('Link').fill('/contact');
@@ -331,6 +337,7 @@ test('image widths set with the design controls match in the canvas, preview and
     await page.getByRole('button', { name: 'Remove last column' }).click(); // one full-width column
     await openLayers(page);
     await layer(page, 'column').getByRole('button').first().click();
+    await palette(page);
     for (let i = 0; i < 3; i++) await page.getByRole('button', { name: 'Add Image' }).click();
 
     const widths = ['', '66%', '40%'];

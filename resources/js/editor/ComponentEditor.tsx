@@ -37,6 +37,7 @@ import {
     useOutlinePreference,
     useWideLayout,
 } from './chrome';
+import type { BindingSource } from './BindingPanel';
 import { revealField, unresolvedNotice, withoutStaleAction, useActivity, useConflict, useLeaveGuard, useUnresolvedFields, type Notice } from './session';
 
 /** The name as it would be saved, or null when it isn't valid (1 to 80 characters). */
@@ -55,6 +56,10 @@ export interface ComponentEditorInit {
     permissions: { edit: boolean; publish: boolean; upload: boolean };
     canvas: { body: string; css: string };
     multiline: Record<string, string[]>;
+    /** What a block here can be bound to: the site's own fields. */
+    bindingSources?: BindingSource[];
+    /** Entries this component can be previewed as, since it has none of its own. */
+    previewEntries?: { id: string; title: string; kind: string; label: string }[];
 }
 
 /**
@@ -100,6 +105,10 @@ export function ComponentEditor({ init }: { init: ComponentEditorInit }) {
     const wide = useWideLayout();
     const [outlineOpen, setOutlineOpen] = useOutlinePreference();
     const [canvas, setCanvas] = useState(init.canvas);
+    // Which entry the canvas stands in for while this component is designed.
+    const [previewEntryId, setPreviewEntryId] = useState<string>('');
+    const previewRef = useRef(previewEntryId);
+    previewRef.current = previewEntryId;
     const [token, setToken] = useState(0);
     const [media, setMedia] = useState(init.media);
     const [notice, setNotice] = useState<Notice | null>(null);
@@ -135,7 +144,9 @@ export function ComponentEditor({ init }: { init: ComponentEditorInit }) {
                 const seq = docSeq.current;
                 let result;
                 try {
-                    result = await api<{ body: string; css: string }>(`/components/${id}/canvas`, { body: { document: docRef.current.document } });
+                    result = await api<{ body: string; css: string }>(`/components/${id}/canvas`, {
+                        body: { document: docRef.current.document, previewEntryId: previewRef.current || undefined },
+                    });
                 } catch {
                     setNotice({ tone: 'error', message: "The canvas couldn't be updated (network problem). Your changes are kept." });
                     return;
@@ -428,6 +439,31 @@ export function ComponentEditor({ init }: { init: ComponentEditorInit }) {
                     }
                     center={
                         <>
+                            {(init.previewEntries ?? []).length > 0 && (
+                                <>
+                                    {/* A component belongs to no one entry, so one stands in while it is designed. */}
+                                    <label className="flex items-center gap-1.5 text-xs text-muted">
+                                        <span className="whitespace-nowrap">Preview as</span>
+                                        <select
+                                            className="ui-input h-7 w-auto max-w-44 py-0 text-xs"
+                                            value={previewEntryId}
+                                            onChange={(e) => {
+                                                setPreviewEntryId(e.target.value);
+                                                previewRef.current = e.target.value;
+                                                void render();
+                                            }}
+                                        >
+                                            <option value="">Nothing</option>
+                                            {(init.previewEntries ?? []).map((entry) => (
+                                                <option key={entry.id} value={entry.id}>
+                                                    {entry.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                    <ToolbarDivider className="mx-1" />
+                                </>
+                            )}
                             <ViewportSwitch value={viewport} onChange={setViewport} />
                             <ToolbarDivider className="mx-1" />
                             <HistoryButtons canUndo={doc.undo.length > 0 && !conflict} canRedo={doc.redo.length > 0 && !conflict} onStep={step} />
@@ -483,8 +519,8 @@ export function ComponentEditor({ init }: { init: ComponentEditorInit }) {
                     onTab={setTab}
                     outlineOpen={outlineOpen}
                     tabs={[
-                        { value: 'inspect', label: 'Properties', icon: 'sliders' },
-                        { value: 'layers', label: 'Layers', icon: 'layers' },
+                        { value: 'inspect', label: 'Properties' },
+                        { value: 'layers', label: 'Layers' },
                     ]}
                     canvas={
                         <Canvas
@@ -527,6 +563,7 @@ export function ComponentEditor({ init }: { init: ComponentEditorInit }) {
                         ) : (
                             <Inspector
                                 rootName="Component"
+                                bindingSources={init.bindingSources}
                                 document={doc.document}
                                 selected={selected}
                                 part={selectedPart}

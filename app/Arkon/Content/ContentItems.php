@@ -35,6 +35,7 @@ final class ContentItems
         private readonly ContentDetails $details,
         private readonly PageStore $store,
         private readonly Transactions $tx,
+        private readonly ContentTypeRegistry $types,
     ) {}
 
     /**
@@ -46,7 +47,7 @@ final class ContentItems
      */
     public function create(SiteContext $ctx, string $kind, array $input): array
     {
-        $type = ContentTypes::get($kind);
+        $type = $this->types->forSite($ctx->siteId)->get($kind);
         $title = Input::title($input['title'] ?? null);
         $key = $input['requestKey'] ?? self::key();
         $path = $this->path($ctx->siteId, $kind, $input, $title, requestKey: is_string($key) ? $key : null);
@@ -85,7 +86,7 @@ final class ContentItems
      */
     public function update(SiteContext $ctx, string $kind, string $id, array $input): void
     {
-        $type = ContentTypes::get($kind);
+        $type = $this->types->forSite($ctx->siteId)->get($kind);
         $id = $this->assertKind($ctx->siteId, $kind, $id);
         $blocks = array_key_exists('blocks', $input) && $input['blocks'] !== null ? PublicBlocks::validate($input['blocks']) : null;
         $details = ContentDetails::validated(array_intersect_key($input, array_flip(['excerpt', 'featuredMediaId', 'terms'])));
@@ -135,7 +136,7 @@ final class ContentItems
     /** The item's id if it exists on this site with this kind (in the Trash or not), else not found. */
     public function assertKind(string $siteId, string $kind, string $id, bool $trashed = false): string
     {
-        $label = ContentTypes::get($kind)['label'];
+        $label = $this->types->forSite($siteId)->get($kind)['label'];
         $id = Input::id($id, $label);
         $exists = DB::table('pages')->where('site_id', $siteId)->where('id', $id)->where('kind', $kind)->whereNull('purged_at')
             ->when(! $trashed, fn ($q) => $q->whereNull('deleted_at'))->exists();
@@ -149,7 +150,7 @@ final class ContentItems
         if (isset($input['path'])) {
             return Input::path($input['path']);
         }
-        $prefix = ContentTypes::get($kind)['pathPrefix'];
+        $prefix = $this->types->forSite($siteId)->get($kind)['pathPrefix'];
         if (isset($input['slug'])) {
             if (! is_string($input['slug']) || ! preg_match('/^[a-z0-9]+(-[a-z0-9]+)*$/D', $input['slug']) || strlen($input['slug']) > 100) {
                 throw new ValidationException('A slug uses lowercase letters, digits and single hyphens.', [['path' => 'slug', 'message' => 'A slug uses lowercase letters, digits and single hyphens.']]);

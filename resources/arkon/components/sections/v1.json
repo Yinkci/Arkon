@@ -1,0 +1,39 @@
+{
+  "type": "sections",
+  "version": 1,
+  "label": "Content sections",
+  "children": {
+    "allow": ["section-template"],
+    "min": 1,
+    "max": 20
+  },
+  "props": {
+    "field": {
+      "type": "string",
+      "maxLength": 40,
+      "default": "",
+      "pattern": "^(?:|[a-z][a-z0-9_]{0,39})$"
+    },
+    "style": {
+      "type": "style",
+      "slots": {
+        "root": {
+          "label": "Sections",
+          "groups": ["layout", "spacing", "size", "background", "border", "effects", "motion"]
+        }
+      },
+      "default": {}
+    }
+  },
+  "defaultProps": {
+    "field": "",
+    "style": {}
+  },
+  "publishChecks": [
+    {
+      "rule": "notBlank",
+      "prop": "field",
+      "message": "Choose which content sections this block renders"
+    }
+  ]
+}

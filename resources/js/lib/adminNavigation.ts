@@ -30,11 +30,48 @@ export const adminDestinations: AdminDestination[] = [
     { href: '/admin/seo', label: 'SEO overview', group: 'Site management', icon: 'globe', permission: 'page.view' },
     { href: '/admin/performance', label: 'Performance & updates', group: 'Site management', icon: 'cloud', permission: 'page.view' },
     { href: '/admin/settings/ai-connections', label: 'AI Connections', group: 'Settings', icon: 'sparkle', permission: 'page.edit' },
+    {
+        href: '/admin/content-types',
+        label: 'Content types',
+        group: 'Site management',
+        icon: 'list',
+        permission: 'page.view',
+        matches: ['/admin/content-types/'],
+    },
     { href: '/admin/settings', label: 'Site settings', group: 'Site management', icon: 'sliders', permission: 'page.publish' },
     { href: '/admin/settings/developer', label: 'Developer API', group: 'Site management', icon: 'key', permission: 'page.view' },
 ];
-export const visibleDestinations = (can: Record<string, boolean>) => adminDestinations.filter((item) => can[item.permission]);
-export function currentDestination(url: string) {
+/** A content type this site defined and asked to see in the menu. */
+export interface MenuContentType {
+    key: string;
+    plural: string;
+    icon: string;
+}
+
+/**
+ * A defined type joins the Content group as one entry, beside Pages and Posts. They are listed
+ * after the built-in kinds and before the library, so the group keeps its shape however many
+ * types a site adds, and "Content types" itself stays under Settings rather than in Content.
+ */
+export function visibleDestinations(can: Record<string, boolean>, contentTypes: MenuContentType[] = []): AdminDestination[] {
+    const defined: AdminDestination[] = contentTypes.map((type) => ({
+        href: `/admin/content/${type.key}`,
+        label: type.plural,
+        group: 'Content',
+        icon: (type.icon || 'component') as IconName,
+        permission: 'page.view',
+    }));
+    const items = [...adminDestinations];
+    const after = items.findIndex((item) => item.href === '/admin/posts/categories');
+    items.splice(after + 1, 0, ...defined);
+
+    return items.filter((item) => can[item.permission]);
+}
+
+export function currentDestination(url: string, contentTypes: MenuContentType[] = []) {
     const path = url.split('?')[0]!;
+    const defined = contentTypes.find((type) => path === `/admin/content/${type.key}`);
+    if (defined) return { href: path, label: defined.plural, group: 'Content', icon: 'component' as IconName, permission: 'page.view' };
+
     return adminDestinations.find((item) => item.href === path || item.matches?.some((prefix) => path.startsWith(prefix)));
 }

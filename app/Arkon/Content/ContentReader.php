@@ -25,7 +25,7 @@ final class ContentReader
 
     /**
      * @param  'live'|'draft'  $view
-     * @param  array{status?: string, search?: ?string, slug?: ?string, path?: ?string, author?: ?string, terms?: array<string, list<string>>, after?: ?string, before?: ?string, ids?: list<string>}  $f
+     * @param  array{status?: string, search?: ?string, slug?: ?string, path?: ?string, author?: ?string, terms?: array<string, list<string>>, refs?: array<string, list<string>>, fields?: list<array{field: string, column: string, operator: string, value: mixed, value2?: mixed}>, fieldSort?: array{field: string, column: string}, after?: ?string, before?: ?string, ids?: list<string>}  $f
      * @return array{0: Builder, 1: array<string, string>} the query and the SQL expression of each sort field
      */
     public function query(string $siteId, string $kind, string $view, array $f = []): array
@@ -95,14 +95,45 @@ final class ContentReader
                 ? $q->whereRaw("jsonb_exists_any(COALESCE(p.content_meta->'terms', '[]'::jsonb), ?::text[])", ['{'.implode(',', $ids).'}'])
                 : $q->whereExists(fn ($e) => $e->from('page_terms as pt')->whereColumn('pt.page_id', 'pg.id')->whereRaw('pt.term_id = ANY(?::uuid[])', ['{'.implode(',', $ids).'}']));
         }
+        // "Properties whose agent is Jane": answered from the derived index, where every
+        // reference is a row with ref_id set, rather than by reading anybody's JSON.
+        foreach ($f['refs'] ?? [] as $fieldKey => $ids) {
+            $ids = array_values(array_filter((array) $ids, Uuid::isValid(...)));
+            $q->whereExists(fn ($e) => $e->from('content_field_index as ci')
+                ->whereColumn('ci.page_id', 'pg.id')->where('ci.site_id', $siteId)->where('ci.field_key', $fieldKey)
+                ->whereRaw('ci.ref_id = ANY(?::uuid[])', ['{'.implode(',', $ids ?: ['00000000-0000-7000-8000-000000000000']).'}']));
+        }
+        // Filters on the entries' own fields, answered from the derived index: the caller says
+        // which column a value lives in (the field's type decides that), never a column name
+        // taken from a request.
+        foreach ($f['fields'] ?? [] as $filter) {
+            $match = fn ($e) => $e->from('content_field_index as cf')
+                ->whereColumn('cf.page_id', 'pg.id')->where('cf.site_id', $siteId)->where('cf.field_key', $filter['field'])
+                ->where(fn ($w) => match ($filter['operator']) {
+                    'contains' => $w->where('cf.'.$filter['column'], 'ilike', '%'.addcslashes((string) $filter['value'], '\%_').'%'),
+                    'gt', 'after' => $w->where('cf.'.$filter['column'], '>', $filter['value']),
+                    'lt', 'before' => $w->where('cf.'.$filter['column'], '<', $filter['value']),
+                    'between' => $w->whereBetween('cf.'.$filter['column'], [$filter['value'], $filter['value2'] ?? $filter['value']]),
+                    default => $w->where('cf.'.$filter['column'], $filter['value']),
+                });
+            $filter['operator'] === 'is_not' ? $q->whereNotExists($match) : $q->whereExists($match);
+        }
         if (isset($f['after'])) {
             $q->whereRaw("{$published} > ?", [$f['after']]);
         }
         if (isset($f['before'])) {
             $q->whereRaw("{$published} < ?", [$f['before']]);
         }
+        $columns = ['published_at' => $published, 'modified_at' => $modified, 'title' => $title, 'path' => $path];
+        // Sorting by one of the entries' own fields: joined once, at its first position, so an
+        // entry with several values of that field sorts by the first rather than appearing twice.
+        if (isset($f['fieldSort'])) {
+            $q->leftJoin('content_field_index as fs', fn ($j) => $j->on('fs.page_id', '=', 'pg.id')
+                ->where('fs.field_key', $f['fieldSort']['field'])->where('fs.position', 0));
+            $columns['field'] = 'fs.'.$f['fieldSort']['column'];
+        }
 
-        return [$q, ['published_at' => $published, 'modified_at' => $modified, 'title' => $title, 'path' => $path]];
+        return [$q, $columns];
     }
 
     /** @return array{rows: list<array>, total: int} */

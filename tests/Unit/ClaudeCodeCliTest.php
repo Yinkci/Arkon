@@ -81,9 +81,21 @@ class ClaudeCodeCliTest extends TestCase
         $tricky = ['type' => 'object', 'description' => 'quotes " \\" backslash \\ percent %PATH% bang !x! caret ^ amp & pipe | <>'];
         $out = $this->cli()->run(new AiRequest('i', 'p', [...$schema, '$defs' => [...$schema['$defs'], 'tricky' => $tricky]]), fn () => true)->output;
         $sent = [...$schema, '$defs' => [...$schema['$defs'], 'tricky' => $tricky]];
-        $json = json_encode($sent, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        $expected = PHP_OS_FAMILY === 'Windows' && strlen($json) > 24000 ? SchemaCompactor::compact($sent) : $sent;
-        $this->assertSame(json_decode(json_encode($expected), true), $out['schema']);
+        $compact = json_decode((string) json_encode(SchemaCompactor::compact($sent)), true);
+        if (PHP_OS_FAMILY !== 'Windows') {
+            $this->assertSame(json_decode((string) json_encode($sent), true), $out['schema']);
+        } else {
+            // Windows carries the schema on the command line, so what arrives is the compacted
+            // schema, or — when even that is too long for the line — the same schema with its
+            // largest block property schemas relaxed (SchemaCompactor::loosenToFit). Either way
+            // every definition is still there and nothing was mangled on the way.
+            $this->assertSame(array_keys($compact), array_keys($out['schema']));
+            $this->assertSame(array_keys($compact['$defs']), array_keys($out['schema']['$defs']));
+            $this->assertLessThanOrEqual(
+                ClaudeCodeCli::COMMAND_LINE_BUDGET,
+                SchemaCompactor::windowsCommandLength([PHP_BINARY, '--json-schema', (string) json_encode($out['schema'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)]),
+            );
+        }
         $this->assertContains($tricky, array_values($out['schema']['$defs']));
     }
 

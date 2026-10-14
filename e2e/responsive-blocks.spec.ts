@@ -11,7 +11,11 @@ test.beforeAll(async () => {
 test.afterAll(() => db.end());
 test('columns, buttons and images edit the selected screen and render without JavaScript', async ({ page, browser }) => {
     const id = await createPage('/responsive-blocks-demo', 'Responsive blocks');
-    const asset = (await db.query('select id from media_assets order by created_at limit 1')).rows[0].id;
+    // A photo with responsive variants (the test asserts the `sizes` attribute). Plainly the oldest
+    // asset will not do: other spec files leave 1×1 uploads behind, and those have no variants.
+    const asset = (
+        await db.query('select a.id from media_assets a where exists (select 1 from media_variants v where v.asset_id = a.id) order by a.created_at limit 1')
+    ).rows[0].id;
     const nodes: Record<string, unknown> = {
         root000001: { id: 'root000001', type: 'page', version: 6, props: {}, children: ['hero000001', 'cols000001'] },
         hero000001: {

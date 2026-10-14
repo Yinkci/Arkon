@@ -45,14 +45,14 @@ function writeStored(key: string, value: unknown) {
  * (Build a website), so the frame reads as one surface around the website being previewed.
  */
 export function AdminLayout({ children, chrome = 'default' }: { children: ReactNode; chrome?: 'default' | 'dark' }) {
-    const { auth, site, can } = usePage<SharedProps>().props;
+    const { auth, site, can, contentTypes } = usePage<SharedProps>().props;
     const url = usePage().url;
     const { preference, theme, setPreference } = useTheme();
     const [menuOpen, setMenuOpen] = useState(false);
     const navId = useId();
     const siteName = site?.name ?? 'Arkon';
-    const items = visibleDestinations(can);
-    const current = currentDestination(url);
+    const items = visibleDestinations(can, contentTypes ?? []);
+    const current = currentDestination(url, contentTypes ?? []);
     const [collapsed, setCollapsedState] = useState(() => readStored(COLLAPSED_KEY, false));
     const setCollapsed = useCallback((value: boolean) => {
         setCollapsedState(value);

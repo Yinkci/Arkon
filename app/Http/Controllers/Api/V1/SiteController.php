@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Arkon\Api\Scopes;
 use App\Arkon\Content\ContentTypes;
+use App\Arkon\Content\SiteDataService;
 use App\Arkon\Content\Taxonomies;
 use App\Arkon\Navigation\MenuService;
 use App\Arkon\Seo\SeoDefaults;
@@ -59,6 +60,8 @@ final class SiteController extends Controller
             'logo' => null,
             'favicon' => null,
             'organization' => ['name' => (string) ($seo['organizationName'] ?? ''), 'type' => (string) ($seo['organizationType'] ?? 'Organization')],
+            // What the site itself keeps, minus any field its definition marks private.
+            'data' => (object) app(SiteDataService::class)->publicValues($siteId),
         ]);
     }
 

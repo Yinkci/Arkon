@@ -16,6 +16,9 @@ final class Permissions
         'form.view', 'form.edit', 'form.publish', 'form.manage', 'form.notifications', 'form.entries.view', 'form.entries.manage', 'form.entries.export',
         // Categories, tags and other terms: editors may add terms; renaming or deleting one changes live content.
         'term.create', 'term.manage',
+        // Defining a content type changes the shape of the site's content, its API and its
+        // templates, so it sits with the people who run the site, not with everyone who writes.
+        'contentType.manage',
     ];
 
     public const ROLES = ['owner', 'admin', 'editor', 'viewer'];

@@ -1,0 +1,39 @@
+{
+  "type": "section-template",
+  "version": 1,
+  "label": "Section layout",
+  "children": {
+    "allow": ["text", "image", "button", "group", "columns", "icon", "logo"],
+    "min": 1,
+    "max": 12
+  },
+  "props": {
+    "layout": {
+      "type": "string",
+      "maxLength": 40,
+      "default": "",
+      "pattern": "^(?:|[a-z][a-z0-9_]{0,39})$"
+    },
+    "style": {
+      "type": "style",
+      "slots": {
+        "root": {
+          "label": "Section",
+          "groups": ["layout", "spacing", "size", "background", "border", "effects"]
+        }
+      },
+      "default": {}
+    }
+  },
+  "defaultProps": {
+    "layout": "",
+    "style": {}
+  },
+  "publishChecks": [
+    {
+      "rule": "notBlank",
+      "prop": "layout",
+      "message": "Choose which kind of section this layout renders"
+    }
+  ]
+}

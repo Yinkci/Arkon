@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Arkon\Content\ContentTypes;
+use App\Arkon\Content\ContentTypeRegistry;
 use App\Arkon\Pages\PageManagement;
 use App\Arkon\Pages\PageService;
 use App\Http\AdminContext;
@@ -14,11 +14,11 @@ use Inertia\Response;
 /** The list screen of pages, posts and other content types (one screen, one model). */
 class PagesController extends Controller
 {
-    public function index(Request $request, PageService $pages, PageManagement $management): Response
+    public function index(Request $request, PageService $pages, PageManagement $management, ContentTypeRegistry $types): Response
     {
         $ctx = AdminContext::of($request)->ctx();
         $kind = (string) ($request->route('kind') ?? 'page');
-        $type = ContentTypes::get($kind);
+        $type = $types->forSite($ctx->siteId)->get($kind);
 
         return Inertia::render('Admin/Pages', [
             'type' => ['kind' => $kind, 'label' => $type['label'], 'plural' => $type['plural'], 'pathPrefix' => $type['pathPrefix'], 'taxonomies' => $type['taxonomies']],

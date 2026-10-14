@@ -88,7 +88,7 @@ final class SeoDashboard
         $rows = [];
         foreach ($query->orderBy('p.title')->offset(($page - 1) * self::PER_PAGE)->limit(self::PER_PAGE)->get(['p.id', 'p.title', 'p.path', 'd.document']) as $row) {
             try {
-                $out = $this->store->renderForSite($siteId, $row->title, $row->path, $this->store->document($row->document), false);
+                $out = $this->store->renderForSite($siteId, $row->title, $row->path, $this->store->document($row->document), false, pageId: $row->id);
                 $draft = Cache::remember('seo:draft:'.hash('sha256', $siteId.$out['html'].Json::encode($destinations).$row->path), 60, fn () => $this->analysis->analyze($out['html'], [], [...$destinations, $row->path], $origin));
             } catch (ValidationException) {
                 $draft = null;

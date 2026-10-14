@@ -6,7 +6,9 @@ import { removalOf } from '@/arkon/editor/remove';
 import { canRemove, moveWithinParent } from '@/arkon/editor/structure';
 import { findParent, type Node, type NodeId, type PageDocument } from '@/arkon/schema/document';
 import type { PageOperation } from '@/arkon/schema/operations';
-import { Button, IconButton } from '@/Components/ui';
+import { Button } from '@/Components/ui';
+import { MenuItem, RowMenu } from '@/Components/ListManagement';
+import { Icon } from '@/Components/Icon';
 
 /** Top-level kinds of blocks a reusable component can hold (not columns of a Columns block, not instances). */
 function canBeReusable(doc: PageDocument, node: Node): boolean {
@@ -46,30 +48,8 @@ export function StructureBar({
     const removal = removalOf(doc, node.id);
     return (
         <div className="border-b border-line bg-surface px-3 py-1" data-selection-scope>
-            <div className="flex flex-wrap items-center gap-0.5" role="toolbar" aria-label={`${name} structure`}>
-                <IconButton
-                    icon="arrowUp"
-                    size="sm"
-                    label={`Move ${name} up`}
-                    disabled={!canEdit || !location || location.index === 0}
-                    onClick={() => onStructure(moveWithinParent(doc, node.id, -1) ?? [], node.id)}
-                />
-                <IconButton
-                    icon="arrowDown"
-                    size="sm"
-                    label={`Move ${name} down`}
-                    disabled={!canEdit || !location || location.index >= siblings.length - 1}
-                    onClick={() => onStructure(moveWithinParent(doc, node.id, 1) ?? [], node.id)}
-                />
-                <IconButton
-                    icon="chevronUp"
-                    size="sm"
-                    label="Select parent"
-                    disabled={!parentId}
-                    onClick={() => onSelect(parentId)}
-                    title={parentId ? `Select parent: the ${componentName(doc.nodes[parentId]!).toLowerCase()} around it` : 'Already at the top level'}
-                />
-                <span className="flex-1" />
+            {/* The frequent action stays a button; moving, reusing and removing live in the menu beside it. */}
+            <div className="flex items-center gap-0.5" role="toolbar" aria-label={`${name} structure`}>
                 {onDuplicate && (
                     <Button
                         size="sm"
@@ -83,25 +63,68 @@ export function StructureBar({
                         Duplicate
                     </Button>
                 )}
-                {reusable && naming === null && (
-                    <IconButton
-                        icon="component"
-                        size="sm"
-                        label="Make reusable"
-                        title="Make reusable: turn this block into a shared component"
-                        onClick={() => setNaming(name)}
-                        data-testid="make-reusable"
-                    />
-                )}
-                <IconButton
-                    icon="trash"
-                    size="sm"
-                    variant="quiet-danger"
-                    label={removal.ok ? removal.label : `Remove ${name}`}
-                    disabled={!canEdit || !removal.ok || !canRemove(doc, node.id)}
-                    onClick={() => (onDelete ? onDelete(node.id) : onStructure(removeOps(doc, node.id), parentId))}
-                    data-testid="toolbar-delete"
-                />
+                <span className="flex-1" />
+                <RowMenu label={`${name} actions`}>
+                    {(close) => (
+                        <>
+                            <MenuItem
+                                onSelect={() => {
+                                    onStructure(moveWithinParent(doc, node.id, -1) ?? [], node.id);
+                                    close();
+                                }}
+                                disabled={!canEdit || !location || location.index === 0}
+                            >
+                                <Icon name="arrowUp" className="size-3.5 text-faint" />
+                                Move up
+                            </MenuItem>
+                            <MenuItem
+                                onSelect={() => {
+                                    onStructure(moveWithinParent(doc, node.id, 1) ?? [], node.id);
+                                    close();
+                                }}
+                                disabled={!canEdit || !location || location.index >= siblings.length - 1}
+                            >
+                                <Icon name="arrowDown" className="size-3.5 text-faint" />
+                                Move down
+                            </MenuItem>
+                            <MenuItem
+                                onSelect={() => {
+                                    onSelect(parentId);
+                                    close();
+                                }}
+                                disabled={!parentId}
+                            >
+                                <Icon name="chevronUp" className="size-3.5 text-faint" />
+                                Select {parentId ? componentName(doc.nodes[parentId]!).toLowerCase() : 'parent'}
+                            </MenuItem>
+                            {reusable && (
+                                <MenuItem
+                                    data-testid="make-reusable"
+                                    onSelect={() => {
+                                        setNaming(name);
+                                        close();
+                                    }}
+                                >
+                                    <Icon name="component" className="size-3.5 text-faint" />
+                                    Make reusable
+                                </MenuItem>
+                            )}
+                            <MenuItem
+                                tone="danger"
+                                data-testid="toolbar-delete"
+                                disabled={!canEdit || !removal.ok || !canRemove(doc, node.id)}
+                                onSelect={() => {
+                                    if (onDelete) onDelete(node.id);
+                                    else onStructure(removeOps(doc, node.id), parentId);
+                                    close();
+                                }}
+                            >
+                                <Icon name="trash" className="size-3.5" />
+                                {removal.ok ? removal.label : `Remove ${name}`}
+                            </MenuItem>
+                        </>
+                    )}
+                </RowMenu>
             </div>
             {reusable && naming !== null && (
                 <form

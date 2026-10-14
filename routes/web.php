@@ -3,12 +3,15 @@
 use App\Arkon\Content\Taxonomies;
 use App\Http\Controllers\Admin\AiConnectionsController;
 use App\Http\Controllers\Admin\ContentAdminController;
+use App\Http\Controllers\Admin\ContentTypesController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DesignController;
 use App\Http\Controllers\Admin\EditorController;
+use App\Http\Controllers\Admin\FieldGroupsController;
 use App\Http\Controllers\Admin\FormsController;
 use App\Http\Controllers\Admin\NavigationController;
 use App\Http\Controllers\Admin\PagesController;
+use App\Http\Controllers\Admin\SiteDataController;
 use App\Http\Controllers\Admin\SiteOverviewController;
 use App\Http\Controllers\Admin\ThemesController;
 use App\Http\Controllers\Admin\WebsiteController;
@@ -34,6 +37,14 @@ Route::middleware(['auth', 'admin.site'])->group(function () {
     Route::get('/admin', DashboardController::class)->name('admin');
     Route::get('/admin/pages', [PagesController::class, 'index']);
     Route::get('/admin/posts', [PagesController::class, 'index'])->defaults('kind', 'post');
+    // Content types a site defines, and the entry lists they generate. The kind is checked
+    // against the site's own registry in the controller, so no route changes when one is added.
+    Route::get('/admin/site-data', [SiteDataController::class, 'index']);
+    Route::get('/admin/fields', [FieldGroupsController::class, 'index']);
+    Route::get('/admin/fields/{key}', [FieldGroupsController::class, 'edit']);
+    Route::get('/admin/content-types', [ContentTypesController::class, 'index']);
+    Route::get('/admin/content-types/{key}', [ContentTypesController::class, 'edit']);
+    Route::get('/admin/content/{kind}', [PagesController::class, 'index']);
     Route::get('/admin/posts/categories', [ContentAdminController::class, 'terms'])->defaults('taxonomy', 'category');
     Route::get('/admin/posts/tags', [ContentAdminController::class, 'terms'])->defaults('taxonomy', 'tag');
     Route::get('/admin/media', [SiteOverviewController::class, 'media']);
@@ -76,6 +87,21 @@ Route::middleware(['auth', 'admin.site'])->group(function () {
         Route::post('/pages', [PageApiController::class, 'store']);
         Route::post('/pages/{page}/unpublish', [PageApiController::class, 'unpublish']);
         Route::post('/pages/{page}/details', [ContentAdminController::class, 'details']);
+        Route::post('/pages/{page}/fields', [ContentTypesController::class, 'saveFields']);
+        // One change to one content-sections field: insert, move, update, remove or duplicate.
+        Route::post('/pages/{page}/sections', [ContentTypesController::class, 'saveSection']);
+        // Entries a relationship field may point at, and what already points at an entry.
+        Route::get('/related', [ContentTypesController::class, 'related']);
+        Route::post('/pages/usage', [ContentTypesController::class, 'usage']);
+        Route::post('/site-data', [SiteDataController::class, 'update']);
+        Route::post('/site-data/restore', [SiteDataController::class, 'restore']);
+        Route::post('/field-groups', [FieldGroupsController::class, 'store']);
+        Route::post('/field-groups/{key}', [FieldGroupsController::class, 'update']);
+        Route::post('/field-groups/{key}/delete', [FieldGroupsController::class, 'destroy']);
+        Route::post('/content-types', [ContentTypesController::class, 'store']);
+        Route::post('/content-types/{key}', [ContentTypesController::class, 'update']);
+        Route::post('/content-types/{key}/active', [ContentTypesController::class, 'setActive']);
+        Route::post('/content-types/{key}/delete', [ContentTypesController::class, 'destroy']);
         Route::post('/terms/{taxonomy}', [ContentAdminController::class, 'createTerm'])->whereIn('taxonomy', array_keys(Taxonomies::all()));
         Route::post('/terms/{taxonomy}/{term}', [ContentAdminController::class, 'updateTerm'])->whereIn('taxonomy', array_keys(Taxonomies::all()))->whereUuid('term');
         Route::post('/terms/{taxonomy}/{term}/delete', [ContentAdminController::class, 'deleteTerm'])->whereIn('taxonomy', array_keys(Taxonomies::all()))->whereUuid('term');

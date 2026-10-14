@@ -2,7 +2,7 @@
 // test): runs only with FEATURES_DEMO=1 and writes to storage/screenshots/features/ (git-ignored).
 import { expect, test, type Page } from '@playwright/test';
 import { AUTH_STATE, E2E_HOST, PORT } from './env';
-import { db } from './support';
+import { db, palette } from './support';
 
 test.skip(process.env.FEATURES_DEMO !== '1', 'Set FEATURES_DEMO=1 to record the feature walkthrough');
 
@@ -80,6 +80,7 @@ for (const theme of ['light', 'dark'] as const) {
 
         // 2. Columns: the picker, the inspector, an empty column's Add block, the confirmation.
         await page.getByRole('tab', { name: 'Layers' }).click();
+        await palette(page);
         await page.getByTestId('add-columns').click();
         await page.screenshot({ path: `${dir}/3-columns-picker-${theme}.png` });
         await page.getByTestId('add-columns').click();

@@ -4,7 +4,8 @@ namespace App\Arkon\Ai;
 
 use App\Arkon\Ai\Actions\ActionRegistry;
 use App\Arkon\Components\ComponentRegistry;
-use App\Arkon\Content\ContentTypes;
+use App\Arkon\Content\ContentTypeRegistry;
+use App\Arkon\Content\FieldSchemaResolver;
 use App\Arkon\Content\PublicBlocks;
 use App\Arkon\Content\Taxonomies;
 use App\Arkon\Sites\Authorizer;
@@ -36,7 +37,45 @@ final class Capabilities
         'Keep heading levels in order (one h1, then h2, h3) and give informative images alt text.',
     ];
 
-    public function __construct(private readonly ComponentRegistry $registry, private readonly ActionRegistry $actions, private readonly Authorizer $auth) {}
+    public function __construct(
+        private readonly ComponentRegistry $registry,
+        private readonly ActionRegistry $actions,
+        private readonly Authorizer $auth,
+        private readonly ContentTypeRegistry $types,
+        private readonly FieldSchemaResolver $schema,
+    ) {}
+
+    /**
+     * What one kind of entry carries, in the fewest words that still say what a value must be.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function fieldsOf(string $siteId, string $kind): array
+    {
+        $out = [];
+        foreach ($this->schema->fieldsFor($siteId, ['kind' => $kind]) as $field) {
+            if ($field['settings']['private'] ?? false) {
+                continue;
+            }
+            $out[] = array_filter([
+                'key' => $field['key'],
+                'label' => $field['label'],
+                'type' => $field['type'],
+                'required' => ($field['settings']['required'] ?? false) ?: null,
+                'relatesTo' => $field['type'] === 'relationship' ? ($field['settings']['targetType'] ?? null) : null,
+                'holds' => $field['type'] === 'relationship' ? (($field['settings']['multiple'] ?? false) ? 'several' : 'one') : null,
+                // The kinds of section a content-sections field offers, with what each holds, so
+                // a request like "add a quote after the gallery" can name real layouts.
+                'sectionLayouts' => $field['type'] !== 'flexible' ? null : array_values(array_map(fn ($layout) => [
+                    'layout' => $layout['key'],
+                    'label' => $layout['label'],
+                    'fields' => array_column($layout['fields'], 'key'),
+                ], $field['layouts'] ?? [])),
+            ], fn ($value) => $value !== null);
+        }
+
+        return $out;
+    }
 
     public function describe(SiteContext $ctx): array
     {
@@ -44,10 +83,14 @@ final class Capabilities
 
         return [
             'site' => ['name' => DB::table('sites')->where('id', $ctx->siteId)->value('name'), 'role' => $role, 'permissions' => Permissions::of($role)],
+            // Every type this site has, built-in and defined, with the fields its entries carry:
+            // a relationship says what it relates to and whether it holds one item or several, so
+            // the content graph is something to read rather than to guess at.
             'contentTypes' => array_map(fn ($t, $kind) => [
                 'type' => $kind, 'label' => $t['label'], 'urlPrefix' => $t['pathPrefix'] ?: '/', 'details' => $t['details'] ? ['excerpt', 'featuredImage'] : [],
                 'taxonomies' => $t['taxonomies'], 'statuses' => ['draft', 'published', 'trash'],
-            ], ContentTypes::all(), array_keys(ContentTypes::all())),
+                'fields' => $this->fieldsOf($ctx->siteId, $kind),
+            ], $this->types->forSite($ctx->siteId)->all(), array_keys($this->types->forSite($ctx->siteId)->all())),
             'taxonomies' => array_map(fn ($t, $name) => ['taxonomy' => $name, 'label' => $t['label'], 'hierarchical' => $t['hierarchical']], Taxonomies::all(), array_keys(Taxonomies::all())),
             'publicBlocks' => [
                 'schemaVersion' => PublicBlocks::SCHEMA_VERSION,

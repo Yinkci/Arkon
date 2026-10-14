@@ -14,9 +14,9 @@ use InvalidArgumentException;
  *
  * Field types: string {maxLength, minLength}, link {maxLength} (a string
  * matching the shared safe-link pattern), enum {values}, boolean, uuid,
- * object {properties, nullable}, style {slots} (the shared styling model, see
- * StyleSchema). A field without `default` is required. Objects
- * are strict: unknown keys are rejected.
+ * number {min, max, integer}, list {items, max}, object {properties, nullable},
+ * style {slots} (the shared styling model, see StyleSchema). A field without
+ * `default` is required. Objects are strict: unknown keys are rejected.
  */
 final class PropSchema
 {
@@ -153,6 +153,43 @@ final class PropSchema
                 }
 
                 return $value;
+
+            case 'number':
+                if (! is_int($value) && ! (is_float($value) && is_finite($value))) {
+                    $issues[] = ['path' => $at, 'message' => Rules::message('expectedNumber')];
+
+                    return null;
+                }
+                // A whole number means a whole number: 6.5 items is not a smaller mistake than
+                // "six and a half".
+                if (($field['integer'] ?? false) && (float) $value !== floor((float) $value)) {
+                    $issues[] = ['path' => $at, 'message' => Rules::message('expectedPositiveInteger')];
+                } elseif ((isset($field['min']) && $value < $field['min']) || (isset($field['max']) && $value > $field['max'])) {
+                    $issues[] = ['path' => $at, 'message' => Rules::message('outOfRange', ['min' => $field['min'] ?? '-∞', 'max' => $field['max'] ?? '∞'])];
+                }
+
+                return ($field['integer'] ?? false) ? (int) $value : $value;
+
+            case 'list':
+                if (! Json::isList($value)) {
+                    $issues[] = ['path' => $at, 'message' => Rules::message('expectedList')];
+
+                    return null;
+                }
+                if (isset($field['max']) && count($value) > $field['max']) {
+                    $issues[] = ['path' => $at, 'message' => Rules::message('tooManyItems', ['max' => $field['max']])];
+
+                    return null;
+                }
+
+                // A loop, not array_map: an arrow function would capture $issues by value and
+                // quietly lose whatever an item turned out to be wrong about.
+                $items = [];
+                foreach ($value as $index => $item) {
+                    $items[] = self::parseField($field['items'], $item, self::join($at, (string) $index), $issues, $raw, $recorded);
+                }
+
+                return $items;
 
             case 'style':
                 return StyleSchema::parse($field, $value, $at, $issues, $raw);

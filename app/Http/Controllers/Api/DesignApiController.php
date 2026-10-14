@@ -73,6 +73,14 @@ class DesignApiController extends Controller
     {
         $body = EditorApiController::body($request);
 
-        return EditorApiController::ok($this->components->renderCanvas(AdminContext::of($request)->ctx(), $component, $body['document'] ?? null, $signer));
+        $previewEntry = $body['previewEntryId'] ?? null;
+
+        return EditorApiController::ok($this->components->renderCanvas(
+            AdminContext::of($request)->ctx(),
+            $component,
+            $body['document'] ?? null,
+            $signer,
+            is_string($previewEntry) && $previewEntry !== '' ? $previewEntry : null,
+        ));
     }
 }

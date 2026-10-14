@@ -3,7 +3,7 @@
 // drop on the canvas, site design tokens and reusable components with their published dependants.
 import { expect, test, type FrameLocator, type Page } from '@playwright/test';
 import { PNG_1X1 } from './fixtures';
-import { BASE_URL, createPage, db } from './support';
+import { BASE_URL, createPage, db, palette } from './support';
 
 const ACCEPTANCE =
     'Keep the hero text on the left. Put its image on the right, make the image 500px tall with cover cropping, and stack the image below the text on mobile.';
@@ -112,6 +112,7 @@ test('design controls: values per screen size, inherited on smaller screens unti
     const id = await createPage('/design-controls', 'Controls');
     await page.goto(`/admin/editor/${id}`);
     await page.getByRole('tab', { name: 'Layers' }).click();
+    await palette(page);
     await page.getByRole('button', { name: 'Add Text' }).click();
     await page.getByRole('tab', { name: 'Properties' }).click();
     const paragraph = canvas(page).locator('p.ak-text2');
@@ -158,6 +159,7 @@ test('drag and drop on the canvas moves a block with placement feedback', async 
     const id = await createPage('/design-dnd', 'Drag me');
     await page.goto(`/admin/editor/${id}`);
     await page.getByRole('tab', { name: 'Layers' }).click();
+    await palette(page);
     await page.getByRole('button', { name: 'Add Text' }).click(); // after the hero, selected
     await expect(canvas(page).locator('p.ak-text2')).toBeVisible();
     const order = () => page.evaluate(() => [...document.querySelectorAll<HTMLElement>('[data-testid="layer"]')].map((row) => row.dataset.nodeType));
@@ -223,11 +225,13 @@ test('reusable components: made from a block, edited and published once, updatin
     const id = await createPage('/design-components', 'Components');
     await page.goto(`/admin/editor/${id}`);
     await page.getByRole('tab', { name: 'Layers' }).click();
+    await palette(page);
     await page.getByRole('button', { name: 'Add Text' }).click();
     await canvas(page).locator('p.ak-text2').click();
     await page.keyboard.press('ControlOrMeta+A');
     await page.keyboard.type('Free delivery on every order');
     await page.getByRole('tab', { name: 'Properties' }).click();
+    await page.getByRole('button', { name: /actions$/ }).click();
     await page.getByTestId('make-reusable').click();
     await page.getByLabel('Name of the reusable component').fill('Delivery banner');
     await page.getByRole('button', { name: 'Create', exact: true }).click();

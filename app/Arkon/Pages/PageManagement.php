@@ -4,7 +4,8 @@ namespace App\Arkon\Pages;
 
 use App\Arkon\Audit\AuditLog;
 use App\Arkon\Components\Factories;
-use App\Arkon\Content\ContentTypes;
+use App\Arkon\Content\ContentTypeRegistry;
+use App\Arkon\Content\Relationships;
 use App\Arkon\Database\Transactions;
 use App\Arkon\Design\PageRefreshes;
 use App\Arkon\Errors\ConflictException;
@@ -33,6 +34,8 @@ class PageManagement
         private readonly Transactions $transactions,
         private readonly PageStore $store,
         private readonly AuditLog $audit,
+        private readonly ContentTypeRegistry $types,
+        private readonly Relationships $relationships,
     ) {}
 
     /**
@@ -47,7 +50,7 @@ class PageManagement
         $title = Input::title($input['title'] ?? null);
         $path = Input::path($input['path'] ?? null);
         $kind = $input['kind'] ?? 'page';
-        ContentTypes::get($kind);
+        $this->types->forSite($ctx->siteId)->get($kind);
         $requestKey = Input::validate($input, ['requestKey' => Input::requestKeyRule()])['requestKey'];
         // `intent`: everything else a caller creates with the page (content, details), so a retry
         // with the same key but other content is a conflict rather than a silent replay.
@@ -80,7 +83,7 @@ class PageManagement
                     'id' => $pageId, 'site_id' => $ctx->siteId, 'kind' => $kind, 'path' => $path, 'title' => $title,
                     'request_key' => $requestKey, 'request_fingerprint' => $fingerprint, 'created_by' => $ctx->userId,
                 ]);
-                $revision = $this->store->insertRevision($ctx, $pageId, $document, $title, $path, $kind === 'page' ? 'Created page' : 'Created '.strtolower(ContentTypes::get($kind)['label']));
+                $revision = $this->store->insertRevision($ctx, $pageId, $document, $title, $path, $kind === 'page' ? 'Created page' : 'Created '.strtolower($this->types->forSite($ctx->siteId)->get($kind)['label']));
                 DB::table('page_drafts')->insert([
                     'page_id' => $pageId, 'site_id' => $ctx->siteId, 'document' => Json::encode($document), 'version' => 1,
                     'checkpoint_revision_id' => $revision['id'], 'checkpoint_version' => 1, 'updated_by' => $ctx->userId,
@@ -426,7 +429,14 @@ class PageManagement
                 throw new ConflictException("Move “{$row->title}” to the Trash before deleting it permanently.");
             }
             DB::table('pages')->where('id', $pageId)->update(['purged_at' => now()]);
-            $this->audit->forContext($ctx, 'page.purge', 'page', $pageId, ['title' => $row->title, 'path' => $row->path]);
+            // The entry is gone for good, so its field values stop being queryable with it. The
+            // values themselves stay on the draft, which is what a purged page keeps; what goes
+            // is the derived index, so a field marked unique is free for a new entry to use.
+            DB::table('content_field_index')->where('page_id', $pageId)->delete();
+            // Nothing may keep pointing at an entry that cannot come back, so every entry that
+            // referred to this one loses that reference here, in the same transaction.
+            $forgot = $this->relationships->forget($ctx->siteId, $pageId);
+            $this->audit->forContext($ctx, 'page.purge', 'page', $pageId, ['title' => $row->title, 'path' => $row->path, ...($forgot === [] ? [] : ['dereferencedBy' => $forgot])]);
 
             return ['wasPurged' => true];
         });
