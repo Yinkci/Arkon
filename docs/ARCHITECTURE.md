@@ -1059,6 +1059,46 @@ See [ai-architecture.md](ai-architecture.md) for the full picture and the audit,
   `AiActionsTest`, `AdminContentTest`, `e2e/posts.spec.ts`; the 10,000-post load test is opt-in
   (`vendor/bin/phpunit --group performance`).
 
+## Defined content types, fields and site data
+
+- **One field engine.** `FieldSchema` validates definitions and `FieldValues` validates values, for a
+  type's own fields, field groups and site data alike; `resources/arkon/content.json` is the type
+  registry both the PHP and the admin read. `FieldSchemaResolver` answers "which fields does this
+  carry?" (type fields + groups whose `LocationRules` match). A `user_role` rule only narrows what a
+  person is *offered*; read without a person (API, renderer, schema checks) it holds.
+- **Stored vs defined.** An entry may store values its schema no longer defines (field removed, group
+  moved, role-scoped). Those are kept untouched and never shown, checked or indexed;
+  `FieldValues::prune()` is the one reader that applies a schema to stored values, at every nesting
+  level. Saves validate only defined values, so a schema change can never make an entry unsaveable.
+- **Versioned with the page.** Every field save records a revision (`page_revisions.fields`,
+  `fields_recorded`) and moves the checkpoint, so the entry reads as changed until published and
+  Restore brings values back. Visitors, the public API (`include=fields`), content lists and values
+  read through a relationship on a published page use the *live revision's* values
+  (`EntryFields::liveValues`); revisions from before recording fall back to the draft. Publishing
+  applies the `required` rule (`EntryFields::snapshot`).
+- **Schema changes are checked against data.** Removing a field (also inside a group, repeater or
+  layout) or moving a group's rules off entries that have values needs `confirmRemovals`; a change
+  whose stored values would no longer validate (type, choices, limits, target) is refused with the
+  entries named (`EntryFields::assertValuesFit`). A type's keys may not clash with its groups'.
+  Deleting a type is refused while relationships, group rules or content lists name it.
+- **Query index.** `content_field_index` is derived, carries `kind` (unique values are unique per
+  type) and records relationships nested in structural fields under the outer key. Schema changes
+  rebuild only the affected types (`EntryFields::reindexKinds`); data upgrade
+  `2026-10-29-reindex-content-fields` rebuilt it once.
+- **Live pages follow content.** Publications record `site_data` and `content` dependencies
+  (`ContentDependencies`); a site data save, or publishing / unpublishing / trashing an entry,
+  enqueues `PageRefreshes` like a token change. Re-renders bind the live revision's values. Private
+  fields never reach a published page, even through an existing binding.
+- **Tests.** `ContentFieldIntegrityTest` (one case per failure found by the October 2026 audit),
+  plus `ContentTypesTest`, `FieldGroupsTest`, `LocationRulesTest`, `SiteDataTest`, `RelationshipsTest`,
+  `BindingsTest`, `CollectionsTest`, `FlexibleContentTest`, `NestedFieldsTest`.
+- **Public API.** Defined types are served at `/api/v1/content/{key}` (`ContentController` resolves the
+  type from the requesting site's registry; built-ins keep their static routes), with per-site scopes
+  `read:content.{key}` / `write:content.{key}` (`Scopes::all($siteId)`) and `fields` read and write
+  through `ContentItems`. Tests: `ContentTypeApiTest`.
+- **Defaults.** A field's `default` is set in the field drawer and applied when an entry is created
+  (`EntryFields::defaults`, called by `PageManagement::create`).
+
 ## Multi-provider AI Connections
 
 Claude Code and Codex now use a shared provider registry, process transport and proposal workflow. User-owned ready connections, automatic single-provider selection, explicit choices when several are ready, provider-bound leases, native-login detection, status checks and scoped disconnect are described in [AI_CONNECTIONS.md](AI_CONNECTIONS.md). Existing Claude-specific details above describe its adapter and compatibility behavior, rather than a restriction to Claude only.

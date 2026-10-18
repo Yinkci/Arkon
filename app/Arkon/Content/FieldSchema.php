@@ -123,14 +123,25 @@ final class FieldSchema
             throw self::problem($name, $key, 'settings', 'setting_not_for_type', "{$name}: a ".strtolower(FieldTypes::get($field['type'])['label']).' field has no "'.reset($wrongType).'" setting.');
         }
         $settings = [];
+        $dated = in_array($field['type'], ['date', 'datetime'], true);
         foreach (self::SETTING_RULES as $setting => $rule) {
             if (! FieldTypes::allows($field['type'], $setting)) {
+                continue;
+            }
+            if ($dated && ($setting === 'min' || $setting === 'max')) {
+                // A date's bounds are dates, kept in the same form its values are stored in.
+                $settings[$setting] = self::dateBound($name, $key, $setting, $given[$setting] ?? null, $field['type'] === 'datetime');
+
                 continue;
             }
             $settings[$setting] = Input::validate(
                 [$setting => $given[$setting] ?? self::blank($setting)],
                 [$setting => $rule],
             )[$setting] ?? self::blank($setting);
+        }
+        if (($settings['pattern'] ?? '') !== '' && @preg_match('/'.str_replace('/', '\/', $settings['pattern']).'/Du', '') === false) {
+            // A pattern that does not compile would refuse every value anyone typed.
+            throw self::problem($name, $key, 'settings', 'invalid_pattern', "{$name}: \"{$settings['pattern']}\" is not a pattern Arkon can check values against.");
         }
         $out = ['key' => $key, 'label' => trim($field['label']), 'type' => $field['type'], 'settings' => $settings];
         if (FieldTypes::takesChoices($field['type'])) {
@@ -144,7 +155,7 @@ final class FieldSchema
         }
         if (FieldTypes::allows($field['type'], 'default')) {
             // Checked against the field itself, so a default can never be a value the field rejects.
-            $out['default'] = FieldValues::one($out, $field['default'] ?? null, defaulting: false);
+            $out['default'] = FieldValues::one($out, $field['default'] ?? null);
         }
         if (($settings['minLength'] ?? null) !== null && ($settings['maxLength'] ?? null) !== null && $settings['minLength'] > $settings['maxLength']) {
             throw self::problem($name, $key, 'settings', 'bad_range', $name.': the shortest length must not exceed the longest.');
@@ -275,6 +286,20 @@ final class FieldSchema
             'code' => $code,
             'message' => $message,
         ]]);
+    }
+
+    /** The earliest or latest value a date field accepts: null, or a date in stored form. */
+    private static function dateBound(string $name, string $key, string $setting, mixed $value, bool $withTime): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        $date = is_string($value) ? FieldValues::parseDate($value, $withTime) : null;
+        if ($date === null) {
+            throw self::problem($name, $key, 'settings', 'invalid_bound', $name.': the '.($setting === 'min' ? 'earliest' : 'latest').' date must be a date like 2026-03-04'.($withTime ? 'T09:00' : '').'.');
+        }
+
+        return $date->format($withTime ? \DateTimeInterface::ATOM : 'Y-m-d');
     }
 
     private static function blank(string $setting): mixed

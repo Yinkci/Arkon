@@ -35,10 +35,12 @@ final class ContentTypesController extends Controller
     }
 
     /** The definition editor, for a new type or an existing one. */
-    public function edit(Request $request, ContentTypeService $types, FieldSchemaResolver $schema): Response
+    public function edit(Request $request, ContentTypeService $types, FieldSchemaResolver $schema, Authorizer $auth): Response
     {
         $ctx = AdminContext::of($request)->ctx();
         $key = (string) $request->route('key');
+        // Defining a type is schema management, whether the type exists yet or not.
+        $auth->authorize($ctx, 'contentType.manage');
 
         return Inertia::render('Admin/ContentTypeEditor', [
             'type' => $key === 'new' ? null : $types->show($ctx, $key),
@@ -87,8 +89,12 @@ final class ContentTypesController extends Controller
     {
         $body = EditorApiController::body($request);
 
+        // `expected`: what the editor last read for the fields it changes, so a save never
+        // overwrites a change somebody else made in the meantime.
+        $expected = $body['expected'] ?? null;
+
         return EditorApiController::ok([
-            'fields' => $fields->update(AdminContext::of($request)->ctx(), (string) $request->route('page'), (array) ($body['fields'] ?? [])),
+            'fields' => $fields->update(AdminContext::of($request)->ctx(), (string) $request->route('page'), (array) ($body['fields'] ?? []), $expected === null ? null : (array) $expected),
         ]);
     }
 

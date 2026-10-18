@@ -259,7 +259,7 @@ final class ContentTypesTest extends DatabaseTestCase
 
         foreach ([$one, $two] as $pageId) {
             $rows = FieldValues::index($definition, FieldValues::validate($definition, ['sku' => 'WEB-1']));
-            $insert = array_map(fn ($row) => [...$row, 'site_id' => $f['siteId'], 'page_id' => $pageId], $rows);
+            $insert = array_map(fn ($row) => [...$row, 'site_id' => $f['siteId'], 'page_id' => $pageId, 'kind' => 'service'], $rows);
             if ($pageId === $two) {
                 $this->expectException(UniqueConstraintViolationException::class);
             }

@@ -84,6 +84,9 @@ final class ContentTypeService
 
         return $this->tx->run(function () use ($ctx, $key, $definition) {
             $this->assertKeyAvailable($ctx->siteId, $key);
+            $this->assertDistinctFromOthers($ctx->siteId, $key, $definition);
+            // A field group may already apply here (a rule naming this key, or "anything but…").
+            $this->assertNoGroupClash($ctx->siteId, $key, $definition['fields']);
             $limit = FieldTypes::limit('typesPerSite');
             if (DB::table('content_types')->where('site_id', $ctx->siteId)->count() >= $limit) {
                 throw new ValidationException("A site may define at most {$limit} content types.");
@@ -125,31 +128,41 @@ final class ContentTypeService
                 throw new ConflictException('This content type changed somewhere else. Reload before saving again.');
             }
             FieldChanges::assertTypesCompatible($current['fields'], $definition['fields']);
+            $this->assertDistinctFromOthers($ctx->siteId, $key, $definition, $current);
+            $this->assertNoGroupClash($ctx->siteId, $key, $definition['fields']);
+            $confirmed = (bool) ($input['confirmRemovals'] ?? false);
             // A layout that is no longer offered: the sections using it are kept, but they stop
             // being rendered, so the count of entries holding them is worth saying out loud.
             $layouts = FieldChanges::removedLayouts($current['fields'], $definition['fields']);
-            if ($layouts !== [] && ! ($input['confirmRemovals'] ?? false)) {
+            if ($layouts !== [] && ! $confirmed) {
                 $flexible = app(Flexible::class);
-                $counts = array_map(
-                    fn ($one) => '“'.$one['layoutLabel'].'” is used by '.$flexible->entriesUsingLayout($ctx->siteId, $one['fieldKey'], $one['layout']).' entries',
-                    $layouts,
-                );
+                $counts = array_map(function ($one) use ($flexible, $ctx) {
+                    $n = $flexible->entriesUsingLayout($ctx->siteId, $one['fieldKey'], $one['layout']);
+
+                    return '“'.$one['layoutLabel'].'” (used by '.$n.' '.($n === 1 ? 'entry' : 'entries').')';
+                }, $layouts);
                 throw new ValidationException(
-                    'Removing '.implode(', ', $counts).'. Their content is kept but stops being shown. Confirm to go ahead.',
+                    'Removing the section kind '.implode(', ', $counts).'. Sections of that kind are kept but stop being shown. Confirm to go ahead.',
                     array_map(fn ($one) => ['path' => 'fields.'.$one['fieldKey'].'.layouts', 'fieldKey' => $one['fieldKey'], 'code' => 'layout_removed', 'message' => 'Layout would be removed'], $layouts),
                 );
             }
             $removed = FieldChanges::removed($current['fields'], $definition['fields']);
-            if ($removed !== [] && ! ($input['confirmRemovals'] ?? false)) {
+            $nested = FieldChanges::removedNested($current['fields'], $definition['fields']);
+            if (($removed !== [] || $nested !== []) && ! $confirmed) {
                 // A content list that filters or orders by a field being removed is named here,
                 // because the page keeps working but stops showing what it was set up to show.
                 $pages = app(Collections::class)->pagesUsingFields($ctx->siteId, $key, array_column($removed, 'key'));
                 throw new ValidationException(
-                    'Removing '.implode(', ', array_column($removed, 'label')).' would leave the values stored for it unreachable.'
+                    'Removing '.implode(', ', [...array_column($removed, 'label'), ...array_column($nested, 'label')]).' would leave the values stored for it unreachable.'
                         .($pages === [] ? '' : ' A content list on '.implode(', ', $pages).' uses it.').' Confirm to go ahead.',
-                    array_map(fn ($f) => ['path' => 'fields.'.$f['key'], 'fieldKey' => $f['key'], 'code' => 'field_removed', 'message' => 'Field would be removed'], $removed),
+                    [
+                        ...array_map(fn ($f) => ['path' => 'fields.'.$f['key'], 'fieldKey' => $f['key'], 'code' => 'field_removed', 'message' => 'Field would be removed'], $removed),
+                        ...array_map(fn ($f) => ['path' => 'fields.'.$f['key'], 'fieldKey' => $f['fieldKey'], 'code' => 'field_removed', 'message' => 'Field would be removed'], $nested),
+                    ],
                 );
             }
+            // Fields that keep their key but would no longer hold what entries stored in them.
+            app(EntryFields::class)->assertValuesFit($ctx->siteId, [$key], FieldChanges::reshaped($current['fields'], $definition['fields']));
             $changed = self::canonical($current['fields']) !== self::canonical($definition['fields']);
             $version = (int) $row->schema_version + ($changed ? 1 : 0);
             DB::table('content_types')->where('id', $row->id)->update([
@@ -157,14 +170,14 @@ final class ContentTypeService
                 'schema_version' => $version,
                 'updated_at' => now(),
             ]);
-            if ($removed !== []) {
-                // The entries keep their JSON, so a mistaken removal can still be undone by
-                // putting the field back; only the query index drops, because nothing may
-                // filter on a field the type no longer has.
-                DB::table('content_field_index')->where('site_id', $ctx->siteId)
-                    ->whereIn('field_key', array_column($removed, 'key'))->delete();
-            }
             $this->registry->forget($ctx->siteId);
+            if ($changed) {
+                // The entries keep their JSON, so a mistaken removal can still be undone by
+                // putting the field back; the query index is rebuilt for this type's entries
+                // only, so nothing filters on a field the type no longer has and no other type's
+                // rows are touched.
+                app(EntryFields::class)->reindexKinds($ctx->siteId, [$key]);
+            }
 
             return ['key' => $key, 'schemaVersion' => $version, 'active' => (bool) $row->active, 'entries' => $this->entryCount($ctx->siteId, $key), ...$definition];
         });
@@ -199,9 +212,109 @@ final class ContentTypeService
                     "This content type still holds {$entries} ".($entries === 1 ? 'entry' : 'entries').'. Delete them first, or turn the type off to keep them.'
                 );
             }
+            // What else names this type and would break, or quietly change meaning if the key
+            // were ever used again: relationship fields pointing here, field group rules, lists.
+            $uses = $this->dependants($ctx->siteId, $key);
+            if ($uses !== []) {
+                throw new ValidationException('This content type is still used: '.implode('; ', $uses).'. Change those first, or turn the type off instead.');
+            }
             DB::table('content_types')->where('id', $row->id)->delete();
             $this->registry->forget($ctx->siteId);
         });
+    }
+
+    /**
+     * Everything outside its own entries that names a content type.
+     *
+     * @return list<string> one sentence per kind of use
+     */
+    private function dependants(string $siteId, string $key): array
+    {
+        $uses = [];
+        $targets = function (array $fields) use ($key, &$targets): bool {
+            foreach ($fields as $field) {
+                if (($field['type'] ?? null) === 'relationship' && ($field['settings']['targetType'] ?? null) === $key) {
+                    return true;
+                }
+                if ($targets($field['fields'] ?? []) || array_filter($field['layouts'] ?? [], fn ($l) => $targets($l['fields'] ?? [])) !== []) {
+                    return true;
+                }
+            }
+
+            return false;
+        };
+        $relating = [];
+        foreach ($this->registry->forSite($siteId)->defined() as $other => $type) {
+            if ($other !== $key && $targets($type['fields'] ?? [])) {
+                $relating[] = $type['plural'];
+            }
+        }
+        $groups = app(FieldSchemaResolver::class)->all($siteId);
+        foreach ($groups as $group) {
+            if ($targets($group['fields'])) {
+                $relating[] = 'the field group “'.$group['name'].'”';
+            }
+        }
+        if ($relating !== []) {
+            $uses[] = 'related content fields on '.implode(', ', $relating).' point at it';
+        }
+        $ruled = array_values(array_map(fn ($g) => '“'.$g['name'].'”', array_filter($groups, fn ($g) => in_array($key, LocationRules::referenced($g['rules'])['content_type'] ?? [], true))));
+        if ($ruled !== []) {
+            $uses[] = 'the location rules of '.implode(', ', $ruled).' name it';
+        }
+        $lists = app(Collections::class)->pagesListing($siteId, $key);
+        if ($lists !== []) {
+            $uses[] = 'content lists on '.implode(', ', $lists).' show it';
+        }
+
+        return $uses;
+    }
+
+    /**
+     * Two types the admin menu, the API and the relationship picker would show under the same
+     * name, or whose new entries would share one URL prefix, are refused: nobody could tell
+     * them apart. Only a change is checked, so types that already clash can still be saved.
+     *
+     * @param  array<string, mixed>|null  $before  the stored definition, when updating
+     */
+    private function assertDistinctFromOthers(string $siteId, string $key, array $definition, ?array $before = null): void
+    {
+        $norm = fn (?string $s) => mb_strtolower(trim((string) $s));
+        foreach ($this->registry->forSite($siteId)->all() as $other => $type) {
+            if ($other === $key) {
+                continue;
+            }
+            foreach ([['name', 'plural', 'plural name'], ['singular', 'label', 'singular name']] as [$mine, $theirs, $what]) {
+                $changed = $before === null || $norm($before[$mine] ?? '') !== $norm($definition[$mine]);
+                if ($changed && $norm($definition[$mine]) === $norm($type[$theirs] ?? '')) {
+                    throw new ValidationException("“{$definition[$mine]}” is already the {$what} of another content type ({$other}). Choose a name people can tell apart.");
+                }
+            }
+            $changed = $before === null || ($before['pathPrefix'] ?? '') !== $definition['pathPrefix'];
+            if ($changed && $definition['pathPrefix'] !== '' && $definition['pathPrefix'] === ($type['pathPrefix'] ?? '')) {
+                throw new ValidationException("The URL prefix {$definition['pathPrefix']} is already used by {$type['plural']}. Give this type its own prefix.");
+            }
+        }
+    }
+
+    /**
+     * A type's own fields and the fields its groups add share one namespace on every entry, so
+     * a type may not declare a key a group already puts on it (the group would win silently).
+     */
+    private function assertNoGroupClash(string $siteId, string $key, array $fields): void
+    {
+        $fromGroups = [];
+        foreach (app(FieldSchemaResolver::class)->groupsFor($siteId, ['kind' => $key]) as $group) {
+            foreach ($group['fields'] as $field) {
+                $fromGroups[$field['key']] = $group['name'];
+            }
+        }
+        foreach ($fields as $field) {
+            if (isset($fromGroups[$field['key']])) {
+                throw FieldSchema::problem($field['label'], $field['key'], 'key', 'duplicate_key',
+                    "\"{$field['key']}\" is already a field this type gets from the field group “{$fromGroups[$field['key']]}”. Give this field another key.");
+            }
+        }
     }
 
     /**

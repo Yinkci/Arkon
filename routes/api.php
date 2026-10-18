@@ -36,6 +36,20 @@ Route::middleware(['throttle:api-ip', AuthenticateApi::class, 'throttle:api'])->
         });
     }
 
+    // Content types a site defined for itself: one set of routes for all of them, named by the
+    // type's key (which never changes), resolved against the requesting site's own registry.
+    Route::prefix('content/{type}')->where(['type' => '[a-z][a-z0-9_]{0,31}'])->group(function () {
+        Route::get('/', [ContentController::class, 'index']);
+        Route::get('/{id}', [ContentController::class, 'show']);
+        Route::get('/{id}/seo-analysis', [ContentController::class, 'seoAnalysis']);
+        Route::middleware('throttle:api-write')->group(function () {
+            Route::post('/', [ContentController::class, 'store']);
+            Route::patch('/{id}', [ContentController::class, 'update']);
+            Route::delete('/{id}', [ContentController::class, 'destroy']);
+            Route::post('/{id}/restore', [ContentController::class, 'restore']);
+        });
+    });
+
     foreach (Taxonomies::all() as $name => $taxonomy) {
         $path = '/'.$taxonomy['collection'];
         Route::get($path, [TermsController::class, 'index'])->defaults('taxonomy', $name);

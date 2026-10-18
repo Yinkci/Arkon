@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Arkon\Api\Scopes;
 use App\Arkon\Content\ContentItems;
 use App\Arkon\Content\ContentReader;
+use App\Arkon\Content\ContentTypeRegistry;
 use App\Arkon\Content\ContentTypes;
 use App\Arkon\Content\EntryFields;
 use App\Arkon\Content\RenderedOutput;
@@ -40,8 +42,7 @@ final class ContentController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $kind = (string) $request->route('kind');
-        $type = ContentTypes::get($kind);
+        [$kind, $type, $scope] = $this->type($request);
         $taxonomyParams = array_fill_keys($type['taxonomies'], ['sometimes', 'string', 'max:500']);
         $v = ApiResponse::query($request, [
             'status' => ['sometimes', 'in:'.implode(',', ContentReader::STATUSES)], 'context' => ['sometimes', 'in:view,edit'],
@@ -55,7 +56,7 @@ final class ContentController extends Controller
         $sort = ApiResponse::sort($request, ContentReader::SORTS, $type['details'] ? '-published_at' : 'path');
         $include = ApiResponse::includes($request, ['content', 'seo', 'fields']);
         $status = $v['status'] ?? 'published';
-        $member = $this->member($request, $type, $status !== 'published' || ($v['context'] ?? 'view') === 'edit');
+        $member = $this->member($request, $scope, $status !== 'published' || ($v['context'] ?? 'view') === 'edit');
         $filters = [
             'status' => $status, 'search' => $v['search'] ?? null, 'slug' => $v['slug'] ?? null, 'path' => $v['path'] ?? null, 'author' => $v['author'] ?? null,
             'after' => $v['after'] ?? null, 'before' => $v['before'] ?? null,
@@ -71,8 +72,8 @@ final class ContentController extends Controller
 
     public function show(Request $request): JsonResponse
     {
-        [$kind, $id] = [(string) $request->route('kind'), (string) $request->route('id')];
-        $type = ContentTypes::get($kind);
+        [$kind, $type, $scope] = $this->type($request);
+        $id = (string) $request->route('id');
         $v = ApiResponse::query($request, ['context' => ['sometimes', 'in:view,edit']]);
         $principal = ApiPrincipal::of($request);
         $row = null;
@@ -80,9 +81,9 @@ final class ContentController extends Controller
             $row = $this->reader->find($principal->siteId, $kind, 'live', $id);
         }
         // Not live (or the edit view asked for): members with the read scope see the draft or Trash.
-        $member = $row === null && $principal->authenticated() && ($principal->has('read:'.$type['collection']) || ($v['context'] ?? 'view') === 'edit');
+        $member = $row === null && $principal->authenticated() && ($principal->has('read:'.$scope) || ($v['context'] ?? 'view') === 'edit');
         if ($member) {
-            $this->member($request, $type, true);
+            $this->member($request, $scope, true);
             $row = $this->reader->find($principal->siteId, $kind, 'draft', $id, ['status' => 'any']) ?? $this->reader->find($principal->siteId, $kind, 'draft', $id, ['status' => 'trash']);
         }
         if ($row === null) {
@@ -96,28 +97,27 @@ final class ContentController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $kind = (string) $request->route('kind');
-        $type = ContentTypes::get($kind);
-        $ctx = ApiPrincipal::of($request)->require('write:'.$type['collection']);
+        [$kind, $type, $scope] = $this->type($request);
+        $ctx = ApiPrincipal::of($request)->require('write:'.$scope);
         $created = $this->items->create($ctx, $kind, [...$this->input($request, $type), 'requestKey' => $this->idempotencyKey($request)]);
         $row = $this->reader->find($ctx->siteId, $kind, 'draft', $created['id'], ['status' => 'any']);
-        $data = $this->resource($request, true)->many([$row], $this->rendered($request, [$row], true), ['content', 'seo'])[0];
+        $data = $this->resource($request, true)->many([$row], $this->rendered($request, [$row], true), ['content', 'seo', 'fields'], $this->fieldValues($request, [$row], true))[0];
 
         return ApiResponse::item($request, $data, $created['replayed'] ? 200 : 201)->header('Location', $request->url().'/'.$created['id']);
     }
 
     public function update(Request $request): JsonResponse
     {
-        [$kind, $id] = [(string) $request->route('kind'), (string) $request->route('id')];
-        $type = ContentTypes::get($kind);
-        $ctx = ApiPrincipal::of($request)->require('write:'.$type['collection']);
+        [$kind, $type, $scope] = $this->type($request);
+        $id = (string) $request->route('id');
+        $ctx = ApiPrincipal::of($request)->require('write:'.$scope);
         $input = $this->input($request, $type, partial: true);
         if ($request->json()->has('version')) {
             $input['version'] = $request->json('version');
         }
         $this->items->update($ctx, $kind, $id, $input);
         $row = $this->reader->find($ctx->siteId, $kind, 'draft', $id, ['status' => 'any']);
-        $data = $this->resource($request, true)->many([$row], $this->rendered($request, [$row], true), ['content', 'seo'])[0];
+        $data = $this->resource($request, true)->many([$row], $this->rendered($request, [$row], true), ['content', 'seo', 'fields'], $this->fieldValues($request, [$row], true))[0];
 
         return ApiResponse::item($request, $data);
     }
@@ -125,9 +125,9 @@ final class ContentController extends Controller
     /** Moves the item to the Trash; `?force=true` deletes an item that is already in the Trash permanently. */
     public function destroy(Request $request): Response
     {
-        [$kind, $id] = [(string) $request->route('kind'), (string) $request->route('id')];
-        $type = ContentTypes::get($kind);
-        $ctx = ApiPrincipal::of($request)->require('write:'.$type['collection']);
+        [$kind, $type, $scope] = $this->type($request);
+        $id = (string) $request->route('id');
+        $ctx = ApiPrincipal::of($request)->require('write:'.$scope);
         $v = ApiResponse::query($request, ['force' => ['sometimes', 'in:true,false,1,0']]);
         if (in_array($v['force'] ?? 'false', ['true', '1'], true)) {
             app(PageManagement::class)->purge($ctx, $this->items->assertKind($ctx->siteId, $kind, $id, trashed: true));
@@ -140,9 +140,9 @@ final class ContentController extends Controller
 
     public function restore(Request $request): JsonResponse
     {
-        [$kind, $id] = [(string) $request->route('kind'), (string) $request->route('id')];
-        $type = ContentTypes::get($kind);
-        $ctx = ApiPrincipal::of($request)->require('write:'.$type['collection']);
+        [$kind, $type, $scope] = $this->type($request);
+        $id = (string) $request->route('id');
+        $ctx = ApiPrincipal::of($request)->require('write:'.$scope);
         app(PageManagement::class)->restore($ctx, $this->items->assertKind($ctx->siteId, $kind, $id, trashed: true));
         $row = $this->reader->find($ctx->siteId, $kind, 'draft', $id, ['status' => 'any']);
 
@@ -152,9 +152,9 @@ final class ContentController extends Controller
     /** The deterministic SEO report: of the live page, or of the draft with context=edit. */
     public function seoAnalysis(Request $request, PageSeo $seo): JsonResponse
     {
-        [$kind, $id] = [(string) $request->route('kind'), (string) $request->route('id')];
-        $type = ContentTypes::get($kind);
-        $ctx = ApiPrincipal::of($request)->require('read:'.$type['collection']);
+        [$kind, $type, $scope] = $this->type($request);
+        $id = (string) $request->route('id');
+        $ctx = ApiPrincipal::of($request)->require('read:'.$scope);
         $v = ApiResponse::query($request, ['context' => ['sometimes', 'in:view,edit']]);
         $id = $this->items->assertKind($ctx->siteId, $kind, $id);
         $this->auth->authorize($ctx, 'page.view');
@@ -176,13 +176,38 @@ final class ContentController extends Controller
         ]);
     }
 
+    /**
+     * The content type this request is about: a built-in kind (its route says which), or a type
+     * this site defined (/content/{key}), looked up in the requesting site's own registry. A type
+     * that does not exist on this site, or is turned off, is not found — never another site's.
+     *
+     * @return array{0: string, 1: array<string, mixed>, 2: string} [kind, type, scope name]
+     */
+    private function type(Request $request): array
+    {
+        $key = $request->route('type');
+        if ($key === null) {
+            $kind = (string) $request->route('kind');
+            $type = ContentTypes::get($kind);
+
+            return [$kind, $type, Scopes::forType($kind, $type)];
+        }
+        $types = app(ContentTypeRegistry::class)->forSite(ApiPrincipal::of($request)->siteId);
+        if (! is_string($key) || ! $types->isDefined($key) || ! ($types->get($key)['active'] ?? true)) {
+            throw ApiError::notFound('Content type');
+        }
+        $type = $types->get($key);
+
+        return [$key, $type, Scopes::forType($key, $type)];
+    }
+
     /** Members' view: needs the type's read scope and the role's page.view; otherwise 401/403. */
-    private function member(Request $request, array $type, bool $wanted): bool
+    private function member(Request $request, string $scope, bool $wanted): bool
     {
         if (! $wanted) {
             return false;
         }
-        $ctx = ApiPrincipal::of($request)->require('read:'.$type['collection']);
+        $ctx = ApiPrincipal::of($request)->require('read:'.$scope);
         $this->auth->authorize($ctx, 'page.view');
 
         return true;
@@ -274,7 +299,7 @@ final class ContentController extends Controller
         if (! is_array($body) || ($body !== [] && array_is_list($body))) {
             throw new ApiError(400, 'invalid_body', 'Send a JSON object.');
         }
-        $known = ['title', 'slug', 'path', 'status', 'content', 'seo', 'version', ...($type['details'] ? ['excerpt', 'featured_media'] : []), ...array_map(fn ($t) => Taxonomies::get($t)['collection'], $type['taxonomies'])];
+        $known = ['title', 'slug', 'path', 'status', 'content', 'seo', 'version', 'fields', ...($type['details'] ? ['excerpt', 'featured_media'] : []), ...array_map(fn ($t) => Taxonomies::get($t)['collection'], $type['taxonomies'])];
         if (($unknown = array_diff(array_keys($body), $known)) !== []) {
             throw new ApiError(422, 'validation_error', 'Unknown field: '.implode(', ', $unknown).'.', array_fill_keys(array_values($unknown), ['This field is not accepted.']));
         }
@@ -284,6 +309,14 @@ final class ContentController extends Controller
                 throw new ApiError(422, 'validation_error', 'content must be {"blocks": [...]} (see the public block format).', ['content' => ['Expected {"blocks": [...]}.']]);
             }
             $input['blocks'] = $body['content']['blocks'];
+        }
+        // The entry's own field values, by field key, checked by the same field engine the admin
+        // uses: only the fields given change, and null clears one.
+        if (array_key_exists('fields', $body)) {
+            if (! is_array($body['fields']) || ($body['fields'] !== [] && array_is_list($body['fields']))) {
+                throw new ApiError(422, 'validation_error', 'fields must be an object of values by field key.', ['fields' => ['Expected an object.']]);
+            }
+            $input['fields'] = $body['fields'];
         }
         if (array_key_exists('featured_media', $body)) {
             $input['featuredMediaId'] = $body['featured_media'];

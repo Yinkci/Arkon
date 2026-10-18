@@ -32,28 +32,113 @@ final class FieldChanges
      * to remove the field and add a new one, which says plainly that the values are being left
      * behind.
      */
-    public static function assertTypesCompatible(array $before, array $after): void
+    public static function assertTypesCompatible(array $before, array $after, ?string $topKey = null, string $where = ''): void
     {
         $was = array_column($before, null, 'key');
         foreach ($after as $field) {
             $old = $was[$field['key']] ?? null;
-            if ($old === null || $old['type'] === $field['type']) {
+            if ($old === null) {
                 continue;
             }
-            if (self::shape($old['type']) !== self::shape($field['type'])) {
+            $top = $topKey ?? $field['key'];
+            $label = $where.$field['label'];
+            if ($old['type'] !== $field['type'] && self::shape($old['type']) !== self::shape($field['type'])) {
                 throw new ValidationException(
-                    "{$field['label']} cannot change from ".strtolower(FieldTypes::get($old['type'])['label'])
+                    "{$label} cannot change from ".strtolower(FieldTypes::get($old['type'])['label'])
                         .' to '.strtolower(FieldTypes::get($field['type'])['label'])
                         .', because what entries stored in it cannot be read as the new kind. Remove the field and add a new one instead.',
                     [[
-                        'path' => 'fields.'.$field['key'].'.type',
-                        'fieldKey' => $field['key'],
+                        'path' => 'fields.'.$top.'.type',
+                        'fieldKey' => $top,
                         'code' => 'incompatible_type_change',
                         'message' => 'Incompatible field type change',
                     ]],
                 );
             }
+            // The fields inside a group, a repeater or each layout are fields too, with values
+            // of their own stored inside the outer one.
+            self::assertTypesCompatible($old['fields'] ?? [], $field['fields'] ?? [], $top, $label.' → ');
+            $layouts = array_column($old['layouts'] ?? [], null, 'key');
+            foreach ($field['layouts'] ?? [] as $layout) {
+                if (isset($layouts[$layout['key']])) {
+                    self::assertTypesCompatible($layouts[$layout['key']]['fields'], $layout['fields'], $top, $label.' → '.$layout['label'].' → ');
+                }
+            }
         }
+    }
+
+    /**
+     * Fields removed from inside a group, a repeater or a layout of a field that is itself kept.
+     * Their values sit inside the outer field's value and are dropped the next time an entry
+     * saves it, so removing one needs the same confirmation as removing a field.
+     *
+     * @return list<array{key: string, label: string, fieldKey: string}>
+     */
+    public static function removedNested(array $before, array $after): array
+    {
+        $now = array_column($after, null, 'key');
+        $out = [];
+        foreach ($before as $field) {
+            $kept = $now[$field['key']] ?? null;
+            if ($kept === null) {
+                continue;
+            }
+            foreach (self::removed($field['fields'] ?? [], $kept['fields'] ?? []) as $child) {
+                $out[] = ['key' => $field['key'].'.'.$child['key'], 'label' => $field['label'].' → '.$child['label'], 'fieldKey' => $field['key']];
+            }
+            $layouts = array_column($kept['layouts'] ?? [], null, 'key');
+            foreach ($field['layouts'] ?? [] as $layout) {
+                if (! isset($layouts[$layout['key']])) {
+                    continue; // The whole layout is gone: removedLayouts() reports that.
+                }
+                foreach (self::removed($layout['fields'], $layouts[$layout['key']]['fields']) as $child) {
+                    $out[] = ['key' => $field['key'].'.'.$layout['key'].'.'.$child['key'], 'label' => $field['label'].' → '.$layout['label'].' → '.$child['label'], 'fieldKey' => $field['key']];
+                }
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Fields kept under the same key whose definition changed in a way stored values may not
+     * survive: a new type, fewer choices, a shorter limit, a pattern, another target. Only these
+     * need the entries' values checked; renaming a label changes nothing stored.
+     *
+     * @return list<array<string, mixed>> the new definitions of those fields
+     */
+    public static function reshaped(array $before, array $after): array
+    {
+        $was = array_column($before, null, 'key');
+        $out = [];
+        foreach ($after as $field) {
+            $old = $was[$field['key']] ?? null;
+            if ($old !== null && self::comparable($old) !== self::comparable($field)) {
+                $out[] = $field;
+            }
+        }
+
+        return $out;
+    }
+
+    /** A field without what a person reads (labels, help, placeholders), in a stable order. */
+    private static function comparable(array $field): string
+    {
+        $strip = function (mixed $node) use (&$strip): mixed {
+            if (! is_array($node)) {
+                return $node;
+            }
+            if (! array_is_list($node)) {
+                unset($node['label'], $node['help'], $node['placeholder'], $node['rowLabel'], $node['addLabel'], $node['unit']);
+                ksort($node);
+            }
+
+            return array_map($strip, $node);
+        };
+        // Choices are compared by value only: a reworded choice keeps what entries stored.
+        $field['choices'] = array_column($field['choices'] ?? [], 'value');
+
+        return json_encode($strip($field));
     }
 
     /**

@@ -8,7 +8,9 @@ use App\Arkon\Components\DocumentValidator;
 use App\Arkon\Content\BindingContext;
 use App\Arkon\Content\Bindings;
 use App\Arkon\Content\Collections;
+use App\Arkon\Content\ContentDependencies;
 use App\Arkon\Content\ContentDetails;
+use App\Arkon\Content\EntryFields;
 use App\Arkon\Database\Transactions;
 use App\Arkon\Design\DesignResources;
 use App\Arkon\Design\PageRefreshes;
@@ -478,8 +480,18 @@ class PageService
                 ->first() ?? throw new NotFoundException('Revision');
             $doc = $this->store->document($source->document);
             $this->store->validateForSave($ctx->siteId, $doc);
+            // The entry's field values come back with the content they were saved beside. A
+            // revision written before values were recorded says nothing about them, so the
+            // current values stay; so does any value today's fields can no longer hold.
+            $fields = (bool) ($source->fields_recorded ?? false)
+                ? app(EntryFields::class)->restorable($ctx->siteId, $pageId, Json::toArray(Json::decode($source->fields ?? '{}')) ?: [])
+                : ['values' => null, 'kept' => []];
 
             $version = (int) $draft->version + 1;
+            if ($fields['values'] !== null) {
+                DB::table('page_drafts')->where('page_id', $pageId)->update(['fields' => Json::encode((object) $fields['values'])]);
+                app(EntryFields::class)->reindexPage($ctx->siteId, $pageId);
+            }
             $revision = $this->store->insertRevision($ctx, $pageId, $doc, $page->title, $page->path, "Restored from #{$source->number}");
             DB::table('page_drafts')->where('page_id', $pageId)->update([
                 'document' => Json::encode($doc),
@@ -493,9 +505,10 @@ class PageService
             ]);
             $this->audit->forContext($ctx, 'page.revision.restore', 'page', $pageId, [
                 'from' => (int) $source->number, 'revision' => $revision['number'], 'version' => $version,
+                ...($fields['kept'] === [] ? [] : ['fieldsKept' => $fields['kept']]),
             ]);
 
-            return ['version' => $version, 'revision' => $revision, 'document' => $doc];
+            return ['version' => $version, 'revision' => $revision, 'document' => $doc, 'fieldsKept' => $fields['kept']];
         });
     }
 
@@ -552,6 +565,9 @@ class PageService
             // Lock order: draft row, then site row (epoch). Saves only lock the draft, so this cannot deadlock.
             $epoch = $this->store->lockNextEpoch($ctx->siteId);
 
+            // The entry's own values must be whole before they go live; a draft may stay incomplete.
+            app(EntryFields::class)->snapshot($ctx, $pageId, $page->kind);
+
             // Older component versions are migrated forward in memory; what gets rendered is $doc.
             $doc = $this->store->document($draft->document);
             $revisionId = $draft->checkpoint_version !== null && (int) $draft->checkpoint_version === (int) $draft->version
@@ -559,9 +575,14 @@ class PageService
                 : null;
             // A publication's revision document is exactly the document rendered, so the publication can be
             // reproduced from it. A checkpoint stored at older component versions is not that document.
-            $upgraded = $revisionId !== null
-                && Json::canonical(Json::decode(DB::table('page_revisions')->where('id', $revisionId)->value('document'))) !== Json::canonical($doc);
-            if ($revisionId === null || $upgraded) {
+            $checkpoint = $revisionId === null ? null : DB::table('page_revisions')->where('id', $revisionId)->first(['document', 'fields', 'fields_recorded']);
+            $upgraded = $checkpoint !== null && Json::canonical(Json::decode($checkpoint->document)) !== Json::canonical($doc);
+            // Likewise its field values are exactly the ones going live: a checkpoint that did not
+            // record them, or recorded others, is not what this publication shows.
+            $draftFields = Json::toArray(Json::decode(DB::table('page_drafts')->where('page_id', $pageId)->value('fields') ?? '{}')) ?: [];
+            $staleFields = $checkpoint !== null && (! $checkpoint->fields_recorded
+                || Json::canonical(Json::toArray(Json::decode($checkpoint->fields)) ?: []) !== Json::canonical($draftFields));
+            if ($revisionId === null || $upgraded || $staleFields) {
                 $message = $upgraded ? 'Published with components upgraded to current versions' : 'Published';
                 $revisionId = $this->store->insertRevision($ctx, $pageId, $doc, $page->title, $page->path, $message)['id'];
                 DB::table('page_drafts')->where('page_id', $pageId)->update([
@@ -578,7 +599,7 @@ class PageService
             }
 
             // Rendered while holding the epoch lock: what it reads is the published state at `epoch`.
-            $content = $this->bindings->published($ctx->siteId, $pageId);
+            $content = $this->bindings->published($ctx->siteId, $pageId, $draftFields);
             $rendered = MenuService::withPaths($ctx->siteId, [$pageId => $meta->path], fn () => $this->store->renderForSite($ctx->siteId, $meta->title, $meta->path, $doc, true, content: $content, pageId: $pageId));
             // The draft's details (excerpt, featured image, terms) go live with it.
             $details = ContentDetails::snapshot($ctx->siteId, $pageId);
@@ -590,7 +611,7 @@ class PageService
             );
             $this->store->recordPublicationMedia($ctx->siteId, $publicationId, self::withFeatured($rendered['mediaIds'], $details));
             DB::table('pages')->where('id', $pageId)->whereNull('first_published_at')->update(['first_published_at' => $created->created_at]);
-            $this->store->recordDependencies($ctx->siteId, $pageId, $publicationId, $rendered['inputs']);
+            $this->store->recordDependencies($ctx->siteId, $pageId, $publicationId, $rendered['inputs'], ContentDependencies::of($ctx->siteId, $doc));
 
             DB::statement(
                 'INSERT INTO live_pages (page_id, site_id, path, publication_id, epoch, updated_at) VALUES (?, ?, ?, ?, ?, now())
@@ -612,6 +633,8 @@ class PageService
             }
 
             MenuService::targetChanged($ctx->siteId, $pageId, $epoch);
+            // Pages that list entries or read one through a relationship show this one.
+            ContentDependencies::liveContentChanged($ctx->siteId, $epoch);
             $this->audit->forContext($ctx, 'page.publish', 'page', $pageId, [
                 'publicationId' => $publicationId, 'revisionId' => $revisionId, 'epoch' => $epoch,
                 'version' => (int) $draft->version, 'path' => $meta->path, 'redirectedFrom' => $movedFrom,
@@ -737,13 +760,17 @@ class PageService
             // The live revision exactly as published, each node at its own component version: a dependency
             // change must not silently upgrade content. Only the site's data is current.
             $doc = Json::decode($revision->document);
-            $rendered = $this->store->renderForSite($siteId, $revision->title, $live->path, $doc, false, pinned: true, pageId: $pageId);
+            // Bound values as they went live with that revision; a revision from before values
+            // were recorded falls back to the draft's, which is what it showed when published.
+            $content = $this->bindings->published($siteId, $pageId, $revision->fields_recorded ? (Json::toArray(Json::decode($revision->fields)) ?: []) : null);
+            $rendered = $this->store->renderForSite($siteId, $revision->title, $live->path, $doc, false, pinned: true, content: $content, pageId: $pageId);
             // The live details stay exactly as published (never the draft's).
             $contentMeta = DB::table('publications')->where('id', $live->publication_id)->value('content_meta');
 
             return [
                 'siteId' => $siteId, 'pageId' => $pageId, 'revisionId' => $live->revision_id, 'path' => $live->path,
                 'html' => $rendered['html'], 'inputs' => $rendered['inputs'], 'contentMeta' => $contentMeta,
+                'contentDependencies' => ContentDependencies::of($siteId, $doc),
                 'mediaIds' => $contentMeta === null ? $rendered['mediaIds'] : self::withFeatured($rendered['mediaIds'], ContentDetails::fromPublication($contentMeta)),
                 'epoch' => (int) $epoch,
             ];
@@ -775,7 +802,7 @@ class PageService
                 return ['applied' => false];
             }
             $this->store->recordPublicationMedia($prepared['siteId'], $publicationId, $prepared['mediaIds']);
-            $this->store->recordDependencies($prepared['siteId'], $prepared['pageId'], $publicationId, $prepared['inputs']);
+            $this->store->recordDependencies($prepared['siteId'], $prepared['pageId'], $publicationId, $prepared['inputs'], $prepared['contentDependencies'] ?? []);
 
             // UPDATE only: a re-render must never re-publish a page that was unpublished meanwhile.
             $moved = DB::update(

@@ -31,6 +31,9 @@
             "name": "Tags"
         },
         {
+            "name": "Content types"
+        },
+        {
             "name": "Media"
         },
         {
@@ -420,6 +423,709 @@
                 "responses": {
                     "204": {
                         "description": "Deleted"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/Error"
+                    }
+                }
+            }
+        },
+        "/content/{type}": {
+            "get": {
+                "operationId": "listContentEntries",
+                "tags": [
+                    "Content types"
+                ],
+                "summary": "List entries of a content type this site defined",
+                "security": [
+                    [],
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "type",
+                        "in": "path",
+                        "required": true,
+                        "description": "The content type's key (GET / lists this site's).",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[a-z][a-z0-9_]{0,31}$"
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "required": false,
+                        "description": "published (default, anonymous) or, with read:posts, draft, trash or any.",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "published",
+                                "draft",
+                                "trash",
+                                "any"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "context",
+                        "in": "query",
+                        "required": false,
+                        "description": "edit: the draft state of published items (needs read:posts).",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "view",
+                                "edit"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "search",
+                        "in": "query",
+                        "required": false,
+                        "description": "Search the title and excerpt.",
+                        "schema": {
+                            "type": "string",
+                            "maxLength": 200
+                        }
+                    },
+                    {
+                        "name": "slug",
+                        "in": "query",
+                        "required": false,
+                        "description": "The last segment of the URL path.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "path",
+                        "in": "query",
+                        "required": false,
+                        "description": "The exact URL path, e.g. /about.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "author",
+                        "in": "query",
+                        "required": false,
+                        "description": "Author (user) id.",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "after",
+                        "in": "query",
+                        "required": false,
+                        "description": "Published after.",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "before",
+                        "in": "query",
+                        "required": false,
+                        "description": "Published before.",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "sort",
+                        "in": "query",
+                        "required": false,
+                        "description": "One field; - for descending. Default -published_at.",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "published_at",
+                                "modified_at",
+                                "title",
+                                "path",
+                                "-published_at",
+                                "-modified_at",
+                                "-title",
+                                "-path"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "related",
+                        "in": "query",
+                        "required": false,
+                        "description": "Relationship filters: field:id pairs, comma-separated, e.g. agent:0190….",
+                        "schema": {
+                            "type": "string",
+                            "maxLength": 500
+                        }
+                    },
+                    {
+                        "name": "include",
+                        "in": "query",
+                        "required": false,
+                        "description": "content, seo and/or fields, comma-separated (single items always include all three).",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "required": false,
+                        "description": "Page number, from 1.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "required": false,
+                        "description": "Items per page (default 10, at most 100).",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "data",
+                                        "meta",
+                                        "links"
+                                    ],
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/ContentEntry"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/PaginationMeta"
+                                        },
+                                        "links": {
+                                            "$ref": "#/components/schemas/PaginationLinks"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/Error"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "createContentEntry",
+                "tags": [
+                    "Content types"
+                ],
+                "summary": "Create an entry (a draft unless status is published)",
+                "security": [
+                    {
+                        "bearerAuth": [
+                            "write:content.{type}"
+                        ]
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "type",
+                        "in": "path",
+                        "required": true,
+                        "description": "The content type's key (GET / lists this site's).",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[a-z][a-z0-9_]{0,31}$"
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": false,
+                        "description": "Makes a retry safe: the same key with the same body returns the first result; with another body it is a 409.",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_-]{16,100}$"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ContentEntryWrite"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "data"
+                                    ],
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ContentEntry"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "200": {
+                        "description": "Replayed (same Idempotency-Key)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "data"
+                                    ],
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ContentEntry"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/Error"
+                    }
+                }
+            }
+        },
+        "/content/{type}/{id}": {
+            "get": {
+                "operationId": "getContentEntry",
+                "tags": [
+                    "Content types"
+                ],
+                "summary": "One entry with its rendered content, SEO and fields",
+                "security": [
+                    [],
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "type",
+                        "in": "path",
+                        "required": true,
+                        "description": "The content type's key (GET / lists this site's).",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[a-z][a-z0-9_]{0,31}$"
+                        }
+                    },
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "description": "The id.",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "context",
+                        "in": "query",
+                        "required": false,
+                        "description": "edit: the draft state.",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "view",
+                                "edit"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "data"
+                                    ],
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ContentEntry"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/Error"
+                    }
+                }
+            },
+            "patch": {
+                "operationId": "updateContentEntry",
+                "tags": [
+                    "Content types"
+                ],
+                "summary": "Change an entry; status published publishes, draft unpublishes",
+                "security": [
+                    {
+                        "bearerAuth": [
+                            "write:content.{type}"
+                        ]
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "type",
+                        "in": "path",
+                        "required": true,
+                        "description": "The content type's key (GET / lists this site's).",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[a-z][a-z0-9_]{0,31}$"
+                        }
+                    },
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "description": "The id.",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ContentEntryWrite"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "data"
+                                    ],
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ContentEntry"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/Error"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "trashContentEntry",
+                "tags": [
+                    "Content types"
+                ],
+                "summary": "Move to the Trash; force=true deletes an entry in the Trash permanently",
+                "security": [
+                    {
+                        "bearerAuth": [
+                            "write:content.{type}"
+                        ]
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "type",
+                        "in": "path",
+                        "required": true,
+                        "description": "The content type's key (GET / lists this site's).",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[a-z][a-z0-9_]{0,31}$"
+                        }
+                    },
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "description": "The id.",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "force",
+                        "in": "query",
+                        "required": false,
+                        "description": "Permanently delete (only from the Trash).",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "true",
+                                "false"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Done"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Error"
+                    }
+                }
+            }
+        },
+        "/content/{type}/{id}/restore": {
+            "post": {
+                "operationId": "restoreContentEntry",
+                "tags": [
+                    "Content types"
+                ],
+                "summary": "Bring it back from the Trash (as a draft)",
+                "security": [
+                    {
+                        "bearerAuth": [
+                            "write:content.{type}"
+                        ]
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "type",
+                        "in": "path",
+                        "required": true,
+                        "description": "The content type's key (GET / lists this site's).",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[a-z][a-z0-9_]{0,31}$"
+                        }
+                    },
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "description": "The id.",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "data"
+                                    ],
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ContentEntry"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/Error"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Error"
+                    }
+                }
+            }
+        },
+        "/content/{type}/{id}/seo-analysis": {
+            "get": {
+                "operationId": "analyzeContentEntrySeo",
+                "tags": [
+                    "Content types",
+                    "SEO"
+                ],
+                "summary": "Arkon's deterministic SEO report (live, or the draft with context=edit)",
+                "security": [
+                    {
+                        "bearerAuth": [
+                            "read:content.{type}"
+                        ]
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "type",
+                        "in": "path",
+                        "required": true,
+                        "description": "The content type's key (GET / lists this site's).",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[a-z][a-z0-9_]{0,31}$"
+                        }
+                    },
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "description": "The id.",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "context",
+                        "in": "query",
+                        "required": false,
+                        "description": "edit: analyze the draft.",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "view",
+                                "edit"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "data"
+                                    ],
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/SeoAnalysis"
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     },
                     "401": {
                         "$ref": "#/components/responses/Error"
@@ -3210,7 +3916,7 @@
             "bearerAuth": {
                 "type": "http",
                 "scheme": "bearer",
-                "description": "A personal access token (arkon_pat_…). Scopes: read:pages, write:pages, read:posts, write:posts, write:categories, write:tags, read:media, write:media, read:forms, read:form_entries, read:users."
+                "description": "A personal access token (arkon_pat_…). Scopes: read:pages, write:pages, read:posts, write:posts, write:categories, write:tags, read:media, write:media, read:forms, read:form_entries, read:users, and read:content.{type} / write:content.{type} for each content type the site defined."
             }
         },
         "responses": {
@@ -4454,6 +5160,11 @@
                     "version": {
                         "type": "integer",
                         "description": "PATCH: the draft version you read; a newer one is a 409."
+                    },
+                    "fields": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "description": "Field values by key (fields that field groups put on this type); only those given change, null clears one."
                     }
                 }
             },
@@ -4640,6 +5351,11 @@
                         "type": "integer",
                         "description": "PATCH: the draft version you read; a newer one is a 409."
                     },
+                    "fields": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "description": "Field values by key (fields that field groups put on this type); only those given change, null clears one."
+                    },
                     "excerpt": {
                         "type": "string",
                         "maxLength": 1000
@@ -4664,6 +5380,220 @@
                             "type": "string"
                         },
                         "description": "Tag ids."
+                    }
+                }
+            },
+            "ContentEntry": {
+                "type": "object",
+                "required": [
+                    "id",
+                    "type",
+                    "title",
+                    "slug",
+                    "path",
+                    "link",
+                    "status",
+                    "author",
+                    "published_at",
+                    "modified_at"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "The content type key."
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "slug": {
+                        "type": "string"
+                    },
+                    "path": {
+                        "type": "string"
+                    },
+                    "link": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Absolute URL while published."
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "published",
+                            "draft",
+                            "trash"
+                        ]
+                    },
+                    "excerpt": {
+                        "type": "string",
+                        "description": "When the type keeps details."
+                    },
+                    "featured_media": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/Media"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "When the type keeps details."
+                    },
+                    "categories": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/TermRef"
+                        },
+                        "description": "When the type uses categories."
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/TermRef"
+                        },
+                        "description": "When the type uses tags."
+                    },
+                    "author": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/Author"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "published_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "modified_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "version": {
+                        "type": "integer",
+                        "description": "Members: the draft version."
+                    },
+                    "has_unpublished_changes": {
+                        "type": [
+                            "boolean",
+                            "null"
+                        ],
+                        "description": "Members: the draft differs from what is live."
+                    },
+                    "content": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/Content"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "seo": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/Seo"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "fields": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "description": "include=fields: values by field key, as published (members: the draft). Private fields are never included; relationships are {id, type, title, path}."
+                    }
+                }
+            },
+            "ContentEntryWrite": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "maxLength": 120
+                    },
+                    "slug": {
+                        "type": "string",
+                        "description": "URL: the type's prefix, then /{slug}."
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Or the full URL path."
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "draft",
+                            "published"
+                        ]
+                    },
+                    "content": {
+                        "type": "object",
+                        "required": [
+                            "blocks"
+                        ],
+                        "properties": {
+                            "blocks": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/PublicBlock"
+                                }
+                            }
+                        }
+                    },
+                    "seo": {
+                        "$ref": "#/components/schemas/SeoWrite"
+                    },
+                    "version": {
+                        "type": "integer",
+                        "description": "PATCH: the draft version you read; a newer one is a 409."
+                    },
+                    "excerpt": {
+                        "type": "string",
+                        "maxLength": 1000,
+                        "description": "When the type keeps details."
+                    },
+                    "featured_media": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Image id, when the type keeps details."
+                    },
+                    "categories": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Category ids, when the type uses them."
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Tag ids, when the type uses them."
+                    },
+                    "fields": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "description": "Field values by key, checked by the type's field rules; only those given change, null clears one."
                     }
                 }
             }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Arkon\Api\Scopes;
+use App\Arkon\Content\ContentTypeRegistry;
 use App\Arkon\Content\ContentTypes;
 use App\Arkon\Content\SiteDataService;
 use App\Arkon\Content\Taxonomies;
@@ -26,15 +27,19 @@ final class SiteController extends Controller
     public function index(Request $request): JsonResponse
     {
         $base = $request->getSchemeAndHttpHost().'/api/v1';
+        $siteId = ApiPrincipal::of($request)->siteId;
+        // The content types this site defined, by key (active ones only: a type turned off is not served).
+        $defined = array_keys(array_filter(app(ContentTypeRegistry::class)->forSite($siteId)->defined(), fn ($t) => $t['active'] ?? true));
 
         return ApiResponse::item($request, [
             'name' => 'Arkon API', 'version' => 'v1', 'base_url' => $base, 'openapi' => $base.'/openapi.json',
             'resources' => [
                 ...array_values(array_map(fn ($t) => $base.'/'.$t['collection'], ContentTypes::all())),
+                ...array_map(fn ($key) => $base.'/content/'.$key, $defined),
                 ...array_values(array_map(fn ($t) => $base.'/'.$t['collection'], Taxonomies::all())),
                 $base.'/media', $base.'/forms', $base.'/navigation', $base.'/site', $base.'/users',
             ],
-            'scopes' => Scopes::all(),
+            'scopes' => Scopes::all($siteId),
         ]);
     }
 

@@ -118,8 +118,11 @@ final class ContentEntriesTest extends DatabaseTestCase
         app(EntryFields::class)->update($f['ctx'], $id, ['summary' => 'A', 'tier' => 'basic']);
         $this->assertSame(2, DB::table('content_field_index')->where('page_id', $id)->count());
 
-        DB::table('page_drafts')->where('page_id', $id)->delete();
-        DB::table('pages')->where('id', $id)->delete();
+        // Saving values records a revision, and revisions are append-only, so an entry leaves the
+        // way it does in the product: the Trash, then Delete permanently.
+        $version = (int) DB::table('page_drafts')->where('page_id', $id)->value('version');
+        app(PageManagement::class)->delete($f['ctx'], ['pageId' => $id, 'expectedVersion' => $version]);
+        app(PageManagement::class)->purge($f['ctx'], $id);
         $this->assertSame(0, DB::table('content_field_index')->where('page_id', $id)->count(), 'the derived rows go with the entry');
     }
 

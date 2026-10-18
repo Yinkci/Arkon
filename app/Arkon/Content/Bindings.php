@@ -180,7 +180,8 @@ final class Bindings
         $broken = [];
         foreach (self::inDocument($document) as $binding) {
             $field = $known[$binding['source']][$binding['field']] ?? null;
-            if ($field === null) {
+            // A private field never reaches a public page, so a binding to one shows nothing there.
+            if ($field === null || ($field['settings']['private'] ?? false)) {
                 $broken[] = ['nodeId' => $binding['nodeId'], 'prop' => $binding['prop'], 'source' => $binding['source'], 'field' => $binding['field']];
 
                 continue;
@@ -188,7 +189,7 @@ final class Bindings
             // A path only means something inside a group, and only for fields the group has.
             foreach ($binding['path'] as $step) {
                 $child = array_column($field['fields'] ?? [], null, 'key')[$step] ?? null;
-                if ($child === null) {
+                if ($child === null || ($child['settings']['private'] ?? false)) {
                     $broken[] = ['nodeId' => $binding['nodeId'], 'prop' => $binding['prop'], 'source' => $binding['source'], 'field' => $binding['field'].'.'.$step];
 
                     break;

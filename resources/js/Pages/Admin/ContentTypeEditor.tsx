@@ -85,6 +85,8 @@ export default function ContentTypeEditor({
     const [keyTouched, setKeyTouched] = useState(!creating);
     const [editingField, setEditingField] = useState<{ field: FieldDefinition; index: number } | null>(null);
     const [error, setError] = useState<string | null>(null);
+    // What the server refused, by code: a removal it wants confirmed is one of them.
+    const [codes, setCodes] = useState<string[]>([]);
     // The field the server objected to, so the message appears where the problem is.
     const [badField, setBadField] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
@@ -114,23 +116,26 @@ export default function ContentTypeEditor({
         }
         setBusy(true);
         setError(null);
+        setCodes([]);
         setBadField(null);
         const body = requestBody(draft, { confirmRemovals, expectedVersion: creating ? undefined : draft.schemaVersion });
         const result = await api<ContentTypeDefinition>(creating ? '/content-types' : `/content-types/${draft.key}`, { body }).catch(() => null);
         setBusy(false);
         if (!result?.ok) {
             // The server says which field it meant, so the message can be shown beside it.
-            const issue = (result?.issues ?? []).find((i) => (i as { fieldKey?: string }).fieldKey);
-            setBadField((issue as { fieldKey?: string } | undefined)?.fieldKey ?? null);
+            const issues = (result?.issues ?? []) as { fieldKey?: string; code?: string }[];
+            setBadField(issues.find((i) => i.fieldKey)?.fieldKey ?? null);
+            setCodes(issues.map((i) => i.code ?? '').filter(Boolean));
             return setError(result?.message ?? 'The content type could not be saved.');
         }
         toast(creating ? `${draft.name} created` : `${draft.name} saved`);
         if (creating) router.visit(`/admin/content-types/${result.data.key}`);
-        else setDraft((d) => ({ ...d, schemaVersion: result.data.schemaVersion }));
+        // What the server stored is the definition from here on (it canonicalises settings).
+        else setDraft((d) => ({ ...d, fields: result.data.fields, schemaVersion: result.data.schemaVersion, entries: result.data.entries }));
     }
 
     // The server refuses a removal until it is confirmed; that refusal is what offers the choice.
-    const removalRefused = error?.includes('would leave the values stored for it unreachable') ?? false;
+    const removalRefused = codes.includes('field_removed') || codes.includes('layout_removed');
 
     return (
         <AdminLayout>

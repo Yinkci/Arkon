@@ -108,7 +108,8 @@ final class LocationRules
      *
      * The context says what is known: its kind, which entry it is, the terms it carries and who
      * is editing. Anything absent makes a rule about it false rather than throwing, so asking
-     * about a page while knowing only its kind is safe.
+     * about a page while knowing only its kind is safe — except the person editing: with nobody
+     * named, a role rule holds (see matchOne).
      *
      * @param  array{kind?: ?string, entryId?: ?string, terms?: list<string>, role?: ?string}  $context
      */
@@ -136,6 +137,12 @@ final class LocationRules
 
     private static function matchOne(array $rule, array $context): bool
     {
+        // Who is editing decides which fields a person is offered, never which values an entry
+        // has: read without a person (the API, a page, a schema check), a role rule holds, so
+        // every reader sees the same values whoever last saved them.
+        if ($rule['attribute'] === 'user_role' && ($context['role'] ?? null) === null) {
+            return true;
+        }
         $value = $rule['value'];
         $holds = match ($rule['attribute']) {
             'scope' => ($context['scope'] ?? 'entry') === $value,

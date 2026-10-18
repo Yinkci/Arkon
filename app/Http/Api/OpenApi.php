@@ -73,6 +73,29 @@ final class OpenApi
                 'parameters' => [$id, $param('context', 'query', ['type' => 'string', 'enum' => ['view', 'edit']], 'edit: analyze the draft.')], 'responses' => ['200' => $ok($item('SeoAnalysis'))] + $errors(401, 403, 404)]];
         }
 
+        // Content types a site defined itself, all behind one set of paths named by the type's key.
+        // Which types exist depends on the site: GET / lists them, with their scopes.
+        $typeParam = $param('type', 'path', ['type' => 'string', 'pattern' => '^[a-z][a-z0-9_]{0,31}$'], "The content type's key (GET / lists this site's).");
+        $typeScope = fn (string $access) => $write($access.':content.{type}');
+        $paths['/content/{type}'] = [
+            'get' => ['operationId' => 'listContentEntries', 'tags' => ['Content types'], 'summary' => 'List entries of a content type this site defined', 'security' => $public,
+                'parameters' => [$typeParam, ...array_values(array_filter($paths['/posts']['get']['parameters'], fn ($p) => ! in_array($p['name'], ['category', 'tag'], true)))],
+                'responses' => ['200' => $ok($collection('ContentEntry'))] + $errors(400, 401, 403, 404, 429)],
+            'post' => ['operationId' => 'createContentEntry', 'tags' => ['Content types'], 'summary' => 'Create an entry (a draft unless status is published)', 'security' => $typeScope('write'), 'parameters' => [$typeParam, $idempotency],
+                'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => $ref('ContentEntryWrite')]]],
+                'responses' => ['201' => $ok($item('ContentEntry'), 'Created'), '200' => $ok($item('ContentEntry'), 'Replayed (same Idempotency-Key)')] + $errors(400, 401, 403, 404, 409, 422, 429)],
+        ];
+        $paths['/content/{type}/{id}'] = [
+            'get' => ['operationId' => 'getContentEntry', 'tags' => ['Content types'], 'summary' => 'One entry with its rendered content, SEO and fields', 'security' => $public, 'parameters' => [$typeParam, $id, $param('context', 'query', ['type' => 'string', 'enum' => ['view', 'edit']], 'edit: the draft state.')], 'responses' => ['200' => $ok($item('ContentEntry'))] + $errors(401, 403, 404)],
+            'patch' => ['operationId' => 'updateContentEntry', 'tags' => ['Content types'], 'summary' => 'Change an entry; status published publishes, draft unpublishes', 'security' => $typeScope('write'), 'parameters' => [$typeParam, $id],
+                'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => $ref('ContentEntryWrite')]]], 'responses' => ['200' => $ok($item('ContentEntry'))] + $errors(401, 403, 404, 409, 422, 429)],
+            'delete' => ['operationId' => 'trashContentEntry', 'tags' => ['Content types'], 'summary' => 'Move to the Trash; force=true deletes an entry in the Trash permanently', 'security' => $typeScope('write'),
+                'parameters' => [$typeParam, $id, $param('force', 'query', ['type' => 'string', 'enum' => ['true', 'false']], 'Permanently delete (only from the Trash).')], 'responses' => ['204' => ['description' => 'Done']] + $errors(401, 403, 404, 409)],
+        ];
+        $paths['/content/{type}/{id}/restore'] = ['post' => ['operationId' => 'restoreContentEntry', 'tags' => ['Content types'], 'summary' => 'Bring it back from the Trash (as a draft)', 'security' => $typeScope('write'), 'parameters' => [$typeParam, $id], 'responses' => ['200' => $ok($item('ContentEntry'))] + $errors(401, 403, 404, 409)]];
+        $paths['/content/{type}/{id}/seo-analysis'] = ['get' => ['operationId' => 'analyzeContentEntrySeo', 'tags' => ['Content types', 'SEO'], 'summary' => "Arkon's deterministic SEO report (live, or the draft with context=edit)", 'security' => $typeScope('read'),
+            'parameters' => [$typeParam, $id, $param('context', 'query', ['type' => 'string', 'enum' => ['view', 'edit']], 'edit: analyze the draft.')], 'responses' => ['200' => $ok($item('SeoAnalysis'))] + $errors(401, 403, 404)]];
+
         foreach (Taxonomies::all() as $name => $taxonomy) {
             $c = '/'.$taxonomy['collection'];
             $tag = $taxonomy['plural'];
@@ -138,10 +161,10 @@ final class OpenApi
             'info' => ['title' => 'Arkon API', 'version' => '1.0.0', 'description' => "Arkon's public developer API. Guide: docs/api.md. Anonymous requests read published content; a personal access token (Authorization: Bearer) adds the scopes it was given, never more than its user's role allows. Errors: {\"error\": {\"code\", \"message\", \"fields\"?}}."],
             'servers' => [['url' => '/api/v1', 'description' => 'The site the API is reached at']],
             'security' => $public,
-            'tags' => array_values(array_map(fn ($t) => ['name' => $t], array_unique([...array_column(ContentTypes::all(), 'plural'), ...array_column(Taxonomies::all(), 'plural'), 'Media', 'Forms', 'Navigation', 'Site', 'Users', 'SEO']))),
+            'tags' => array_values(array_map(fn ($t) => ['name' => $t], array_unique([...array_column(ContentTypes::all(), 'plural'), ...array_column(Taxonomies::all(), 'plural'), 'Content types', 'Media', 'Forms', 'Navigation', 'Site', 'Users', 'SEO']))),
             'paths' => $paths,
             'components' => [
-                'securitySchemes' => ['bearerAuth' => ['type' => 'http', 'scheme' => 'bearer', 'description' => 'A personal access token (arkon_pat_…). Scopes: '.implode(', ', array_keys(Scopes::all())).'.']],
+                'securitySchemes' => ['bearerAuth' => ['type' => 'http', 'scheme' => 'bearer', 'description' => 'A personal access token (arkon_pat_…). Scopes: '.implode(', ', array_keys(Scopes::all())).', and read:content.{type} / write:content.{type} for each content type the site defined.']],
                 'responses' => ['Error' => ['description' => 'An error', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Error']]]]],
                 'schemas' => $schemas,
             ],
@@ -203,7 +226,8 @@ final class OpenApi
             ];
             $write = ['title' => ['type' => 'string', 'maxLength' => 120], 'slug' => ['type' => 'string', 'description' => 'URL: '.($type['pathPrefix'] ?: '').'/{slug}.'], 'path' => ['type' => 'string', 'description' => 'Or the full URL path.'],
                 'status' => ['type' => 'string', 'enum' => ['draft', 'published']], 'content' => $object(['blocks' => ['type' => 'array', 'items' => $ref('PublicBlock')]]), 'seo' => $ref('SeoWrite'),
-                'version' => ['type' => 'integer', 'description' => 'PATCH: the draft version you read; a newer one is a 409.']];
+                'version' => ['type' => 'integer', 'description' => 'PATCH: the draft version you read; a newer one is a 409.'],
+                'fields' => ['type' => 'object', 'additionalProperties' => true, 'description' => 'Field values by key (fields that field groups put on this type); only those given change, null clears one.']];
             if ($type['details']) {
                 $properties['excerpt'] = $string;
                 $properties['featured_media'] = ['oneOf' => [$ref('Media'), ['type' => 'null']]];
@@ -228,6 +252,34 @@ final class OpenApi
             $schemas[ucfirst($kind)] = ['type' => 'object', 'required' => [...$required, 'author', 'published_at', 'modified_at'], 'properties' => $properties];
             $schemas[ucfirst($kind).'Write'] = ['type' => 'object', 'additionalProperties' => false, 'properties' => $write];
         }
+
+        // An entry of a content type a site defined itself (/content/{type}). Which of the optional
+        // parts it has depends on the type: an excerpt and featured image when the type keeps
+        // details, one list per taxonomy it uses, and its own fields.
+        $taxonomies = [];
+        $taxonomyWrites = [];
+        foreach (Taxonomies::all() as $taxonomy) {
+            $taxonomies[$taxonomy['collection']] = ['type' => 'array', 'items' => $ref('TermRef'), 'description' => 'When the type uses '.strtolower($taxonomy['plural']).'.'];
+            $taxonomyWrites[$taxonomy['collection']] = ['type' => 'array', 'items' => $string, 'description' => $taxonomy['label'].' ids, when the type uses them.'];
+        }
+        $schemas['ContentEntry'] = ['type' => 'object', 'required' => ['id', 'type', 'title', 'slug', 'path', 'link', 'status', 'author', 'published_at', 'modified_at'], 'properties' => [
+            'id' => $string, 'type' => ['type' => 'string', 'description' => 'The content type key.'], 'title' => $string, 'slug' => $string, 'path' => $string,
+            'link' => ['type' => ['string', 'null'], 'description' => 'Absolute URL while published.'], 'status' => ['type' => 'string', 'enum' => ['published', 'draft', 'trash']],
+            'excerpt' => ['type' => 'string', 'description' => 'When the type keeps details.'], 'featured_media' => ['oneOf' => [$ref('Media'), ['type' => 'null']], 'description' => 'When the type keeps details.'],
+            ...$taxonomies,
+            'author' => ['oneOf' => [$ref('Author'), ['type' => 'null']]], 'published_at' => $time, 'modified_at' => $time,
+            'version' => ['type' => 'integer', 'description' => 'Members: the draft version.'], 'has_unpublished_changes' => ['type' => ['boolean', 'null'], 'description' => 'Members: the draft differs from what is live.'],
+            'content' => ['oneOf' => [$ref('Content'), ['type' => 'null']]], 'seo' => ['oneOf' => [$ref('Seo'), ['type' => 'null']]],
+            'fields' => ['type' => 'object', 'additionalProperties' => true, 'description' => 'include=fields: values by field key, as published (members: the draft). Private fields are never included; relationships are {id, type, title, path}.'],
+        ]];
+        $schemas['ContentEntryWrite'] = ['type' => 'object', 'additionalProperties' => false, 'properties' => [
+            'title' => ['type' => 'string', 'maxLength' => 120], 'slug' => ['type' => 'string', 'description' => 'URL: the type\'s prefix, then /{slug}.'], 'path' => ['type' => 'string', 'description' => 'Or the full URL path.'],
+            'status' => ['type' => 'string', 'enum' => ['draft', 'published']], 'content' => $object(['blocks' => ['type' => 'array', 'items' => $ref('PublicBlock')]]), 'seo' => $ref('SeoWrite'),
+            'version' => ['type' => 'integer', 'description' => 'PATCH: the draft version you read; a newer one is a 409.'],
+            'excerpt' => ['type' => 'string', 'maxLength' => 1000, 'description' => 'When the type keeps details.'], 'featured_media' => ['type' => ['string', 'null'], 'description' => 'Image id, when the type keeps details.'],
+            ...$taxonomyWrites,
+            'fields' => ['type' => 'object', 'additionalProperties' => true, 'description' => 'Field values by key, checked by the type\'s field rules; only those given change, null clears one.'],
+        ]];
 
         return $schemas;
     }

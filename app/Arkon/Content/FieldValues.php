@@ -50,7 +50,7 @@ final class FieldValues
                     $out[$key] = $value;
                 }
             } catch (ValidationException $e) {
-                $issues[] = ['path' => "fields.{$key}", 'message' => $e->getMessage()];
+                $issues[] = ['path' => "fields.{$key}", 'fieldKey' => $key, 'message' => $e->getMessage()];
             }
         }
         $unknown = array_diff(array_keys($values), array_column($definition['fields'], 'key'));
@@ -68,9 +68,8 @@ final class FieldValues
      * One value, in the shape its field's type stores. Returns null when nothing was given,
      * which is how "no value" is stored: an absent key rather than an empty string.
      */
-    public static function one(array $field, mixed $value, bool $defaulting = true, bool $publishing = false): mixed
+    public static function one(array $field, mixed $value, bool $publishing = false): mixed
     {
-        unset($defaulting);
         if ($value === null || $value === '' || $value === []) {
             return null;
         }
@@ -239,28 +238,46 @@ final class FieldValues
      */
     private static function date(mixed $value, array $settings, string $label, bool $withTime): string
     {
-        if (! is_string($value)) {
-            throw new ValidationException("{$label} must be a date.");
+        $date = is_string($value) ? self::parseDate($value, $withTime) : null;
+        if ($date === null) {
+            throw new ValidationException($withTime ? "{$label} must be a date and time like 2026-03-04T14:30." : "{$label} must be a date like 2026-03-04.");
         }
-        try {
-            $date = new DateTimeImmutable(trim($value), new DateTimeZone('UTC'));
-        } catch (\Exception) {
-            throw new ValidationException("{$label} must be a date.");
-        }
-        $stored = $withTime
-            ? $date->setTimezone(new DateTimeZone('UTC'))->format(DateTimeInterface::ATOM)
-            : $date->format('Y-m-d');
+        $stored = $withTime ? $date->format(DateTimeInterface::ATOM) : $date->format('Y-m-d');
         foreach (['min' => 'before', 'max' => 'after'] as $bound => $word) {
-            if (($settings[$bound] ?? null) === null) {
+            $limit = is_string($settings[$bound] ?? null) ? self::parseDate($settings[$bound], $withTime) : null;
+            if ($limit === null) {
                 continue;
             }
-            $limit = new DateTimeImmutable((string) $settings[$bound], new DateTimeZone('UTC'));
             if (($word === 'before' && $date < $limit) || ($word === 'after' && $date > $limit)) {
                 throw new ValidationException("{$label} must not be {$word} ".$limit->format($withTime ? DateTimeInterface::ATOM : 'Y-m-d').'.');
             }
         }
 
         return $stored;
+    }
+
+    /**
+     * A calendar date (YYYY-MM-DD), or a date and time in ISO 8601 (a time without a zone is
+     * UTC), as a UTC instant. Anything else is null: "next monday" or 2026-02-31 are not dates
+     * an author meant, so they are refused rather than quietly turned into some other day.
+     */
+    public static function parseDate(string $value, bool $withTime): ?DateTimeImmutable
+    {
+        $value = trim($value);
+        $pattern = $withTime
+            ? '/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,6})?)?(Z|[+-]\d{2}:?\d{2})?$/D'
+            : '/^(\d{4})-(\d{2})-(\d{2})$/D';
+        if (! preg_match($pattern, $value, $m) || ! checkdate((int) $m[2], (int) $m[3], (int) $m[1])) {
+            return null;
+        }
+        if ($withTime && ((int) $m[4] > 23 || (int) $m[5] > 59 || (int) ($m[6] ?? 0) > 59)) {
+            return null;
+        }
+        try {
+            return (new DateTimeImmutable($value, new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('UTC'));
+        } catch (\Exception) {
+            return null;
+        }
     }
 
     private static function time(mixed $value, string $label): string
@@ -571,6 +588,86 @@ final class FieldValues
     }
 
     /**
+     * The values as the given fields can read them: keys no field defines are left out, at the
+     * top and inside every group, repeater row and section. What a schema change made
+     * unreachable is not offered to an editor (who would only send it back) or checked against
+     * a definition it no longer belongs to.
+     *
+     * A section whose layout was removed is kept whole: it is the author's content, kept
+     * deliberately until somebody deals with it (Flexible::deprecatedIn).
+     *
+     * @param  list<array<string, mixed>>  $fields
+     * @param  array<string, mixed>  $values
+     * @return array<string, mixed>
+     */
+    public static function prune(array $fields, array $values): array
+    {
+        $out = [];
+        foreach ($fields as $field) {
+            $key = $field['key'];
+            if (! array_key_exists($key, $values)) {
+                continue;
+            }
+            $value = $values[$key];
+            $out[$key] = match (true) {
+                ! is_array($value) => $value,
+                $field['type'] === 'group' && ! array_is_list($value) => self::prune($field['fields'] ?? [], $value),
+                $field['type'] === 'repeater' && array_is_list($value) => array_map(
+                    fn ($row) => is_array($row) && ! array_is_list($row)
+                        ? [...(isset($row['_id']) ? ['_id' => $row['_id']] : []), ...self::prune($field['fields'] ?? [], $row)]
+                        : $row,
+                    $value,
+                ),
+                $field['type'] === 'flexible' && array_is_list($value) => array_map(function ($block) use ($field) {
+                    if (! is_array($block) || array_is_list($block) || ! is_string($block['_layout'] ?? null)) {
+                        return $block;
+                    }
+                    $layout = array_column($field['layouts'] ?? [], null, 'key')[$block['_layout']] ?? null;
+
+                    return $layout === null
+                        ? $block
+                        : [...(isset($block['_id']) ? ['_id' => $block['_id']] : []), '_layout' => $block['_layout'], ...self::prune($layout['fields'], $block)];
+                }, $value),
+                default => $value,
+            };
+        }
+
+        return $out;
+    }
+
+    /**
+     * Every media id these values hold, wherever the field that holds it is declared.
+     *
+     * @param  list<array<string, mixed>>  $fields
+     * @param  array<string, mixed>  $values
+     * @return list<string>
+     */
+    public static function mediaIds(array $fields, array $values): array
+    {
+        $ids = [];
+        foreach ($fields as $field) {
+            $value = $values[$field['key']] ?? null;
+            if (! is_array($value)) {
+                continue;
+            }
+            $nested = match ($field['type']) {
+                'media' => [[$value['id'] ?? null]],
+                'gallery' => [array_map(fn ($one) => is_array($one) ? ($one['id'] ?? null) : null, $value)],
+                'group' => [self::mediaIds($field['fields'] ?? [], $value)],
+                'repeater' => array_map(fn ($row) => is_array($row) ? self::mediaIds($field['fields'] ?? [], $row) : [], $value),
+                'flexible' => array_map(
+                    fn ($block) => is_array($block) ? self::mediaIds(Flexible::layoutFields($field, (string) ($block['_layout'] ?? '')), $block) : [],
+                    $value,
+                ),
+                default => [],
+            };
+            $ids = [...$ids, ...array_merge([], ...$nested)];
+        }
+
+        return array_values(array_unique(array_filter($ids, 'is_string')));
+    }
+
+    /**
      * The rows that represent these values in content_field_index. One row per value, with the
      * value in the column its type belongs to, so filters and sorts are ordinary SQL.
      *
@@ -581,7 +678,22 @@ final class FieldValues
         $rows = [];
         foreach ($definition['fields'] as $field) {
             $key = $field['key'];
-            if (! array_key_exists($key, $values) || FieldTypes::index($field['type']) === 'none') {
+            if (! array_key_exists($key, $values)) {
+                continue;
+            }
+            if (FieldTypes::index($field['type']) === 'none') {
+                // A group, repeater or section is not queryable as a value, but a relationship
+                // inside one is still a reference to another entry: it is recorded under the
+                // outer field's key, so "what uses this entry" and the cleanup after a permanent
+                // delete find it like any other.
+                $ids = array_values(array_unique(array_merge([], ...array_column(Relationships::refsIn([$field], [$key => $values[$key]]), 'ids'))));
+                foreach ($ids as $position => $id) {
+                    $rows[] = [
+                        'field_key' => $key, 'position' => $position, 'text_value' => null, 'num_value' => null,
+                        'bool_value' => null, 'date_value' => null, 'ref_id' => $id, 'unique_value' => false,
+                    ];
+                }
+
                 continue;
             }
             foreach (self::cells($field, $values[$key]) as $position => $cell) {

@@ -250,6 +250,30 @@ final class Collections
      * @param  list<string>  $fieldKeys
      * @return list<string> page titles, at most ten
      */
+    /**
+     * The pages (by title) with a content list of this kind, so removing the kind can say what
+     * would be left listing nothing.
+     *
+     * @return list<string>
+     */
+    public function pagesListing(string $siteId, string $kind): array
+    {
+        $rows = DB::table('page_drafts as d')->join('pages as p', 'p.id', '=', 'd.page_id')
+            ->where('d.site_id', $siteId)->whereNull('p.deleted_at')
+            ->whereRaw("strpos(d.document::text, '\"collection\"') > 0")
+            ->limit(200)->get(['p.title', 'd.document']);
+        $titles = [];
+        foreach ($rows as $row) {
+            foreach (self::inDocument(Json::toArray(Json::decode($row->document))) as $query) {
+                if (($query['source'] ?? null) === $kind) {
+                    $titles[$row->title] = true;
+                }
+            }
+        }
+
+        return array_slice(array_keys($titles), 0, 10);
+    }
+
     public function pagesUsingFields(string $siteId, string $kind, array $fieldKeys): array
     {
         $fieldKeys = array_values(array_filter($fieldKeys, 'is_string'));
@@ -374,7 +398,7 @@ final class Collections
     private function withSample(string $siteId, string $kind, array $siteValues, array $empty): array
     {
         $result = $this->reader->page($this->reader->query($siteId, $kind, 'draft', ['status' => 'any']), 'title', 1, 1);
-        $items = $this->items($siteId, $result['rows'], $siteValues);
+        $items = $this->items($siteId, $result['rows'], $siteValues, live: false);
 
         return [...$empty, 'items' => $items, 'sample' => $items !== []];
     }
@@ -512,18 +536,20 @@ final class Collections
      * @param  list<array<string, mixed>>  $rows  reader rows
      * @return list<array<string, mixed>> one binding context per entry
      */
-    private function items(string $siteId, array $rows, array $siteValues): array
+    private function items(string $siteId, array $rows, array $siteValues, bool $live = true): array
     {
         $ids = array_column($rows, 'id');
         if ($ids === []) {
             return [];
         }
-        $values = $this->fields->drafts($siteId, $ids);
+        // A list shows published entries as they went live; only the editor's sample (a draft
+        // standing in until something is published) reads a draft.
+        $values = $live ? $this->fields->liveValues($siteId, $ids) : $this->fields->drafts($siteId, $ids);
+        $contexts = $this->schema->contextsForEntries($siteId, $ids);
         $items = [];
         foreach ($rows as $row) {
-            $own = $values[$row['id']] ?? [];
-            $fields = $this->schema->fieldsFor($siteId, ['kind' => $row['kind']]);
-            $public = array_column(array_filter($fields, fn ($f) => ! ($f['settings']['private'] ?? false)), 'key');
+            $fields = $this->schema->fieldsFor($siteId, $contexts[$row['id']] ?? ['kind' => $row['kind']]);
+            $publicFields = array_values(array_filter($fields, fn ($f) => ! ($f['settings']['private'] ?? false)));
             $entry = [
                 // What every entry has, whatever fields its type declares: a title, the URL it
                 // is published at, and its excerpt where the type keeps one.
@@ -531,9 +557,9 @@ final class Collections
                 'path' => $row['livePath'] ?? $row['path'],
                 'url' => $row['livePath'] ?? $row['path'],
                 ...($row['excerpt'] === '' ? [] : ['excerpt' => $row['excerpt']]),
-                ...array_intersect_key($own, array_flip($public)),
+                ...FieldValues::prune($publicFields, $values[$row['id']] ?? []),
             ];
-            $items[] = Bindings::context($this->relationships->expand($siteId, $fields, $entry), $siteValues);
+            $items[] = Bindings::context($this->relationships->expand($siteId, $fields, $entry, $live), $siteValues);
         }
 
         return $items;

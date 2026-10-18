@@ -67,7 +67,7 @@ final class ContentAdminController extends Controller
 
         return Inertia::render('Admin/Developer', [
             'tokens' => $tokens->list($ctx),
-            'scopes' => Scopes::all(),
+            'scopes' => Scopes::all($ctx->siteId),
             // The API answers at the site's own address (like its pages), not necessarily the admin's.
             'baseUrl' => (app(PageStore::class)->origin($ctx->siteId) ?? $request->getSchemeAndHttpHost()).'/api/v1',
         ]);

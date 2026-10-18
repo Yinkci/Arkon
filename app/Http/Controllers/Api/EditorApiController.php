@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Arkon\Content\EntryFields;
 use App\Arkon\Errors\ValidationException;
 use App\Arkon\Media\MediaSigner;
 use App\Arkon\Pages\PageManagement;
@@ -44,7 +45,14 @@ class EditorApiController extends Controller
     {
         $result = $this->pages->restoreRevision(AdminContext::of($request)->ctx(), [...self::body($request), 'pageId' => $page]);
 
-        return self::ok(['version' => $result['version'], 'document' => $result['document']]);
+        // The entry's field values come back with a restore, so the editor shows them as they are
+        // now, and says which ones it kept because today's fields could not hold the old value.
+        return self::ok([
+            'version' => $result['version'],
+            'document' => $result['document'],
+            'fields' => (object) (app(EntryFields::class)->drafts(AdminContext::of($request)->ctx()->siteId, [$page])[$page] ?? []),
+            'fieldsKept' => $result['fieldsKept'] ?? [],
+        ]);
     }
 
     public function settings(Request $request, string $page): JsonResponse

@@ -135,14 +135,20 @@ class PageStore
     }
 
     /**
-     * Inserts the next immutable revision: content plus the title and path it is served under.
+     * Inserts the next immutable revision: content plus the title and path it is served under,
+     * and the entry's field values (the draft's, unless the caller names others), so values
+     * version, publish and restore with the document they belong to.
      *
+     * @param  array<string, mixed>|null  $fields
      * @return array{id: string, number: int}
      */
-    public function insertRevision(SiteContext $ctx, string $pageId, mixed $doc, string $title, string $path, string $message): array
+    public function insertRevision(SiteContext $ctx, string $pageId, mixed $doc, string $title, string $path, string $message, ?array $fields = null): array
     {
         $current = (int) DB::table('page_revisions')->where('page_id', $pageId)->max('number');
         $revision = ['id' => Uuid::v7(), 'number' => $current + 1];
+        $fieldsJson = $fields !== null
+            ? Json::encode((object) $fields)
+            : (DB::table('page_drafts')->where('page_id', $pageId)->value('fields') ?? '{}');
         DB::table('page_revisions')->insert([
             ...$revision,
             'site_id' => $ctx->siteId,
@@ -154,6 +160,8 @@ class PageStore
             'source' => $ctx->via === 'ai' ? 'ai' : 'human',
             'author_id' => $ctx->userId,
             'message' => $message,
+            'fields' => $fieldsJson,
+            'fields_recorded' => true,
         ]);
 
         return $revision;
@@ -213,9 +221,10 @@ class PageStore
     }
 
     /** Records which token version and component versions a publication was rendered with. */
-    public function recordDependencies(string $siteId, string $pageId, string $publicationId, array $inputs): void
+    /** @param  list<array{kind: string, resource_id: string, version: int}>  $content  ContentDependencies::of() */
+    public function recordDependencies(string $siteId, string $pageId, string $publicationId, array $inputs, array $content = []): void
     {
-        $rows = DesignResources::dependencies($siteId, $inputs);
+        $rows = [...DesignResources::dependencies($siteId, $inputs), ...$content];
         if ($rows !== []) {
             DB::table('publication_dependencies')->insert(array_map(
                 fn ($row) => ['publication_id' => $publicationId, 'site_id' => $siteId, 'page_id' => $pageId, ...$row],

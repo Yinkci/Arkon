@@ -297,8 +297,9 @@ final class FlexibleContentTest extends DatabaseTestCase
             app(ContentTypeService::class)->update($this->f['ctx'], 'case_study', [...$definition, 'fields' => $fields, 'expectedVersion' => $definition['schemaVersion']]);
             $this->fail('Removed a layout without saying how many entries use it');
         } catch (ValidationException $e) {
-            $this->assertStringContainsString('“Quote” is used by 1 entries', $e->getMessage());
-            $this->assertStringContainsString('kept but stops being shown', $e->getMessage());
+            $this->assertStringContainsString('“Quote” (used by 1 entry)', $e->getMessage());
+            $this->assertStringContainsString('kept but stop being shown', $e->getMessage());
+            $this->assertContains('layout_removed', array_column($e->issues, 'code'), 'the editor offers the confirmation by this code');
         }
         app(ContentTypeService::class)->update($this->f['ctx'], 'case_study', [...$definition, 'fields' => $fields, 'expectedVersion' => $definition['schemaVersion'], 'confirmRemovals' => true]);
 

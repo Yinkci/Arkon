@@ -3,6 +3,7 @@
 namespace App\Arkon\Upgrades;
 
 use App\Arkon\Components\DocumentValidator;
+use App\Arkon\Content\EntryFields;
 use App\Arkon\Forms\EntryIndex;
 use App\Arkon\Pages\PageManagement;
 use App\Arkon\Support\Json;
@@ -27,7 +28,28 @@ class DataUpgrades
             '2026-10-06-backfill-publication-media' => fn () => $this->backfillPublicationMedia(),
             '2026-10-08-backfill-page-request-fingerprints' => fn () => $this->backfillPageRequestFingerprints(),
             '2026-10-10-index-form-entries' => fn () => $this->indexFormEntries(),
+            '2026-10-29-reindex-content-fields' => fn () => $this->reindexContentFields(),
         ];
+    }
+
+    /**
+     * Rebuilds content_field_index from every entry's stored values and today's fields, once:
+     * relationships inside groups, repeaters and sections were not indexed before, and rows of
+     * fields a schema change took off an entry could be left behind. The index is derived, so
+     * this changes nothing an entry stores. Retry-safe: it only ever rewrites derived rows.
+     *
+     * @return array{entries: int}
+     */
+    public function reindexContentFields(): array
+    {
+        $count = 0;
+        $fields = app(EntryFields::class);
+        foreach (DB::table('pages')->whereNull('purged_at')->distinct()->pluck('site_id') as $siteId) {
+            $kinds = DB::table('pages')->where('site_id', $siteId)->whereNull('purged_at')->distinct()->pluck('kind')->all();
+            $count += $fields->reindexKinds((string) $siteId, $kinds);
+        }
+
+        return ['entries' => $count];
     }
 
     /**

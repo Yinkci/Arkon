@@ -100,6 +100,10 @@ final class FieldGroupService
             ]);
             $this->schema->forget($ctx->siteId);
             $this->assertNoKeyClash($ctx, $id, $definition['fields'], $rules);
+            // Entries reached may already hold values under these keys (a group put back after it
+            // was deleted): they become visible again, so they become queryable again too.
+            app(EntryFields::class)->assertValuesFit($ctx->siteId, $this->kindsReached($ctx->siteId, $rules), $definition['fields']);
+            app(EntryFields::class)->reindexKinds($ctx->siteId, $this->kindsReached($ctx->siteId, $rules));
 
             return $this->show($ctx, $key);
         });
@@ -128,14 +132,31 @@ final class FieldGroupService
             if ($expected !== null && (int) $expected !== (int) $row->schema_version) {
                 throw new ConflictException('This field group changed somewhere else. Reload before saving again.');
             }
+            $before = Json::toArray(Json::decode($row->rules));
             FieldChanges::assertTypesCompatible($current, $definition['fields']);
-            $removed = FieldChanges::removed($current, $definition['fields']);
-            if ($removed !== [] && ! ($input['confirmRemovals'] ?? false)) {
+            $confirmed = (bool) ($input['confirmRemovals'] ?? false);
+            $removed = [...FieldChanges::removed($current, $definition['fields']), ...FieldChanges::removedNested($current, $definition['fields'])];
+            if ($removed !== [] && ! $confirmed) {
                 throw new ValidationException(
                     'Removing '.implode(', ', array_column($removed, 'label')).' would leave the values stored for it unreachable on '
                         .LocationRules::describe($rules, $this->namer($ctx->siteId)).'. Confirm to go ahead.',
-                    array_map(fn ($f) => ['path' => 'fields.'.$f['key'], 'fieldKey' => $f['key'], 'code' => 'field_removed', 'message' => 'Field would be removed'], $removed),
+                    array_map(fn ($f) => ['path' => 'fields.'.$f['key'], 'fieldKey' => $f['fieldKey'] ?? $f['key'], 'code' => 'field_removed', 'message' => 'Field would be removed'], $removed),
                 );
+            }
+            // New rules that take these fields off entries (or off site data) that had them: their
+            // values stay stored, but nobody sees them until the fields apply there again.
+            $losing = $this->losing($ctx->siteId, $before, $rules, $current);
+            if ($losing !== null && ! $confirmed) {
+                throw new ValidationException(
+                    'With these rules, '.$losing.' would no longer show '.$definition['name'].'. What they stored is kept and comes back if the fields apply there again. Confirm to go ahead.',
+                    [['path' => 'rules', 'code' => 'rules_narrowed', 'message' => 'Fields would stop applying somewhere they did']],
+                );
+            }
+            $kinds = array_values(array_unique([...$this->kindsReached($ctx->siteId, $before), ...$this->kindsReached($ctx->siteId, $rules)]));
+            $reshaped = FieldChanges::reshaped($current, $definition['fields']);
+            app(EntryFields::class)->assertValuesFit($ctx->siteId, $this->kindsReached($ctx->siteId, $rules), $reshaped);
+            if (LocationRules::match($rules, SiteDataService::CONTEXT)) {
+                $this->assertSiteDataFits($ctx->siteId, $reshaped);
             }
             $changed = Json::encode($this->canonical($current)) !== Json::encode($this->canonical($definition['fields']));
             DB::table('field_groups')->where('id', $row->id)->update([
@@ -146,12 +167,13 @@ final class FieldGroupService
                 'schema_version' => (int) $row->schema_version + ($changed ? 1 : 0),
                 'updated_at' => now(),
             ]);
-            if ($removed !== []) {
-                DB::table('content_field_index')->where('site_id', $ctx->siteId)
-                    ->whereIn('field_key', array_column($removed, 'key'))->delete();
-            }
             $this->schema->forget($ctx->siteId);
             $this->assertNoKeyClash($ctx, $row->id, $definition['fields'], $rules);
+            if ($changed || Json::encode($this->canonical($before)) !== Json::encode($this->canonical($rules))) {
+                // Only the entries these fields reached before or reach now are re-projected, so
+                // nothing filters on a field that left them and no other type's rows change.
+                app(EntryFields::class)->reindexKinds($ctx->siteId, $kinds);
+            }
 
             return $this->show($ctx, $key);
         });
@@ -175,7 +197,62 @@ final class FieldGroupService
             }
             DB::table('field_groups')->where('id', $row->id)->delete();
             $this->schema->forget($ctx->siteId);
+            // The values stay with the entries; what goes is the index of fields they no longer carry.
+            app(EntryFields::class)->reindexKinds($ctx->siteId, $this->kindsReached($ctx->siteId, $rules));
         });
+    }
+
+    /**
+     * Where fields that applied under the old rules would stop applying under the new ones, in
+     * words, or null when nothing loses them. Entries are checked one by one against both sets
+     * of rules (a rule about an entry or a term narrows within a type); site data likewise.
+     */
+    private function losing(string $siteId, array $before, array $after, array $fields): ?string
+    {
+        if ($fields === [] || Json::encode($this->canonical($before)) === Json::encode($this->canonical($after))) {
+            return null;
+        }
+        $parts = [];
+        $count = 0;
+        $titles = [];
+        $kinds = $this->kindsReached($siteId, $before);
+        if ($kinds !== []) {
+            DB::table('pages')->where('site_id', $siteId)->whereIn('kind', $kinds)->whereNull('purged_at')
+                ->orderBy('id')->select(['id', 'title'])->chunkById(500, function ($pages) use ($siteId, $before, $after, &$count, &$titles) {
+                    $contexts = $this->schema->contextsForEntries($siteId, $pages->pluck('id')->all());
+                    foreach ($pages as $page) {
+                        $context = $contexts[$page->id] ?? null;
+                        if ($context !== null && LocationRules::match($before, $context) && ! LocationRules::match($after, $context)) {
+                            $count++;
+                            $titles[] = $page->title;
+                        }
+                    }
+                });
+        }
+        if ($count > 0) {
+            $parts[] = $count.' '.($count === 1 ? 'entry' : 'entries').' ('.implode(', ', array_map(fn ($t) => '“'.$t.'”', array_slice($titles, 0, 3))).($count > 3 ? ', …' : '').')';
+        }
+        if (LocationRules::match($before, SiteDataService::CONTEXT) && ! LocationRules::match($after, SiteDataService::CONTEXT)) {
+            $parts[] = 'site data';
+        }
+
+        return $parts === [] ? null : implode(' and ', $parts);
+    }
+
+    /** The site data equivalent of EntryFields::assertValuesFit(). */
+    private function assertSiteDataFits(string $siteId, array $fields): void
+    {
+        $values = Json::toArray(Json::decode(DB::table('site_data')->where('site_id', $siteId)->value('values') ?? '{}')) ?: [];
+        foreach ($fields as $field) {
+            try {
+                FieldValues::one($field, FieldValues::prune([$field], $values)[$field['key']] ?? null);
+            } catch (ValidationException) {
+                throw new ValidationException(
+                    "{$field['label']}: site data holds a value it could no longer keep. Change or clear it on the Site data screen first, or add a new field instead of changing this one.",
+                    [['path' => 'fields.'.$field['key'], 'fieldKey' => $field['key'], 'code' => 'values_do_not_fit', 'message' => 'Stored values would no longer fit']],
+                );
+            }
+        }
     }
 
     /**
@@ -189,6 +266,18 @@ final class FieldGroupService
     private function assertNoKeyClash(SiteContext $ctx, string $groupId, array $fields, array $rules): void
     {
         $mine = array_column($fields, 'key');
+        // Site data is a target of its own: its keys must be distinct among the groups on it,
+        // and have nothing to do with the fields of any content type.
+        if (LocationRules::match($rules, SiteDataService::CONTEXT)) {
+            foreach ($this->schema->fieldsFor($ctx->siteId, SiteDataService::CONTEXT, exceptGroup: $groupId) as $field) {
+                if (in_array($field['key'], $mine, true)) {
+                    throw new ValidationException(
+                        "\"{$field['key']}\" is already a field on site data. Rename it in one place before these fields apply there.",
+                        [['path' => 'rules', 'fieldKey' => $field['key'], 'code' => 'duplicate_key', 'message' => 'Field key already used on the target']],
+                    );
+                }
+            }
+        }
         foreach ($this->kindsReached($ctx->siteId, $rules) as $kind) {
             foreach ($this->schema->fieldsFor($ctx->siteId, ['kind' => $kind], exceptGroup: $groupId) as $field) {
                 if (in_array($field['key'], $mine, true)) {
@@ -216,6 +305,12 @@ final class FieldGroupService
         foreach ($rules['groups'] ?? [] as $set) {
             $named = [];
             $narrowed = false;
+            // "Where is site data" puts these fields on the site, not on any entry.
+            $siteOnly = array_filter($set['rules'], fn ($rule) => $rule['attribute'] === 'scope'
+                && (($rule['operator'] === 'is' && $rule['value'] === 'site') || ($rule['operator'] === 'is_not' && $rule['value'] === 'entry'))) !== [];
+            if ($siteOnly) {
+                continue;
+            }
             foreach ($set['rules'] as $rule) {
                 if ($rule['attribute'] === 'content_type' && $rule['operator'] === 'is') {
                     $named[] = $rule['value'];

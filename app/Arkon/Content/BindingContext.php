@@ -41,27 +41,33 @@ final class BindingContext
      */
     public function published(string $siteId, ?string $pageId, mixed $revisionFields = null): array
     {
-        $entry = $revisionFields !== null ? Json::toArray(Json::decode(is_string($revisionFields) ? $revisionFields : Json::encode($revisionFields)))
+        $entry = $revisionFields !== null ? Json::toArray(Json::decode(is_string($revisionFields) ? $revisionFields : Json::encode((object) $revisionFields)))
             : ($pageId === null ? [] : $this->draftValues($siteId, $pageId));
-
         $entry = is_array($entry) ? $entry : [];
+        if ($pageId !== null) {
+            // Only what the entry's fields still define, and never a private one: marking a field
+            // private keeps it off public pages even where a block was bound to it earlier.
+            $public = array_values(array_filter($this->ownFields($siteId, $pageId), fn ($field) => ! ($field['settings']['private'] ?? false)));
+            $entry = FieldValues::prune($public, $entry);
+        }
 
         return Bindings::context(
-            $pageId === null ? $entry : $this->through($siteId, $pageId, $entry),
+            $pageId === null ? $entry : $this->through($siteId, $pageId, $entry, live: true),
             $this->siteValues($siteId, private: false),
         );
     }
 
     /**
      * The same values with what each single relationship points at read in place of the
-     * reference, so a page can bind to "Agent → Name" and get the agent's name.
+     * reference, so a page can bind to "Agent → Name" and get the agent's name. A published page
+     * reads what the related entry went live with (`$live`); the editor reads its draft.
      *
      * One step only (Relationships::DEPTH): the related entry's own references stay references,
      * so a cycle in the content graph renders and stops.
      */
-    private function through(string $siteId, string $pageId, array $values): array
+    private function through(string $siteId, string $pageId, array $values, bool $live = false): array
     {
-        return $this->relationships->expand($siteId, $this->ownFields($siteId, $pageId), $values);
+        return $this->relationships->expand($siteId, $this->ownFields($siteId, $pageId), $values, $live);
     }
 
     /**
@@ -152,9 +158,8 @@ final class BindingContext
         }
         $fields = DB::table('page_drafts')->where('site_id', $siteId)->where('page_id', $pageId)->value('fields');
         $values = Json::toArray(Json::decode($fields ?? '{}'));
-        $defined = array_column($this->entryFields($siteId, $pageId), 'key');
 
-        return is_array($values) ? array_intersect_key($values, array_flip($defined)) : [];
+        return is_array($values) ? FieldValues::prune($this->ownFields($siteId, $pageId), $values) : [];
     }
 
     private function siteValues(string $siteId, bool $private): array

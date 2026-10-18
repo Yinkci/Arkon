@@ -3,8 +3,10 @@
 namespace App\Arkon\Content;
 
 use App\Arkon\Database\Transactions;
+use App\Arkon\Design\PageRefreshes;
 use App\Arkon\Errors\ConflictException;
 use App\Arkon\Errors\ValidationException;
+use App\Arkon\Pages\PageStore;
 use App\Arkon\Sites\Authorizer;
 use App\Arkon\Sites\SiteContext;
 use App\Arkon\Support\Json;
@@ -59,7 +61,7 @@ final class SiteDataService
         $this->auth->authorize($ctx, 'page.publish');
         $values = Json::toArray($values);
 
-        return $this->tx->run(function () use ($ctx, $values, $expectedVersion) {
+        $result = $this->tx->run(function () use ($ctx, $values, $expectedVersion) {
             $row = $this->row($ctx->siteId, lock: true);
             if ($expectedVersion !== null && $expectedVersion !== (int) $row->version) {
                 throw new ConflictException('Site data changed somewhere else. Reload before saving again.');
@@ -68,32 +70,48 @@ final class SiteDataService
             if ($definition === null) {
                 throw new ValidationException('No field group puts any fields on site data yet.');
             }
-            $current = Json::toArray(Json::decode($row->values));
+            $stored = Json::toArray(Json::decode($row->values)) ?: [];
+            $current = FieldValues::prune($definition['fields'], $stored);
+            // Values of fields no group puts here any more are kept as they are, unchecked.
+            $hidden = array_diff_key($stored, $current);
             $merged = [...$current, ...FieldValues::validate($definition, $values)];
             foreach ($values as $key => $value) {
                 if ($value === null || $value === '' || $value === []) {
                     unset($merged[$key]);
                 }
             }
-            $stored = FieldValues::validate($definition, $merged);
+            $next = [...$hidden, ...FieldValues::validate($definition, $merged)];
+            if (Json::canonical($next) === Json::canonical($stored)) {
+                return $this->show($ctx);
+            }
 
             // What it said before is kept, because this shows on every page of the website.
             DB::table('site_data_revisions')->insert([
                 'id' => Uuid::v7(),
                 'site_id' => $ctx->siteId,
                 'version' => (int) $row->version,
-                'values' => Json::encode($current),
+                'values' => Json::encode((object) $stored),
                 'author_id' => $ctx->userId,
             ]);
+            $version = (int) $row->version + 1;
             DB::table('site_data')->where('site_id', $ctx->siteId)->update([
-                'values' => Json::encode($stored),
-                'version' => (int) $row->version + 1,
+                'values' => Json::encode((object) $next),
+                'version' => $version,
                 'updated_by' => $ctx->userId,
                 'updated_at' => now(),
             ]);
+            // Live pages are stored HTML: the ones showing a site value are re-rendered, under the
+            // site's publish epoch like any other change to what visitors see.
+            app(PageStore::class)->lockNextEpoch($ctx->siteId);
+            ContentDependencies::siteDataChanged($ctx->siteId, $version);
 
             return $this->show($ctx);
         });
+        if (DB::transactionLevel() === 0 && DB::table('page_refreshes')->where('site_id', $ctx->siteId)->where('status', 'pending')->exists()) {
+            app(PageRefreshes::class)->run($ctx->siteId);
+        }
+
+        return $result;
     }
 
     /** What site data said before, newest first, so a change can be seen and undone. */
@@ -123,7 +141,15 @@ final class SiteDataService
         $revision = DB::table('site_data_revisions')->where('site_id', $ctx->siteId)->where('id', $revisionId)->first()
             ?? throw new ValidationException('That version of the site data no longer exists.');
 
-        return $this->update($ctx, Json::toArray(Json::decode($revision->values)));
+        // Every field site data has today takes what that version said, or is cleared if it said
+        // nothing; values of fields it no longer has stay as they are.
+        $old = FieldValues::prune($this->fields($ctx->siteId, private: true), Json::toArray(Json::decode($revision->values)) ?: []);
+        $values = [];
+        foreach ($this->fields($ctx->siteId, private: true) as $field) {
+            $values[$field['key']] = $old[$field['key']] ?? null;
+        }
+
+        return $this->update($ctx, $values);
     }
 
     /**
@@ -138,29 +164,29 @@ final class SiteDataService
         $row = DB::table('site_data')->where('site_id', $siteId)->first(['values']);
         $values = $row ? Json::toArray(Json::decode($row->values)) : [];
 
-        return FieldValues::withoutInternals(array_intersect_key($values, array_flip($this->keys($siteId, private: false))));
+        return FieldValues::withoutInternals(FieldValues::prune($this->fields($siteId, private: false), is_array($values) ? $values : []));
     }
 
     /** Everything site data carries, for the admin, where private fields are the point. */
     private function readable(string $siteId, array $values): array
     {
-        return array_intersect_key($values, array_flip($this->keys($siteId, private: true)));
+        return FieldValues::prune($this->fields($siteId, private: true), $values);
     }
 
     /**
-     * The field keys site data carries. `private: false` leaves out the fields marked private, so
+     * The fields site data carries. `private: false` leaves out the fields marked private, so
      * nothing public can accidentally include one.
      *
-     * @return list<string>
+     * @return list<array<string, mixed>>
      */
-    private function keys(string $siteId, bool $private): array
+    private function fields(string $siteId, bool $private): array
     {
         $fields = $this->schema->fieldsFor($siteId, self::CONTEXT);
         if (! $private) {
-            $fields = array_filter($fields, fn ($field) => ! ($field['settings']['private'] ?? false));
+            $fields = array_values(array_filter($fields, fn ($field) => ! ($field['settings']['private'] ?? false)));
         }
 
-        return array_column($fields, 'key');
+        return $fields;
     }
 
     private function definition(string $siteId): ?array

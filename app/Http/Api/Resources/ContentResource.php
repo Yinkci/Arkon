@@ -2,7 +2,7 @@
 
 namespace App\Http\Api\Resources;
 
-use App\Arkon\Content\ContentTypes;
+use App\Arkon\Content\ContentTypeRegistry;
 use App\Arkon\Content\Taxonomies;
 use App\Arkon\Support\Time;
 use Illuminate\Support\Facades\DB;
@@ -34,7 +34,7 @@ final class ContentResource
 
     private function present(array $row, array $media, array $terms, ?array $rendered, array $include, array $fields = []): array
     {
-        $type = ContentTypes::get($row['kind']);
+        $type = app(ContentTypeRegistry::class)->forSite($this->siteId)->get($row['kind']);
         $out = [
             'id' => $row['id'],
             'type' => $row['kind'],

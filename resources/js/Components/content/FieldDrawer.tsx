@@ -184,7 +184,9 @@ export function FieldDrawer({
                                 id={id}
                                 className="ui-input"
                                 value={draft.type}
-                                onChange={(e) => setDraft((d) => ({ ...d, type: e.target.value, settings: {}, choices: [], fields: [], layouts: [] }))}
+                                onChange={(e) =>
+                                    setDraft((d) => ({ ...d, type: e.target.value, settings: {}, choices: [], fields: [], layouts: [], default: null }))
+                                }
                             >
                                 {groups.map((group) => (
                                     <optgroup key={group} label={group}>
@@ -313,8 +315,10 @@ export function FieldDrawer({
                     )}
 
                     {common.map((name) => (
-                        <SettingInput key={name} name={name} value={setting(name)} onChange={(value) => setSetting(name, value)} />
+                        <SettingInput key={name} name={name} fieldType={draft.type} value={setting(name)} onChange={(value) => setSetting(name, value)} />
                     ))}
+
+                    {shown.includes('default') && <DefaultInput field={draft} onChange={(value) => setDraft((d) => ({ ...d, default: value }))} />}
 
                     {advanced.length > 0 && (
                         <details className="group">
@@ -324,7 +328,13 @@ export function FieldDrawer({
                             </summary>
                             <div className="mt-3 space-y-3">
                                 {advanced.map((name) => (
-                                    <SettingInput key={name} name={name} value={setting(name)} onChange={(value) => setSetting(name, value)} />
+                                    <SettingInput
+                                        key={name}
+                                        name={name}
+                                        fieldType={draft.type}
+                                        value={setting(name)}
+                                        onChange={(value) => setSetting(name, value)}
+                                    />
                                 ))}
                             </div>
                         </details>
@@ -385,9 +395,87 @@ export function FieldDrawer({
     );
 }
 
-function SettingInput({ name, value, onChange }: { name: string; value: unknown; onChange(value: unknown): void }) {
+/**
+ * What a new entry starts with in this field. Entered as the field itself would be, so the
+ * server can check it with the same rules (a default can never be a value the field refuses).
+ */
+function DefaultInput({ field, onChange }: { field: FieldDefinition; onChange(value: unknown): void }) {
+    const value = field.default;
+    const hint = 'What a new entry starts with. Leave empty for none.';
+    if (field.type === 'boolean') {
+        return (
+            <label className="flex items-start gap-2 text-ui">
+                <input type="checkbox" className="ui-checkbox mt-0.5" checked={value === true} onChange={(e) => onChange(e.target.checked ? true : null)} />
+                <span>
+                    On by default
+                    <span className="t-meta block">New entries start with this switched on.</span>
+                </span>
+            </label>
+        );
+    }
+    return (
+        <Field label="Default value" hint={hint}>
+            {({ id, describedBy }) =>
+                field.type === 'select' ? (
+                    <select
+                        id={id}
+                        aria-describedby={describedBy}
+                        className="ui-input"
+                        value={typeof value === 'string' ? value : ''}
+                        onChange={(e) => onChange(e.target.value === '' ? null : e.target.value)}
+                    >
+                        <option value="">No default</option>
+                        {(field.choices ?? [])
+                            .filter((choice) => choice.value !== '')
+                            .map((choice) => (
+                                <option key={choice.value} value={choice.value}>
+                                    {choice.label || choice.value}
+                                </option>
+                            ))}
+                    </select>
+                ) : (
+                    <input
+                        id={id}
+                        aria-describedby={describedBy}
+                        type={field.type === 'number' || field.type === 'decimal' ? 'number' : 'text'}
+                        step={field.type === 'decimal' ? 'any' : undefined}
+                        className="ui-input"
+                        placeholder={field.type === 'color' ? '#336699' : undefined}
+                        value={value === null || value === undefined ? '' : String(value)}
+                        onChange={(e) =>
+                            onChange(
+                                e.target.value === '' ? null : field.type === 'number' || field.type === 'decimal' ? Number(e.target.value) : e.target.value,
+                            )
+                        }
+                    />
+                )
+            }
+        </Field>
+    );
+}
+
+function SettingInput({ name, value, fieldType, onChange }: { name: string; value: unknown; fieldType: string; onChange(value: unknown): void }) {
     const spec = SETTINGS[name];
     if (!spec) return null;
+    // A date's bounds are dates, stored as the field stores its values.
+    if ((name === 'min' || name === 'max') && (fieldType === 'date' || fieldType === 'datetime')) {
+        const withTime = fieldType === 'datetime';
+        const shown = typeof value === 'string' ? (withTime ? value.slice(0, 16) : value) : '';
+        return (
+            <Field label={name === 'min' ? 'Earliest' : 'Latest'}>
+                {({ id, describedBy }) => (
+                    <input
+                        id={id}
+                        aria-describedby={describedBy}
+                        type={withTime ? 'datetime-local' : 'date'}
+                        className="ui-input"
+                        value={shown}
+                        onChange={(e) => onChange(e.target.value === '' ? null : withTime ? `${e.target.value}Z` : e.target.value)}
+                    />
+                )}
+            </Field>
+        );
+    }
     if (spec.input === 'toggle') {
         return (
             <label className="flex items-start gap-2 text-ui">

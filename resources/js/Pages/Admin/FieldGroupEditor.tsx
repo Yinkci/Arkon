@@ -65,6 +65,7 @@ export default function FieldGroupEditor({
     const [keyTouched, setKeyTouched] = useState(!creating);
     const [editingField, setEditingField] = useState<{ field: FieldDefinition; index: number } | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [codes, setCodes] = useState<string[]>([]);
     const [badField, setBadField] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
 
@@ -88,6 +89,7 @@ export default function FieldGroupEditor({
         }
         setBusy(true);
         setError(null);
+        setCodes([]);
         setBadField(null);
         const body = {
             ...draft,
@@ -98,8 +100,9 @@ export default function FieldGroupEditor({
         const result = await api<FieldGroupDefinition>(creating ? '/field-groups' : `/field-groups/${draft.key}`, { body }).catch(() => null);
         setBusy(false);
         if (!result?.ok) {
-            const issue = (result?.issues ?? []).find((i) => (i as { fieldKey?: string }).fieldKey);
-            setBadField((issue as { fieldKey?: string } | undefined)?.fieldKey ?? null);
+            const issues = (result?.issues ?? []) as { fieldKey?: string; code?: string }[];
+            setBadField(issues.find((i) => i.fieldKey)?.fieldKey ?? null);
+            setCodes(issues.map((i) => i.code ?? '').filter(Boolean));
             return setError(result?.message ?? 'The field group could not be saved.');
         }
         toast(creating ? `${draft.name} created` : `${draft.name} saved`);
@@ -107,7 +110,9 @@ export default function FieldGroupEditor({
         else setDraft(result.data);
     }
 
-    const removalRefused = error?.includes('would leave the values stored for it unreachable') ?? false;
+    // The server refuses a removal (or rules that take fields off entries) until it is confirmed.
+    const removalRefused = codes.includes('field_removed') || codes.includes('rules_narrowed');
+    const narrowingOnly = removalRefused && !codes.includes('field_removed');
 
     return (
         <AdminLayout>
@@ -135,11 +140,17 @@ export default function FieldGroupEditor({
                 {error && (
                     <Notice
                         tone="error"
-                        title={removalRefused ? 'Removing a field loses what entries stored in it' : 'That could not be saved'}
+                        title={
+                            narrowingOnly
+                                ? 'These rules take the fields off content that has them'
+                                : removalRefused
+                                  ? 'Removing a field loses what entries stored in it'
+                                  : 'That could not be saved'
+                        }
                         action={
                             removalRefused ? (
                                 <Button variant="danger" busy={busy} onClick={() => void save(true)}>
-                                    Remove the field anyway
+                                    {narrowingOnly ? 'Save the rules anyway' : 'Remove the field anyway'}
                                 </Button>
                             ) : undefined
                         }

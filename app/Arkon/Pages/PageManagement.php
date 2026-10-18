@@ -4,7 +4,9 @@ namespace App\Arkon\Pages;
 
 use App\Arkon\Audit\AuditLog;
 use App\Arkon\Components\Factories;
+use App\Arkon\Content\ContentDependencies;
 use App\Arkon\Content\ContentTypeRegistry;
+use App\Arkon\Content\EntryFields;
 use App\Arkon\Content\Relationships;
 use App\Arkon\Database\Transactions;
 use App\Arkon\Design\PageRefreshes;
@@ -83,11 +85,17 @@ class PageManagement
                     'id' => $pageId, 'site_id' => $ctx->siteId, 'kind' => $kind, 'path' => $path, 'title' => $title,
                     'request_key' => $requestKey, 'request_fingerprint' => $fingerprint, 'created_by' => $ctx->userId,
                 ]);
-                $revision = $this->store->insertRevision($ctx, $pageId, $document, $title, $path, $kind === 'page' ? 'Created page' : 'Created '.strtolower($this->types->forSite($ctx->siteId)->get($kind)['label']));
+                // A new entry starts with the defaults its fields declare.
+                $fields = app(EntryFields::class)->defaults($ctx->siteId, $kind);
+                $revision = $this->store->insertRevision($ctx, $pageId, $document, $title, $path, $kind === 'page' ? 'Created page' : 'Created '.strtolower($this->types->forSite($ctx->siteId)->get($kind)['label']), $fields);
                 DB::table('page_drafts')->insert([
                     'page_id' => $pageId, 'site_id' => $ctx->siteId, 'document' => Json::encode($document), 'version' => 1,
                     'checkpoint_revision_id' => $revision['id'], 'checkpoint_version' => 1, 'updated_by' => $ctx->userId,
+                    'fields' => Json::encode((object) $fields),
                 ]);
+                if ($fields !== []) {
+                    app(EntryFields::class)->reindexPage($ctx->siteId, $pageId);
+                }
                 $this->audit->forContext($ctx, 'page.create', 'page', $pageId, ['title' => $title, 'path' => $path, ...($kind === 'page' ? [] : ['kind' => $kind])]);
                 // Runs in the same transaction: a failure creates nothing, and a replay never runs it again.
                 if ($then !== null) {
@@ -306,6 +314,7 @@ class PageManagement
             $epoch = $this->store->lockNextEpoch($ctx->siteId);
             DB::table('live_pages')->where('site_id', $ctx->siteId)->where('page_id', $pageId)->delete();
             MenuService::targetChanged($ctx->siteId, $pageId, $epoch);
+            ContentDependencies::liveContentChanged($ctx->siteId, $epoch);
             $this->audit->forContext($ctx, 'page.unpublish', 'page', $pageId, [
                 'publicationId' => $live->publication_id, 'path' => $live->path, 'epoch' => $epoch,
             ]);
@@ -351,6 +360,7 @@ class PageManagement
             DB::table('pages')->where('id', $pageId)->update(['deleted_at' => now(), 'deleted_by' => $ctx->userId, 'updated_at' => now()]);
             if ($epoch !== null) {
                 MenuService::targetChanged($ctx->siteId, $pageId, $epoch);
+                ContentDependencies::liveContentChanged($ctx->siteId, $epoch);
             }
             $this->audit->forContext($ctx, 'page.delete', 'page', $pageId, [
                 'title' => $row->title, 'path' => $row->path, 'wasLive' => $live !== null, 'livePath' => $live?->path, 'epoch' => $epoch,

@@ -55,7 +55,8 @@ final class ContentItems
         $details = ContentDetails::validated(array_intersect_key($input, array_flip(['excerpt', 'featuredMediaId', 'terms'])));
         $status = self::status($input['status'] ?? 'draft');
         $seo = self::seo($input['seo'] ?? null);
-        $intent = array_filter(['blocks' => $blocks, 'seo' => $seo, 'details' => $details ?: null, 'status' => $status === 'draft' ? null : $status], fn ($v) => $v !== null);
+        $fields = is_array($input['fields'] ?? null) && $input['fields'] !== [] ? $input['fields'] : null;
+        $intent = array_filter(['blocks' => $blocks, 'seo' => $seo, 'details' => $details ?: null, 'fields' => $fields, 'status' => $status === 'draft' ? null : $status], fn ($v) => $v !== null);
         $document = $blocks === null ? null : PublicBlocks::toDocument($ctx->siteId, $blocks, $title, $type['details'] ? 'narrow' : 'default');
         if ($seo !== null || $type['details']) {
             // Posts are articles for search engines (structured data) unless the caller says otherwise.
@@ -66,9 +67,13 @@ final class ContentItems
         $created = $this->management->create($ctx, [
             'title' => $title, 'path' => $path, 'kind' => $kind, 'requestKey' => $key,
             ...($intent === [] ? [] : ['intent' => $intent]), ...($document === null ? [] : ['document' => $document]),
-        ], function (string $pageId) use ($ctx, $details, $status, $key) {
+        ], function (string $pageId) use ($ctx, $details, $status, $key, $input) {
             [$page] = $this->store->lockForWrite($ctx->siteId, $pageId);
             $this->details->updateLocked($ctx, $page, $details);
+            // The entry's own field values, through the same engine the admin saves with.
+            if (is_array($input['fields'] ?? null) && $input['fields'] !== []) {
+                app(EntryFields::class)->updateLocked($ctx, $this->store->loadPage($ctx->siteId, $pageId), $input['fields']);
+            }
             if ($status === 'published') {
                 $this->pages->publish($ctx, ['pageId' => $pageId, 'expectedVersion' => 1, 'idempotencyKey' => substr($key, 0, 80).'-publish']);
             }
@@ -116,6 +121,9 @@ final class ContentItems
             if ($details !== []) {
                 [$page] = $this->store->lockForWrite($ctx->siteId, $id);
                 $this->details->updateLocked($ctx, $page, $details);
+            }
+            if (is_array($input['fields'] ?? null) && $input['fields'] !== []) {
+                app(EntryFields::class)->updateLocked($ctx, $this->store->loadPage($ctx->siteId, $id), $input['fields']);
             }
             if ($status === 'published') {
                 $this->pages->publish($ctx, ['pageId' => $id, 'expectedVersion' => $version, 'idempotencyKey' => self::key()]);

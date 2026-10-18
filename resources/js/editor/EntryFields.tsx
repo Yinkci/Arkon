@@ -42,12 +42,20 @@ export function EntryFields({
     };
 
     async function save() {
+        if (pending) return;
         setPending(true);
         setError(null);
+        // Only what this person changed is sent, with what they saw before changing it, so a
+        // save never overwrites a field somebody else changed meanwhile (the server refuses it).
         // Fields the author emptied are sent as null, which is how a value is cleared.
         const body: Record<string, unknown> = {};
-        for (const field of fields) body[field.key] = values[field.key] ?? null;
-        const result = await api<{ fields: Record<string, unknown> }>(`/pages/${pageId}/fields`, { body: { fields: body } }).catch(() => null);
+        const expected: Record<string, unknown> = {};
+        for (const field of fields) {
+            if (JSON.stringify(values[field.key] ?? null) === JSON.stringify(saved[field.key] ?? null)) continue;
+            body[field.key] = values[field.key] ?? null;
+            expected[field.key] = saved[field.key] ?? null;
+        }
+        const result = await api<{ fields: Record<string, unknown> }>(`/pages/${pageId}/fields`, { body: { fields: body, expected } }).catch(() => null);
         setPending(false);
         if (!result?.ok) return setError(result?.message ?? 'The fields could not be saved.');
         setSaved(result.data.fields);

@@ -52,7 +52,7 @@ class ApiTokenCommand extends Command
     {
         $scopes = array_values(array_filter(array_map('trim', explode(',', (string) $this->option('scopes')))));
         if ($scopes === []) {
-            $this->error('Choose scopes with --scopes. Available: '.implode(', ', array_keys(Scopes::all())));
+            $this->error('Choose scopes with --scopes. Available: '.implode(', ', array_keys(Scopes::all($ctx->siteId))));
 
             return self::FAILURE;
         }

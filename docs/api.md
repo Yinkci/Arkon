@@ -46,6 +46,7 @@ when it is revoked, expires, or its member leaves the site. A token for site A i
 | `read:forms` | all forms and their status |
 | `read:form_entries` | form entries (personal data) |
 | `read:users` | the site's members |
+| `read:content.{type}` / `write:content.{type}` | the same as `read:posts` / `write:posts`, for one content type the site defined (e.g. `read:content.service`); `GET /` lists this site's |
 
 **A scope never grants more than the member's role.** Every request is also authorized against the member's current
 role: an editor's token with `write:posts` can create and change drafts but gets `403 forbidden` when publishing;
@@ -186,6 +187,35 @@ Write content in the **public block format** (schema version 1). Each block beco
   (`200`) instead of creating a duplicate; the same key with another body is a `409`.
 - Every write goes through the same rules as the admin: URL uniqueness, validation, revisions (visible and restorable
   in the builder's History), publish checks and the audit log.
+
+## Your own content types
+
+Every content type the site defined (Admin → Content types) is served under its **key**, which never changes when
+the type is renamed:
+
+```
+GET    /content/{type}          GET /content/{type}/{id}      GET /content/{type}/{id}/seo-analysis
+POST   /content/{type}          PATCH /content/{type}/{id}    DELETE /content/{type}/{id}   POST /content/{type}/{id}/restore
+```
+
+They behave exactly like posts (filters, sorting, `status`, `context=edit`, `Idempotency-Key`, `version`), with
+`read:content.{type}` / `write:content.{type}` scopes. A type that is turned off, or that this site does not have, is a
+`404`. `GET /` lists this site's types under `resources`, and their scopes.
+
+**Fields.** `include=fields` (always included on single items) adds `fields`: the entry's values by field key, typed
+(numbers are numbers, toggles are booleans, dates `YYYY-MM-DD` or ISO 8601 UTC, media `{id}`, relationships
+`{id, type, title, path}`, groups objects, repeaters arrays, content sections arrays of `{_layout, …}`). Anonymous
+readers get the values **as published**; members with the read scope get the draft. Fields marked private are never
+included. Pages and posts carry `fields` too when field groups apply to them.
+
+Write values with `fields` on `POST` / `PATCH`. Only the keys you send change; `null` clears one. They go through the
+type's field rules (a `422` names the field), and publishing applies the `required` rule:
+
+```bash
+curl -X POST -H "Authorization: Bearer arkon_pat_..." -H "Content-Type: application/json" \
+  -d '{"title":"SEO consulting","fields":{"headline":"Be found","price":300},"status":"published"}' \
+  "https://example.com/api/v1/content/service"
+```
 
 ## Categories and tags
 

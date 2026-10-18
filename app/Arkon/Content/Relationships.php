@@ -321,7 +321,7 @@ final class Relationships
      * @param  array<string, mixed>  $values  the entry's own values
      * @return array<string, mixed> the values, with single relationships expanded in place
      */
-    public function expand(string $siteId, array $fields, array $values): array
+    public function expand(string $siteId, array $fields, array $values, bool $live = false): array
     {
         $single = [];
         foreach ($fields as $field) {
@@ -336,7 +336,7 @@ final class Relationships
         if ($single === []) {
             return $values;
         }
-        $targets = $this->valuesOf($siteId, array_values(array_unique($single)));
+        $targets = $this->valuesOf($siteId, array_values(array_unique($single)), $live);
         foreach ($single as $key => $id) {
             if (isset($targets[$id])) {
                 $values[$key] = $targets[$id];
@@ -355,29 +355,32 @@ final class Relationships
      * private fields left out: an entry's private field is not for a public page, and following
      * a relationship must not be a way around that.
      *
-     * Trashed and purged targets are left out here.
+     * Trashed and purged targets are left out here. `$live` is what a published page reads: a
+     * target that is live gives the values it went live with, not its unpublished edits.
      *
      * @param  list<string>  $ids
      * @return array<string, array<string, mixed>>
      */
-    private function valuesOf(string $siteId, array $ids): array
+    private function valuesOf(string $siteId, array $ids, bool $live = false): array
     {
         $rows = DB::table('page_drafts as d')
             ->join('pages as pg', 'pg.id', '=', 'd.page_id')
             ->where('d.site_id', $siteId)->whereIn('d.page_id', $ids)
             ->whereNull('pg.purged_at')->whereNull('pg.deleted_at')
             ->get(['d.page_id', 'd.fields', 'pg.kind', 'pg.title', 'pg.path']);
+        $liveValues = $live ? app(EntryFields::class)->liveValues($siteId, $ids) : [];
+        $contexts = $this->schema->contextsForEntries($siteId, $ids);
         $out = [];
         foreach ($rows as $row) {
-            $values = Json::toArray(Json::decode($row->fields ?? '{}'));
-            $fields = $this->schema->fieldsFor($siteId, ['kind' => $row->kind]);
-            $public = array_column(array_filter($fields, fn ($f) => ! ($f['settings']['private'] ?? false)), 'key');
+            $values = $liveValues[$row->page_id] ?? Json::toArray(Json::decode($row->fields ?? '{}'));
+            $fields = $this->schema->fieldsFor($siteId, $contexts[$row->page_id] ?? ['kind' => $row->kind]);
+            $public = array_values(array_filter($fields, fn ($f) => ! ($f['settings']['private'] ?? false)));
             $out[$row->page_id] = [
                 // The target's title comes along, because "Agent → Name" is most often the
                 // entry's own title rather than a field somebody had to add for it.
                 'title' => $row->title,
                 'path' => $row->path,
-                ...array_intersect_key(is_array($values) ? $values : [], array_flip($public)),
+                ...FieldValues::prune($public, is_array($values) ? $values : []),
             ];
         }
 
@@ -423,8 +426,9 @@ final class Relationships
         foreach ($rows as $row) {
             $fields = array_column($this->schema->fieldsFor($siteId, ['kind' => $row->kind]), null, 'key');
             $field = $fields[$row->field_key] ?? null;
-            // A media field also keeps a ref_id; only a relationship is a dependency on an entry.
-            if (($field['type'] ?? null) !== 'relationship') {
+            // A media field also keeps a ref_id; only a relationship is a dependency on an entry,
+            // directly or inside a group, repeater or section (recorded under the outer field).
+            if (! in_array($field['type'] ?? null, ['relationship', 'group', 'repeater', 'flexible'], true)) {
                 continue;
             }
             $type = $this->types->forSite($siteId)->all()[$row->kind] ?? [];
@@ -484,12 +488,8 @@ final class Relationships
             if ($without === $values) {
                 continue;
             }
-            DB::table('page_drafts')->where('page_id', $id)->update(['fields' => Json::encode($without)]);
-            DB::table('content_field_index')->where('page_id', $id)->delete();
-            $rows = FieldValues::index($definition, $without);
-            if ($rows !== []) {
-                DB::table('content_field_index')->insert(array_map(fn ($row) => [...$row, 'site_id' => $siteId, 'page_id' => $id], $rows));
-            }
+            DB::table('page_drafts')->where('page_id', $id)->update(['fields' => Json::encode((object) $without)]);
+            app(EntryFields::class)->reindexPage($siteId, $id);
             $changed[] = $id;
         }
 

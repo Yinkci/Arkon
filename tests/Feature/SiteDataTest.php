@@ -10,6 +10,7 @@ use App\Arkon\Errors\ConflictException;
 use App\Arkon\Errors\ForbiddenException;
 use App\Arkon\Errors\ValidationException;
 use App\Arkon\Sites\SiteContext;
+use App\Arkon\Support\Json;
 use App\Arkon\Support\Uuid;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
@@ -187,8 +188,10 @@ final class SiteDataTest extends DatabaseTestCase
         $service->update($this->f['ctx'], ['phone' => '+63 900 000 0000']);
 
         // The group is moved off site data; its values are kept but no longer belong here.
-        app(FieldGroupService::class)->update($this->f['ctx'], 'company_information', [...$group, 'rules' => ['groups' => []]]);
+        app(FieldGroupService::class)->update($this->f['ctx'], 'company_information', [...$group, 'rules' => ['groups' => []], 'confirmRemovals' => true]);
         $this->assertSame([], (array) $service->show($this->f['ctx'])['values']);
+        // Saving what remains works: the value of the field moved away is kept, not checked.
+        $this->assertSame('+63 900 000 0000', Json::decode(DB::table('site_data')->where('site_id', $this->f['siteId'])->value('values'))['phone']);
         $this->assertSame([], $service->publicValues($this->f['siteId']));
 
         // Put it back and the value is there again.

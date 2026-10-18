@@ -265,7 +265,15 @@ final class FieldGroupsTest extends DatabaseTestCase
         app(EntryFields::class)->update($this->f['ctx'], $entry, ['short_description' => 'Kept safe']);
 
         $definition = $groups->show($this->f['ctx'], 'service_details');
-        $groups->update($this->f['ctx'], 'service_details', [...$definition, 'rules' => ['groups' => []]]);
+        // Taking the fields off an entry that has values in them is said out loud first.
+        try {
+            $groups->update($this->f['ctx'], 'service_details', [...$definition, 'rules' => ['groups' => []]]);
+            $this->fail('Detached a group from entries holding its values without confirmation');
+        } catch (ValidationException $e) {
+            $this->assertStringContainsString('“Web”', $e->getMessage());
+            $this->assertSame('rules_narrowed', $e->issues[0]['code']);
+        }
+        $groups->update($this->f['ctx'], 'service_details', [...$definition, 'rules' => ['groups' => []], 'confirmRemovals' => true]);
 
         // The entry no longer reads the field, because its type no longer has it…
         $this->assertArrayNotHasKey('short_description', app(EntryFields::class)->drafts($this->f['siteId'], [$entry])[$entry]);

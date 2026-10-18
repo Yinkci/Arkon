@@ -38,8 +38,8 @@ final class ApiTokens
             'name' => ['required', 'string', 'max:100'], 'scopes' => ['required', 'array', 'min:1'], 'scopes.*' => ['string', 'distinct'],
             'expiresAt' => ['nullable', 'date', 'after:now'],
         ]);
-        if (! Scopes::valid($v['scopes'])) {
-            throw new ValidationException('Unknown scope. Choose from: '.implode(', ', array_keys(Scopes::all())), [['path' => 'scopes', 'message' => 'Unknown scope']]);
+        if (! Scopes::valid($v['scopes'], $ctx->siteId)) {
+            throw new ValidationException('Unknown scope. Choose from: '.implode(', ', array_keys(Scopes::all($ctx->siteId))), [['path' => 'scopes', 'message' => 'Unknown scope']]);
         }
         $name = trim($v['name']);
         if ($name === '') {

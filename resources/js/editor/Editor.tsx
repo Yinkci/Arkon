@@ -457,6 +457,9 @@ export function Editor({ init }: { init: EditorInit }) {
         }
     }, [pageId, saver, setActivity, activityRef, setConflict, refreshStatus, blockedByUnresolved]);
 
+    // Field values a restore brought back; a new generation remounts the fields panel with them.
+    const [restoredFields, setRestoredFields] = useState<{ values: Record<string, unknown>; generation: number } | null>(null);
+
     const restore = useCallback(
         async (revision: Revision) => {
             if (activityRef.current !== 'idle' || publishing.current || saver.busy()) return;
@@ -467,7 +470,7 @@ export function Editor({ init }: { init: EditorInit }) {
             const discards = docRef.current.pending.length > 0 || Object.keys(unresolvedRef.current).length > 0;
             if (discards && !confirm('Restoring discards your unsaved changes. Continue?')) return;
             setActivity('restoring');
-            let result: ApiResult<{ version: number; document: PageDocument }>;
+            let result: ApiResult<{ version: number; document: PageDocument; fields?: Record<string, unknown>; fieldsKept?: string[] }>;
             try {
                 result = await api(`/pages/${pageId}/restore`, { body: { revisionId: revision.id, expectedVersion: docRef.current.version } });
             } catch {
@@ -485,7 +488,15 @@ export function Editor({ init }: { init: EditorInit }) {
             commit(initialState(result.data.document, result.data.version));
             replaceUnresolved({});
             outsideChange();
-            setNotice({ tone: 'info', message: `Restored revision #${revision.number} into the draft. Publish to make it live.` });
+            // The entry's field values come back with the revision: the panel starts again from them.
+            if (result.data.fields) setRestoredFields((previous) => ({ values: result.data.fields ?? {}, generation: (previous?.generation ?? 0) + 1 }));
+            const kept = result.data.fieldsKept ?? [];
+            setNotice({
+                tone: 'info',
+                message:
+                    `Restored revision #${revision.number} into the draft. Publish to make it live.` +
+                    (kept.length > 0 ? ` Kept the current ${kept.join(', ')}: today's fields cannot hold what that revision had.` : ''),
+            });
             void refreshStatus();
         },
         [pageId, commit, setActivity, activityRef, unresolvedRef, saver, setConflict, refreshStatus, outsideChange, replaceUnresolved],
@@ -1236,9 +1247,10 @@ export function Editor({ init }: { init: EditorInit }) {
                                             onApply={applySettings}
                                         />
                                         <EntryFields
+                                            key={restoredFields?.generation ?? 0}
                                             pageId={init.page.id}
                                             sections={init.content.sections ?? []}
-                                            initial={init.content.fieldValues ?? {}}
+                                            initial={restoredFields?.values ?? init.content.fieldValues ?? {}}
                                             canEdit={canEdit && !locked}
                                             deprecated={init.content.deprecatedSections}
                                         />
